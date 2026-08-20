@@ -6,6 +6,42 @@ it.
 
 This GitHub repository has no Use this template button. Clone it.
 
+## Install the tools first
+
+`just setup` needs `just` and moon `2.5.1` on `PATH`. The workspace `versionConstraint` in
+`.moon/workspace.yml` is `=2.5.1`. Any other moon release is rejected. proto is the version manager
+that reads `.prototools`. CI installs moon from that file. `just setup` does not install just, moon,
+or proto.
+
+Install proto:
+
+```bash
+bash <(curl -fsSL https://moonrepo.dev/install/proto.sh)
+```
+
+Finish the installer prompt so `~/.proto/bin` is on `PATH`. Then pin moon to the workspace version:
+
+```bash
+proto install moon 2.5.1
+```
+
+Install just from the [just installation guide](https://github.com/casey/just#installation). On
+macOS:
+
+```bash
+brew install just
+```
+
+Confirm before you clone:
+
+```bash
+proto --version
+moon --version
+just --version
+```
+
+`moon --version` must print `2.5.1`.
+
 ## Copy the tree
 
 ```bash
@@ -40,6 +76,7 @@ Leave a template string in place and the next `just new-package` will put `littl
 | Generated application name                                        | `.moon/templates/application/package.json.tera`                                    |
 | Generated Vite source condition                                   | `.moon/templates/application/vite.config.ts.raw`                                   |
 | Source condition in the decision record                           | the `@lilo-moon/source` string in `docs/decisions.md`                              |
+| Changeset changelog repo and ignored private app                  | `changelog.repo` and `ignore` in `.changeset/config.json`                          |
 
 The source condition is a matching pair. The key in `exports` and the string in
 `resolve.conditions` must be the same. Node's standard conditions stay pointed at `dist`. Why is
@@ -51,19 +88,24 @@ the library generator to the same SPDX id.
 `publishConfig.access` on the library generator is `"public"`. Change it if the package is not
 public.
 
+`.changeset/config.json` `changelog.repo` is `littleorgans/lilo-moon-template`. Leave it and
+changeset version emits changelog links to that repository. `ignore` is `@lilo-moon/web`. Rename it
+with the application, or changeset will keep ignoring a package that no longer exists.
+
 Search for leftovers:
 
 ```bash
 git grep -n 'lilo-moon\|littleorgans\|@lilo-moon'
 ```
 
-After you change every table row and run `pnpm install`, search again. The remaining hits are this
-page (the clone URL, the table, the grep, and this leftover list), the historical CI URLs in
-AGENTS.md, and the comment `Independent of littleorgans` in `.moon/workspace.yml`. Update the URLs
-if you do not want them, or leave them as the worked red and green example they are. The comment
-is not an identity string. Rewrite this page if you do not want the old names as examples. If
-`pnpm-lock.yaml` still matches, run `pnpm install`. A leftover `@lilo-moon` in a generator template
-will reappear on the next `just new-package`.
+After you change every table row and run `pnpm install`, search again. Hits should be limited to
+this guide's worked values, the historical CI URLs in AGENTS.md, and the comment `Independent of
+littleorgans` in `.moon/workspace.yml`. The worked values include the clone URL, rename table,
+changeset warning, search command, and this paragraph. Update the URLs if you do not want them, or
+leave them as the red and green gate examples. The workspace comment is not an identity string.
+Any other hit is an unfinished rename. If `pnpm-lock.yaml` still matches, rerun `pnpm install` and
+search again. A leftover `@lilo-moon` in a generator template will reappear on the next
+`just new-package`.
 
 Do not change `packageManager`, `engines`, catalog pins, or the moon version. Those are the
 baseline.
@@ -86,21 +128,46 @@ moon project console
 `moon project` must print the project id, its layer, and the inherited tasks. If it does not, moon
 did not discover the member. Do not delete the exemplars.
 
+## Attach the application to the library
+
+The generators do not add a workspace dependency. `moon sync` does not infer one from an import.
+Typecheck then fails with TS2307 `Cannot find module`.
+
+Copy the dependency shape from `apps/web/package.json` before you delete that exemplar. In
+`apps/console/package.json` `dependencies`, add the generated library with `workspace:*`:
+
+```json
+"@your-scope/billing": "workspace:*"
+```
+
+Use the scope and names you just chose. Then:
+
+```bash
+pnpm install
+moon sync
+moon project console
+```
+
+`moon project console` must list `Depends on: billing`. Import the library from the application.
 Replace the generated `formatLabel` body, or the generated `App` heading, with something that is
 wrong. `moon run billing:test` or `moon run console:test` must fail. Restore the body. Then run
 `just ci`.
+
+Do this before you delete `apps/web`. After the delete, the only worked `workspace:*` example is
+gone.
 
 You now have your own members plus the exemplars. Keep it that way until the next section is green.
 
 ## Delete the exemplars
 
-Delete `packages/collections` and `apps/web` only after your replacements exist. The application
-exemplar depends on the library exemplar. Deleting one and not generating a replacement leaves a
-broken workspace.
+Delete `packages/collections` and `apps/web` only after your replacements exist and the new
+application already depends on the new library. The application exemplar depends on the library
+exemplar. Deleting one and not generating a replacement leaves a broken workspace.
 
 Keep both exemplars if you are not yet replacing that layer. A repo that will not ship a library
 can drop `packages/collections` once no remaining `package.json` lists it. A repo that will not
-ship a Vite React app can drop `apps/web`.
+ship a Vite React app can drop `apps/web`. Keep `services/ping` if you want a Rust member. Drop it
+if you do not.
 
 ```bash
 rm -rf packages/collections apps/web
@@ -111,32 +178,34 @@ moon sync
 `moon project collections` and `moon project web` must fail to resolve.
 
 `moon sync` adds new `references` in the root `tsconfig.json`. It does not drop a path whose
-project is gone. `just ci` can still pass, because each member typechecks from its own directory.
-A root `tsc --build` and the editor both read the stale paths and fail with TS6053. That is #32.
+project is gone. `moon.yml` `tasks.project-refs` runs `tsc --build --pretty --dry` and fails
+`just ci` with TS6053 until you prune. Per-project typecheck does not catch this.
 
 Remove every `references` entry whose path no longer exists. Leave `compilerOptions.outDir` and
 every remaining path alone. Then:
 
 ```bash
-pnpm exec tsc --build --pretty
 just ci
 ```
 
-The root `tsc --build` must exit 0 with no TS6053. The `references` array must list only the
-members you kept.
+`moon.yml` `tasks.project-refs` must exit 0 with no TS6053. The `references` array must list only
+the members you kept.
 
 ## What you must not delete
 
 These are the baseline. Removing any of them is a fork, not an instantiation.
 
 - `.moon/workspace.yml`, `.moon/toolchains.yml`, `.moon/tasks/`, `.moon/templates/`
-- `moon.yml` at the repository root, including `tasks.lint`, `tasks.format-check`, and
-  `inheritedTasks.include`
+- `moon.yml` at the repository root, including `tasks.lint`, `tasks.format-check`,
+  `tasks.project-refs`, `tasks.secrets`, `tasks.audit`, and `inheritedTasks.include`
 - `justfile`
-- `scripts/assert-tsgolint-lockstep.mjs` and `.moon/tasks/tsgolint-lockstep.yml`
+- `scripts/assert-tsgolint-lockstep.mjs`, `scripts/check-security.mjs`, and
+  `.moon/tasks/tsgolint-lockstep.yml`
 - `pnpm-workspace.yaml` catalogs
 - `tsconfig.options.json`
 - `.oxlintrc.json` and `.oxfmtrc.json`
+- `lefthook.yml`, lefthook `scripts.prepare` in the root `package.json`, and `commitlint.config.js`
+- `.changeset/`
 - `.github/workflows/ci.yml`
 - `renovate.json`
 - `.vscode/extensions.json` and `.vscode/settings.json`
@@ -145,24 +214,25 @@ These are the baseline. Removing any of them is a fork, not an instantiation.
 - `.editorconfig`
 - `AGENTS.md`
 
-`services/` is an empty glob in both `.moon/workspace.yml` `projects.globs` and
-`pnpm-workspace.yaml` `packages`. Leave the glob. Add a member there when you have one.
+`services/` is a glob in both `.moon/workspace.yml` `projects.globs` and `pnpm-workspace.yaml`
+`packages`. Leave the glob. `services/ping` is the Rust exemplar. The Rust toolchain is on in
+`.moon/toolchains.yml`. Python stays commented until a Python member lands.
 
-Rust and Python toolchains are commented out in `.moon/toolchains.yml`. Enable the toolchain when
-the first member of that language lands, not before. The proof that a repo with no TypeScript still
-works is #14 and is unbuilt.
+A clone that keeps only ping still runs `pnpm install` for the root oxlint, oxfmt, secretlint, and
+audit gates. Those tools live in `devDependencies` in the root `package.json`. A Rust-only
+`moon ci` still installs that JavaScript toolchain.
 
 ## Prove the result is healthy
 
-The renamed tree must pass `just ci` and a root `pnpm exec tsc --build --pretty` with no TS6053.
-From a generated library directory, `npm pack --dry-run` lists `dist` and `src`. No packed `.map`
-entry may point at a path outside the package.
+The renamed tree must pass `just ci`. From a generated library directory, `npm pack --dry-run`
+lists `dist` and `src`. No packed `.map` entry may point at a path outside the package.
 
 Then prove the gates can fail. Follow [Prove every gate](../AGENTS.md#prove-every-gate). Do not
-skip that procedure because a coverage threshold, a future changeset, or a future hook might be
-stricter.
+skip that procedure because `lefthook.yml`, a changeset, or a coverage threshold might be stricter.
 
-Changesets (#6), git hooks (#7), and supply chain gates (#11) are not there to help you.
+`lefthook.yml` runs `root:format-check`, `root:lint`, and `root:secrets` before a commit. Its
+`commit-msg` hook runs commitlint. `just ci` also runs `root:secrets` and `root:audit`. Add a
+changeset with `pnpm exec changeset` before you publish a library.
 
 ## After this page
 
