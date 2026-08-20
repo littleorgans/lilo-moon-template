@@ -13,7 +13,10 @@ tasks:
       tsc --project tsconfig.build.json --emitDeclarationOnly
     inputs:
       - "@globs(sources)"
+      - "package.json"
+      - "tsconfig.json"
       - "tsconfig.build.json"
+      - "/tsconfig.options.json"
     outputs:
       - "dist"
     options:

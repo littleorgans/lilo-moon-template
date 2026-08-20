@@ -2,8 +2,15 @@
   "name": "@lilo-moon/collections",
   "version": "0.0.0",
   "description": "Small, typed collection operations for JavaScript and TypeScript.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/littleorgans/lilo-moon-template.git",
+    "directory": "packages/collections"
+  },
   "files": [
-    "dist"
+    "dist",
+    "src"
   ],
   "type": "module",
   "sideEffects": false,

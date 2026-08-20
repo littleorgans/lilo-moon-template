@@ -3,6 +3,10 @@ import { describe, expect, it } from "vitest";
 import { groupBy, partition } from "../src/index.js";
 
 describe("groupBy", () => {
+  it("returns an empty map for empty input", () => {
+    expect(groupBy([], (value) => value)).toEqual(new Map());
+  });
+
   it("preserves group and value encounter order", () => {
     const events = [
       { kind: "deploy", id: 1 },
@@ -20,13 +24,17 @@ describe("groupBy", () => {
 });
 
 describe("partition", () => {
+  it("returns two empty arrays for empty input", () => {
+    expect(partition([], () => true)).toEqual([[], []]);
+  });
+
   it("passes each value and its encounter index to the predicate", () => {
     const [matching, remaining] = partition(
       new Set([10, 20, 30, 40]),
-      (_, index) => index % 2 === 0,
+      (value, index) => value >= 20 && index % 2 === 0,
     );
 
-    expect(matching).toEqual([10, 30]);
-    expect(remaining).toEqual([20, 40]);
+    expect(matching).toEqual([30]);
+    expect(remaining).toEqual([10, 20, 40]);
   });
 });
