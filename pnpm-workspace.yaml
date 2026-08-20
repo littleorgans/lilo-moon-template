@@ -28,5 +28,32 @@ catalogs:
     react: ">=19"
     react-dom: ">=19"
 
+# pnpm 11 reads these from this file. A project .npmrc is auth and registry only.
+autoInstallPeers: false
+strictPeerDependencies: true
+resolutionMode: highest
+
+# Dependency lifecycle scripts do not run. Add an allowBuilds entry to approve
+# one package. Unreviewed scripts fail the install.
+strictDepBuilds: true
+
+# Transitive git and tarball dependencies are blocked.
+blockExoticSubdeps: true
+
+# Newly published versions wait one day. Setting this explicitly turns on
+# minimumReleaseAgeStrict; the implicit 1440 default does not.
+minimumReleaseAge: 1440
+minimumReleaseAgeExcludePrune: true
+# 6.1.0 was published inside the window when the application exemplar locked it.
 minimumReleaseAgeExclude:
   - "@vitejs/plugin-react@6.1.0"
+
+# Fail install when a version's publish trust is weaker than earlier releases.
+trustPolicy: no-downgrade
+trustLockfile: false
+
+# High and critical advisories fail CI. Unfixable ones still fail until a GHSA
+# is listed under ignore with a reason and ISO expiry. The secrets task rejects
+# missing, invalid, duplicate, or expired policy comments.
+audit:
+  level: high
