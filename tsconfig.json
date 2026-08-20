@@ -1,7 +1,11 @@
 {
   "extends": "./tsconfig.options.json",
   "files": [],
-  "references": [],
+  "references": [
+    {
+      "path": "./packages/collections"
+    }
+  ],
   "compilerOptions": {
     "outDir": ".moon/cache/types"
   }

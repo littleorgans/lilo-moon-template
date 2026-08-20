@@ -1,0 +1,24 @@
+{
+  "name": "@lilo-moon/collections",
+  "version": "0.0.0",
+  "description": "Small, typed collection operations for JavaScript and TypeScript.",
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=24.19.0"
+  }
+}

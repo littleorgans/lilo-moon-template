@@ -38,8 +38,6 @@ tasks:
       - "@globs(sources)"
       - "@globs(tests)"
       - "@globs(configs)"
-    outputs:
-      - "coverage"
     options:
       runInCI: "always"
 
