@@ -30,16 +30,32 @@ function dockerIsAvailable() {
 }
 
 function waitForPostgres(container) {
-  for (let attempt = 0; attempt < 60; attempt += 1) {
+  const deadline = Date.now() + 15_000;
+  while (Date.now() < deadline) {
     const ready = spawnSync(
       "docker",
-      ["exec", container, "pg_isready", "--username", "postgres", "--dbname", "app"],
+      [
+        "exec",
+        container,
+        "pg_isready",
+        "--host",
+        "127.0.0.1",
+        "--timeout",
+        "1",
+        "--username",
+        "postgres",
+        "--dbname",
+        "app",
+      ],
       { stdio: "ignore" },
     );
     if (ready.status === 0) return;
-    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 250);
+    const remaining = deadline - Date.now();
+    if (remaining > 0) {
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, Math.min(250, remaining));
+    }
   }
-  throw new Error("Postgres did not become ready within 15 seconds.");
+  throw new Error("Postgres did not accept TCP connections within 15 seconds.");
 }
 
 function listFiles(directory, root = directory) {
