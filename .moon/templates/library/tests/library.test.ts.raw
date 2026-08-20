@@ -1,0 +1,9 @@
+import { describe, expect, it } from "vitest";
+
+import { formatLabel } from "../src/index.js";
+
+describe("formatLabel", () => {
+  it("normalizes separators and capitalization", () => {
+    expect(formatLabel(" moon_generator ")).toBe("Moon Generator");
+  });
+});

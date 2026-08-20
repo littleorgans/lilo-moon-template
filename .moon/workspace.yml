@@ -5,6 +5,10 @@
 # `moon-version` in `.github/workflows/ci.yml`. Independent of littleorgans.
 versionConstraint: "=2.5.1"
 
+generator:
+  templates:
+    - "./.moon/templates"
+
 projects:
   globs:
     - "apps/*"

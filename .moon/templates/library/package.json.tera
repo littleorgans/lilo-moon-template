@@ -1,0 +1,32 @@
+{
+  "name": "@lilo-moon/{{ name | kebab_case }}",
+  "version": "0.0.0",
+  "description": "Formats delimited labels for display.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/littleorgans/lilo-moon-template.git",
+    "directory": "packages/{{ name | kebab_case }}"
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "@lilo-moon/source": "./src/index.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=24.19.0"
+  }
+}

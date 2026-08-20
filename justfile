@@ -17,5 +17,11 @@ ci:
 setup:
     moon setup
 
+new-package name:
+    moon generate library -- --name "{{name}}"
+
+new-app name:
+    moon generate application -- --name "{{name}}"
+
 clean:
     moon clean
