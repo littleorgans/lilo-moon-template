@@ -70,11 +70,12 @@ tasks:
       cache: false
       runInCI: false
 
-  # --dry reports TS6053 for a dangling path and does not emit.
+  # A workspace without a root tsconfig has no project references to check.
+  # When it exists, --dry reports TS6053 for a dangling path and does not emit.
   # Member config globs invalidate the task on additions, removals, and edits.
   project-refs:
     type: "test"
-    command: "tsc --build --pretty --dry"
+    script: "test ! -f tsconfig.json || tsc --build --pretty --dry"
     inputs:
       - "apps/*/tsconfig*.json"
       - "packages/*/tsconfig*.json"
