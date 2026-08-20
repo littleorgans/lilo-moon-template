@@ -1,0 +1,3 @@
+# Exact moon binary pin. Must match versionConstraint in .moon/workspace.yml
+# and moon-version in .github/workflows/ci.yml.
+moon = "2.5.1"

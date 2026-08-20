@@ -5,9 +5,13 @@ layer: "application"
 
 # The root is a task holder, not a TypeScript project. It must not inherit
 # the per-project tasks in .moon/tasks/node.yml.
+# inheritedTasks.include stops tasks, not fileGroups. replace keeps the
+# root sources list from merging with node.yml globs.
 workspace:
   inheritedTasks:
     include: []
+  mergeStrategies:
+    fileGroups: "replace"
 
 fileGroups:
   sources:
@@ -18,7 +22,11 @@ fileGroups:
     - "scripts/**/*"
     - "package.json"
     - "pnpm-workspace.yaml"
+    - "tsconfig.json"
     - "tsconfig.options.json"
+  # Empty lists replace inherited node.yml globs for these group names.
+  configs: []
+  tests: []
 
 tasks:
   lint:
