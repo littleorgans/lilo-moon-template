@@ -110,6 +110,18 @@ deliberate oxfmt violation. Run
 the violation was reverted. The red run proves the workflow observed real work; the green run proves
 the valid state.
 
+## Write tests
+
+- Put focused project tests directly under `tests/`. Put tests that cross a package, process,
+  network, or storage boundary under `tests/integration/`.
+- Name both kinds `*.test.*` or `*.spec.*`. The shared `vitest.config.ts` discovers those names and
+  measures every source file under `src/`.
+- Run `moon run <project>:test-coverage` for the narrow coverage gate. Moon runs that task for every
+  JavaScript project in `moon check --all` and `moon ci`.
+- Treat the coverage thresholds as a floor for untested code. Prove each test's assertion by making
+  the named behavior wrong, observing the test fail, and restoring the implementation before
+  delivery.
+
 ## Follow JavaScript and TypeScript rules
 
 - Keep `oxlint-tsgolint` installed when `tasks.lint.command` in `moon.yml` uses `--type-aware`.
