@@ -1,0 +1,20 @@
+# Workspace pin check. Root sets inheritedTasks.include to [] so it cannot
+# inherit this file; every JavaScript project does. The script reads the
+# workspace manifests, not the inheriting project.
+
+inheritedBy:
+  toolchains: ["javascript"]
+
+tasks:
+  tsgolint-lockstep:
+    type: "test"
+    command: "node"
+    args:
+      - "$workspaceRoot/scripts/assert-tsgolint-lockstep.mjs"
+    inputs:
+      - "/package.json"
+      - "/pnpm-workspace.yaml"
+      - "/scripts/assert-tsgolint-lockstep.mjs"
+    options:
+      runFromWorkspaceRoot: true
+      runInCI: "always"
