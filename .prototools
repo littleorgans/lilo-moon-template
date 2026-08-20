@@ -1,3 +1,7 @@
-# Exact moon binary pin. Must match versionConstraint in .moon/workspace.yml
-# and moon-version in .github/workflows/ci.yml.
+# Install pin. CI proto install (setup-toolchain auto-install) reads this file.
+# versionConstraint in .moon/workspace.yml must equal this version.
 moon = "2.5.1"
+
+[settings]
+# Without this, proto install also reads package.json engines and would install Node 26.
+detect-strategy = "only-prototools"
