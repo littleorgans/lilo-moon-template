@@ -92,7 +92,8 @@ PostgREST returns `PGRST301 JWSInvalidSignature` for WorkOS tokens. That is a Wo
 
 Postgres is deferred until the product has data. A template without a database is incomplete only
 if you think a schema can be invented before the product. It cannot. Atlas, Drizzle, and the host
-boundary are decisions for when that data exists. None of them are in the tree. #21, #22, #23, #24.
+boundary are decisions for when that data exists. Atlas and Drizzle are not in the
+tree. #21, #22, #23.
 
 Atlas is the migration engine. Native SQL is the schema source of truth, so every language is a
 first class consumer. `atlas migrate lint` is the reason to accept Atlas over dbmate,
@@ -106,19 +107,8 @@ defaults pulled as strings, partitioned parents dropped, and index opclasses los
 generated columns, and partial indexes are not a claimed pull surface. Pull output is generated
 after Atlas apply. It is never a source, and it is never fed back into a migration.
 
-Supabase is a Postgres host. The portable boundary is the Postgres wire protocol. A swap to another
-host is a connection string. Storage, Realtime, Edge Functions, and PostgREST are Supabase
-products. If they are adopted they live in a contained module.
-
-If the identity vendor is WorkOS, do not send that JWT to PostgREST. supabase/auth#2476 is the
-open bug named above. RLS still holds on a direct Postgres connection for any vendor: verify the
-JWT in process with that vendor's JWKS, then `set local role authenticated` and `set_config` for
-`request.jwt.claims` and `request.jwt.claim.sub` so `auth.uid()` and `auth.jwt()` work.
-Re-evaluate PostgREST for WorkOS tokens when that issue closes.
-
-The official Python client talks to the Data API. There is no official Rust Supabase SDK.
-`supabase-lib-rs` is a community crate last published 2025-10-16. Rust talks to Postgres through
-sqlx. Python SQL talks through psycopg.
+Which capabilities stay portable across hosts is
+[Supabase as a Postgres host](supabase-boundary.md).
 
 ## JavaScript library exports
 
