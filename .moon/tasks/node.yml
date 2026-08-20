@@ -4,6 +4,12 @@
 inheritedBy:
   toolchains: ["javascript"]
 
+# Workspace packages export dist. Every javascript consumer, library or
+# application, waits on dependency builds so it does not typecheck or bundle
+# a missing or stale dist.
+implicitDeps:
+  - "^:build"
+
 fileGroups:
   sources:
     - "src/**/*"

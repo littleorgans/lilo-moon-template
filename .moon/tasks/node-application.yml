@@ -1,0 +1,42 @@
+# Inherited only by JavaScript applications. Library build tasks belong in
+# node-library.yml. Keep this out of node.yml so libraries do not grow a
+# Vite dev server.
+
+inheritedBy:
+  toolchains: ["javascript"]
+  layers: ["application"]
+
+tasks:
+  build:
+    type: "build"
+    command: "vite build"
+    inputs:
+      - "@globs(sources)"
+      - "package.json"
+      - "tsconfig.json"
+      - "vite.config.*"
+      - "index.html"
+      - "public/**/*"
+      - "/tsconfig.options.json"
+    outputs:
+      - "dist"
+    options:
+      runInCI: "always"
+
+  dev:
+    type: "run"
+    command: "vite"
+    options:
+      cache: false
+      persistent: true
+      runInCI: false
+
+  preview:
+    type: "run"
+    command: "vite preview"
+    deps:
+      - "~:build"
+    options:
+      cache: false
+      persistent: true
+      runInCI: false
