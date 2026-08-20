@@ -29,9 +29,11 @@ typescript:
   createMissingConfig: false
   routeOutDirToCache: true
 
-# Reserved. Enable when the first Rust project lands.
-# rust:
-#   version: "1.95"
+# Pins rustup's 1.95 channel. clippy is the lint gate for Cargo projects.
+rust:
+  version: "1.95"
+  components:
+    - "clippy"
 
 # Reserved. Python toolchains are still marked unstable in moon 2.5.
 # unstable_python:

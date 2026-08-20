@@ -1,0 +1,43 @@
+# Inherited by every project that uses the Rust toolchain.
+# A project overrides a task by redeclaring it in its own moon.yml.
+
+inheritedBy:
+  toolchains: ["rust"]
+
+fileGroups:
+  sources:
+    - "src/**/*"
+    - "Cargo.toml"
+    - "Cargo.lock"
+  tests:
+    - "tests/**/*"
+
+env:
+  CARGO_TERM_COLOR: "always"
+
+tasks:
+  build:
+    type: "build"
+    command: "cargo build"
+    inputs:
+      - "@globs(sources)"
+    options:
+      runInCI: "always"
+
+  test:
+    type: "test"
+    command: "cargo test"
+    inputs:
+      - "@globs(sources)"
+      - "@globs(tests)"
+    options:
+      runInCI: "always"
+
+  lint:
+    type: "test"
+    command: "cargo clippy --all-targets -- -D warnings"
+    inputs:
+      - "@globs(sources)"
+      - "@globs(tests)"
+    options:
+      runInCI: "always"
