@@ -4,7 +4,7 @@
   "categories": {
     "correctness": "error",
     "suspicious": "error",
-    "perf": "warn",
+    "perf": "error",
     "pedantic": "off"
   },
   "rules": {
@@ -23,9 +23,9 @@
     "typescript/no-floating-promises": "error",
     "typescript/no-misused-promises": "error",
     "typescript/await-thenable": "error",
-    "typescript/no-explicit-any": "warn",
+    "typescript/no-explicit-any": "error",
     "promise/prefer-await-to-then": "error",
-    "no-console": ["warn", { "allow": ["warn", "error"] }],
+    "no-console": ["error", { "allow": ["warn", "error"] }],
     "eqeqeq": ["error", "always", { "null": "ignore" }]
   },
   "ignorePatterns": [

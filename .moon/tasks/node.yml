@@ -20,6 +20,7 @@ fileGroups:
 
 tasks:
   typecheck:
+    type: "build"
     command: "tsc --build --pretty"
     inputs:
       - "@globs(sources)"
@@ -31,6 +32,7 @@ tasks:
       runInCI: "always"
 
   test:
+    type: "test"
     command: "vitest run"
     inputs:
       - "@globs(sources)"
@@ -42,6 +44,7 @@ tasks:
       runInCI: "always"
 
   test-watch:
+    type: "run"
     command: "vitest"
     options:
       cache: false

@@ -3,6 +3,12 @@
 
 layer: "application"
 
+# The root is a task holder, not a TypeScript project. It must not inherit
+# the per-project tasks in .moon/tasks/node.yml.
+workspace:
+  inheritedTasks:
+    include: []
+
 fileGroups:
   sources:
     - ".moon/**/*"
@@ -16,7 +22,8 @@ fileGroups:
 
 tasks:
   lint:
-    command: "oxlint --type-aware"
+    type: "test"
+    command: "oxlint --type-aware --deny-warnings --no-error-on-unmatched-pattern"
     inputs:
       - "@globs(sources)"
       - ".oxlintrc.json"
@@ -24,30 +31,23 @@ tasks:
       runInCI: "always"
 
   lint-fix:
-    command: "oxlint --type-aware --fix"
+    type: "run"
+    command: "oxlint --type-aware --fix --no-error-on-unmatched-pattern"
     options:
       cache: false
       runInCI: false
 
   format-check:
-    command: "oxfmt --check"
+    type: "test"
+    command: "oxfmt --check --no-error-on-unmatched-pattern"
     inputs:
       - "@globs(sources)"
     options:
       runInCI: "always"
 
   format:
-    command: "oxfmt"
-    options:
-      cache: false
-      runInCI: false
-
-  check:
-    deps:
-      - "format-check"
-      - "lint"
-      - "~:typecheck"
-      - "~:test"
+    type: "run"
+    command: "oxfmt --no-error-on-unmatched-pattern"
     options:
       cache: false
       runInCI: false
