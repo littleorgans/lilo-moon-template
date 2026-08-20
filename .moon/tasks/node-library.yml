@@ -1,0 +1,23 @@
+# Inherited only by publishable JavaScript libraries. Application build tasks
+# belong in their own layer-scoped task file.
+
+inheritedBy:
+  toolchains: ["javascript"]
+  layers: ["library"]
+
+tasks:
+  build:
+    type: "build"
+    script: >-
+      tsc --project tsconfig.build.json --declaration false --declarationMap false &&
+      tsc --project tsconfig.build.json --emitDeclarationOnly
+    inputs:
+      - "@globs(sources)"
+      - "package.json"
+      - "tsconfig.json"
+      - "tsconfig.build.json"
+      - "/tsconfig.options.json"
+    outputs:
+      - "dist"
+    options:
+      runInCI: "always"
