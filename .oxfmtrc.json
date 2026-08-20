@@ -1,14 +1,14 @@
 {
-  "$schema":"./node_modules/oxfmt/configuration_schema.json",
-  "printWidth":100,
-  "singleQuote":false,
-  "semi":true,
-  "trailingComma":"all",
-  "arrowParens":"always",
-  "bracketSpacing":true,
-  "endOfLine":"lf",
-  "quoteProps":"as-needed",
-  "sortImports":true,
-  "sortPackageJson":true,
-  "ignorePatterns":["**/*.gen.*", "**/_generated/**", "pnpm-lock.yaml"]
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  "printWidth": 100,
+  "singleQuote": false,
+  "semi": true,
+  "trailingComma": "all",
+  "arrowParens": "always",
+  "bracketSpacing": true,
+  "endOfLine": "lf",
+  "quoteProps": "as-needed",
+  "sortImports": true,
+  "sortPackageJson": true,
+  "ignorePatterns": ["**/*.gen.*", "**/_generated/**", "pnpm-lock.yaml"]
 }
