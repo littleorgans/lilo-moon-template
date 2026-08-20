@@ -112,7 +112,13 @@ tasks:
     description: "Reject unsafe versioned migrations"
     type: "test"
     toolchains: "system"
+    # Local checks are a fast subset and announce a missing Docker daemon.
+    # CI is authoritative: with a schema, Docker or Atlas failure fails the gate.
     script: |
+      if test -z "${CI:-}" && ! docker info >/dev/null 2>&1; then
+        echo "Atlas lint skipped locally: Docker is unavailable; CI will run it."
+        exit 0
+      fi
       selector="${MOON_BASE:+--git-base=$MOON_BASE}"
       selector="${selector:---latest=1}"
       atlas migrate lint \
