@@ -17,10 +17,13 @@
     "@secretlint/secretlint-rule-preset-recommend": "13.0.4",
     "@types/node": "catalog:",
     "@vitest/coverage-v8": "catalog:",
+    "drizzle-kit": "catalog:",
+    "drizzle-orm": "catalog:",
     "lefthook": "2.1.10",
     "oxfmt": "0.64.0",
     "oxlint": "1.79.0",
     "oxlint-tsgolint": "7.0.2001",
+    "pg": "catalog:",
     "secretlint": "13.0.4",
     "typescript": "catalog:",
     "vitest": "catalog:"
