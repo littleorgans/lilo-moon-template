@@ -28,8 +28,13 @@ Workspace members:
 and other application stacks are added by hand. Follow [Add a workspace member](AGENTS.md#add-a-workspace-member)
 in AGENTS.md.
 
-Quality gates live in `moon.yml` at the root and in `.moon/tasks/`. Local repair then verify is
-`just check`. The read only proof, and the command CI runs, is `just ci`.
+Quality gates live in `moon.yml` at the root and in `.moon/tasks/`. How to run them is
+[Run the gates](AGENTS.md#run-the-gates) in AGENTS.md.
+
+Vitest coverage thresholds in `vitest.config.ts` are statements 80, branches 75, functions 80, and
+lines 80, applied per project and per file. They are a floor for untested code. A test is still
+unproven until a wrong implementation fails it. That rule is [Write tests](AGENTS.md#write-tests)
+in AGENTS.md.
 
 ## Clone to green
 
@@ -44,7 +49,7 @@ just ci
 ```
 
 `just setup` is `moon setup`. It installs the Node and pnpm versions from `.moon/toolchains.yml`.
-`just ci` is `moon ci`, the same command as `jobs.ci` in `.github/workflows/ci.yml`.
+The last command is the delivery proof in [Run the gates](AGENTS.md#run-the-gates).
 
 A green run on a clone of main means the committed tree already satisfies the gates. A gate you
 have not seen fail is still unproven. That rule, and how to prove it, is in AGENTS.md under
@@ -61,8 +66,9 @@ moon sync
 
 `new-package` runs `moon generate library`. `new-app` runs `moon generate application`. Both write a
 member that already typechecks, tests, lints, formats, and builds. `moon sync` adds new
-`references` in the root `tsconfig.json`. After you delete a member, prune the missing path. The
-instantiation guide covers that step.
+`references` in the root `tsconfig.json`. After you delete a member, prune the missing path. That
+command does not drop a path whose project is gone. Root `tsc --build` then fails with TS6053
+while `just ci` can still pass. That is #32. The instantiation guide covers the prune.
 
 Inspect the result with `moon project billing` and `moon project console`. Then prove the gates can
 fail, as AGENTS.md requires, before trusting `just ci`.
@@ -71,7 +77,6 @@ fail, as AGENTS.md requires, before trusting `just ci`.
 
 Filed, unbuilt. Do not treat any of these as present:
 
-- Vitest coverage thresholds: #5
 - Changesets and a generated changelog: #6
 - lefthook and commitlint: #7
 - Supply chain and secret hygiene gates: #11
@@ -79,6 +84,7 @@ Filed, unbuilt. Do not treat any of these as present:
 - Atlas, Drizzle as a generated artifact, the auth adapter seam, and the Supabase host boundary:
   #21, #22, #23, #24
 - Renovate coverage for `.prototools`: #29
+- Root `tsconfig.json` `references` left behind after a member is deleted: #32
 
 App stack, license, package scope, and registry are choices for the consuming repo. The decision
 record lists what is already settled so those choices stay in the consuming repo and out of this

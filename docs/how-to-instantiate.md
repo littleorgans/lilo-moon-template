@@ -30,6 +30,7 @@ Leave a template string in place and the next `just new-package` will put `littl
 | What                                                              | Where                                                                              |
 | ----------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
 | Workspace name                                                    | `name` in the root `package.json`                                                  |
+| README heading, clone URL, and `cd` directory                     | `README.md`                                                                        |
 | Library name, `license`, `repository.url`, `repository.directory` | `packages/collections/package.json`                                                |
 | Library source condition                                          | the `@lilo-moon/source` key under `exports` in `packages/collections/package.json` |
 | Application name and workspace dependency                         | `apps/web/package.json`                                                            |
@@ -38,6 +39,7 @@ Leave a template string in place and the next `just new-package` will put `littl
 | Generated library name, `license`, `repository`, source condition | `.moon/templates/library/package.json.tera`                                        |
 | Generated application name                                        | `.moon/templates/application/package.json.tera`                                    |
 | Generated Vite source condition                                   | `.moon/templates/application/vite.config.ts.raw`                                   |
+| Source condition in the decision record                           | the `@lilo-moon/source` string in `docs/decisions.md`                              |
 
 The source condition is a matching pair. The key in `exports` and the string in
 `resolve.conditions` must be the same. Node's standard conditions stay pointed at `dist`. Why is
@@ -55,10 +57,13 @@ Search for leftovers:
 git grep -n 'lilo-moon\|littleorgans\|@lilo-moon'
 ```
 
-After `pnpm install`, the remaining hits are the historical CI URLs in AGENTS.md and the comment
-`Independent of littleorgans` in `.moon/workspace.yml`. Update the URLs if you do not want them, or
-leave them as the worked red and green example they are. The comment is not an identity string.
-A leftover `@lilo-moon` in a generator template will reappear on the next `just new-package`.
+After you change every table row and run `pnpm install`, search again. The remaining hits are this
+page (the clone URL, the table, the grep, and this leftover list), the historical CI URLs in
+AGENTS.md, and the comment `Independent of littleorgans` in `.moon/workspace.yml`. Update the URLs
+if you do not want them, or leave them as the worked red and green example they are. The comment
+is not an identity string. Rewrite this page if you do not want the old names as examples. If
+`pnpm-lock.yaml` still matches, run `pnpm install`. A leftover `@lilo-moon` in a generator template
+will reappear on the next `just new-package`.
 
 Do not change `packageManager`, `engines`, catalog pins, or the moon version. Those are the
 baseline.
@@ -107,7 +112,7 @@ moon sync
 
 `moon sync` adds new `references` in the root `tsconfig.json`. It does not drop a path whose
 project is gone. `just ci` can still pass, because each member typechecks from its own directory.
-A root `tsc --build` and the editor both read the stale paths and fail with TS6053.
+A root `tsc --build` and the editor both read the stale paths and fail with TS6053. That is #32.
 
 Remove every `references` entry whose path no longer exists. Leave `compilerOptions.outDir` and
 every remaining path alone. Then:
@@ -149,20 +154,15 @@ works is #14 and is unbuilt.
 
 ## Prove the result is healthy
 
-1. `just ci` exits 0 on the renamed tree with your members and without the exemplars. A root
-   `pnpm exec tsc --build --pretty` also exits 0.
-2. A real type error fails `moon run <project>:typecheck`. Revert it.
-3. An unhandled promise fails `moon run root:lint` with `typescript(no-floating-promises)`. Revert
-   it.
-4. Broken formatting fails `moon run root:format-check`. Revert it.
-5. A wrong implementation fails `moon run <project>:test`. Revert it.
-6. From a generated library directory, `npm pack --dry-run` lists `dist` and `src`. No packed
-   `.map` entry may point at a path outside the package.
+The renamed tree must pass `just ci` and a root `pnpm exec tsc --build --pretty` with no TS6053.
+From a generated library directory, `npm pack --dry-run` lists `dist` and `src`. No packed `.map`
+entry may point at a path outside the package.
 
-`just check` is allowed to rewrite files. `just ci` is not. Use `just ci` as the delivery proof.
+Then prove the gates can fail. Follow [Prove every gate](../AGENTS.md#prove-every-gate). Do not
+skip that procedure because a coverage threshold, a future changeset, or a future hook might be
+stricter.
 
-Coverage thresholds (#5), changesets (#6), git hooks (#7), and supply chain gates (#11) are not
-there to help you. Do not skip the list above because a future gate might be stricter.
+Changesets (#6), git hooks (#7), and supply chain gates (#11) are not there to help you.
 
 ## After this page
 
