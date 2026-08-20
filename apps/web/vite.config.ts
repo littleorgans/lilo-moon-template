@@ -1,11 +1,17 @@
 import react from "@vitejs/plugin-react";
-import { defineConfig } from "vite";
+import { defaultClientConditions, defineConfig } from "vite";
 
-export default defineConfig({
+export default defineConfig(({ command }) => ({
   plugins: [react()],
-  // Do not prebundle workspace packages. Vite's `development` export
-  // condition then serves their source, so library edits HMR.
+  resolve: {
+    // `resolve.conditions` replaces the default list. Spread it, then add
+    // the workspace-private source condition for serve only.
+    conditions:
+      command === "serve"
+        ? [...defaultClientConditions, "@lilo-moon/source"]
+        : [...defaultClientConditions],
+  },
   optimizeDeps: {
     exclude: ["@lilo-moon/collections"],
   },
-});
+}));
