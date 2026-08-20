@@ -36,19 +36,36 @@ tasks:
 
   test:
     type: "test"
-    command: "vitest run"
+    command: "vitest run --config $workspaceRoot/vitest.config.ts --root $projectRoot"
     inputs:
       - "@globs(sources)"
       - "@globs(tests)"
       - "@globs(configs)"
+      - "/vitest.config.ts"
     deps:
       - "^:build"
     options:
       runInCI: "always"
 
+  test-coverage:
+    type: "test"
+    command: >-
+      vitest run --coverage --config $workspaceRoot/vitest.config.ts --root $projectRoot
+    inputs:
+      - "@globs(sources)"
+      - "@globs(tests)"
+      - "@globs(configs)"
+      - "/vitest.config.ts"
+    deps:
+      - "^:build"
+    outputs:
+      - "coverage"
+    options:
+      runInCI: "always"
+
   test-watch:
     type: "run"
-    command: "vitest"
+    command: "vitest --config $workspaceRoot/vitest.config.ts --root $projectRoot"
     deps:
       - "^:build"
     options:
