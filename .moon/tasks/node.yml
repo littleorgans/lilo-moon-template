@@ -1,0 +1,49 @@
+# Inherited by every project that uses the JavaScript toolchain.
+# A project overrides a task by redeclaring it in its own moon.yml.
+
+inheritedBy:
+  toolchains: ["javascript"]
+
+fileGroups:
+  sources:
+    - "src/**/*"
+    - "package.json"
+    - "tsconfig.json"
+  tests:
+    - "tests/**/*"
+    - "**/*.test.ts"
+    - "**/*.test.tsx"
+  configs:
+    - "tsconfig.json"
+    - "vite.config.*"
+    - "vitest.config.*"
+
+tasks:
+  typecheck:
+    command: "tsc --build --pretty"
+    inputs:
+      - "@globs(sources)"
+      - "@globs(tests)"
+      - "@globs(configs)"
+    deps:
+      - "^:typecheck"
+    options:
+      runInCI: "always"
+
+  test:
+    command: "vitest run"
+    inputs:
+      - "@globs(sources)"
+      - "@globs(tests)"
+      - "@globs(configs)"
+    outputs:
+      - "coverage"
+    options:
+      runInCI: "always"
+
+  test-watch:
+    command: "vitest"
+    options:
+      cache: false
+      persistent: true
+      runInCI: false

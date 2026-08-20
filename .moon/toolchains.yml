@@ -1,0 +1,34 @@
+# Toolchains are opt-in. Each one enabled here is downloaded and pinned by moon,
+# so a fresh clone builds with the same versions as CI without a version manager.
+
+# Installs dependencies and keeps package.json files in sync.
+javascript:
+  packageManager: "pnpm"
+  # Tasks are declared explicitly in .moon/tasks/, never inferred from scripts,
+  # so that every task has precise inputs and outputs and therefore caches correctly.
+  inferTasksFromScripts: false
+  # moon owns project-to-project edges; it writes them into each package.json.
+  syncProjectWorkspaceDependencies: true
+  dependencyVersionFormat: "workspace"
+  syncPackageManagerField: true
+
+node:
+  version: "24.19.0"
+
+pnpm:
+  version: "11.22.0"
+
+# Keeps tsconfig project references in sync with the project graph.
+typescript:
+  rootOptionsConfigFileName: "tsconfig.options.json"
+  syncProjectReferences: true
+  createMissingConfig: false
+  routeOutDirToCache: true
+
+# Reserved. Enable when the first Rust project lands.
+# rust:
+#   version: "1.95"
+
+# Reserved. Python toolchains are still marked unstable in moon 2.5.
+# unstable_python:
+#   version: "3.13"

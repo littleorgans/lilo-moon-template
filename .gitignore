@@ -1,0 +1,21 @@
+# dependencies
+node_modules/
+
+# moon
+.moon/cache/
+.moon/docker/
+
+# build output
+dist/
+build/
+out/
+coverage/
+*.tsbuildinfo
+
+# environment
+.env*
+!.env.example
+
+# editors and os
+.DS_Store
+*.pem

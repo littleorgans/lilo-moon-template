@@ -1,0 +1,53 @@
+# The repository root as a project. Owns the workspace-wide quality gates:
+# oxlint and oxfmt run once across every file rather than per project.
+
+layer: "application"
+
+fileGroups:
+  sources:
+    - ".moon/**/*"
+    - "apps/**/*"
+    - "packages/**/*"
+    - "services/**/*"
+    - "scripts/**/*"
+    - "package.json"
+    - "pnpm-workspace.yaml"
+    - "tsconfig.options.json"
+
+tasks:
+  lint:
+    command: "oxlint --type-aware"
+    inputs:
+      - "@globs(sources)"
+      - ".oxlintrc.json"
+    options:
+      runInCI: "always"
+
+  lint-fix:
+    command: "oxlint --type-aware --fix"
+    options:
+      cache: false
+      runInCI: false
+
+  format-check:
+    command: "oxfmt --check"
+    inputs:
+      - "@globs(sources)"
+    options:
+      runInCI: "always"
+
+  format:
+    command: "oxfmt"
+    options:
+      cache: false
+      runInCI: false
+
+  check:
+    deps:
+      - "format-check"
+      - "lint"
+      - "~:typecheck"
+      - "~:test"
+    options:
+      cache: false
+      runInCI: false

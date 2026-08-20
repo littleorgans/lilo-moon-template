@@ -1,0 +1,15 @@
+# Workspace layout and version control.
+# Toolchains live in toolchains.yml; inherited tasks live in tasks/.
+
+projects:
+  globs:
+    - "apps/*"
+    - "packages/*"
+    - "services/*"
+  sources:
+    root: "."
+
+vcs:
+  client: "git"
+  defaultBranch: "main"
+  provider: "github"

@@ -1,0 +1,16 @@
+{
+  "name": "b_moon_template",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "devDependencies": {
+    "oxfmt": "0.64.0",
+    "oxlint": "1.79.0",
+    "typescript": "catalog:"
+  },
+  "engines": {
+    "node": ">=24.19.0",
+    "pnpm": ">=11.22.0"
+  },
+  "packageManager": "pnpm@11.22.0"
+}
