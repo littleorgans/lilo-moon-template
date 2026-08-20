@@ -12,7 +12,7 @@ out/
 coverage/
 *.tsbuildinfo
 
-# environment
+# environment. .env, .env.local, .env.production, and every other .env* variant.
 .env*
 !.env.example
 

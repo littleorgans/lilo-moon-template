@@ -1,5 +1,5 @@
 # The repository root as a project. Owns the workspace-wide quality gates:
-# oxlint and oxfmt run once across every file rather than per project.
+# oxlint, oxfmt, secretlint, and pnpm audit run once rather than per project.
 # project-refs evaluates the root tsconfig; per-project typecheck cannot.
 
 layer: "application"
@@ -82,4 +82,29 @@ tasks:
       - "tsconfig.json"
       - "tsconfig.options.json"
     options:
+      runInCI: "always"
+
+  secrets:
+    type: "test"
+    command: "node scripts/check-security.mjs"
+    inputs:
+      - "@globs(sources)"
+      - "/.github/**/*"
+      - "/.env.example"
+      - "/.npmrc"
+      - "/.secretlintrc.json"
+      - "/.secretlintignore"
+    options:
+      cache: false
+      runInCI: "always"
+
+  audit:
+    type: "test"
+    command: "pnpm audit"
+    inputs:
+      - "/package.json"
+      - "/pnpm-lock.yaml"
+      - "/pnpm-workspace.yaml"
+    options:
+      cache: false
       runInCI: "always"
