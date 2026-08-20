@@ -1,0 +1,40 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Node pin in Moon toolchains.yml. The github-actions manager does not read this file.",
+      "managerFilePatterns": ["/^\\.moon/toolchains\\.yml$/"],
+      "matchStrings": ["(?:^|\\n)node:\\n  version: \"(?<currentValue>[^\"]+)\""],
+      "depNameTemplate": "node",
+      "datasourceTemplate": "node-version",
+      "versioningTemplate": "node"
+    },
+    {
+      "customType": "regex",
+      "description": "pnpm pin in Moon toolchains.yml. packageManager in package.json is covered by the npm manager.",
+      "managerFilePatterns": ["/^\\.moon/toolchains\\.yml$/"],
+      "matchStrings": ["(?:^|\\n)pnpm:\\n  version: \"(?<currentValue>[^\"]+)\""],
+      "depNameTemplate": "pnpm",
+      "datasourceTemplate": "npm"
+    }
+  ],
+  "packageRules": [
+    {
+      "description": "oxlint-tsgolint encodes the TypeScript release it supports (7.0.2001 = TS 7.0.2). Updating either package alone produces two type systems.",
+      "groupName": "typescript lockstep",
+      "matchPackageNames": ["typescript", "oxlint-tsgolint"]
+    },
+    {
+      "description": "Node pins in Moon, CI setup-node, and engines must stay the same version. GitHub Actions names the pin depName node and packageName actions/node-versions.",
+      "groupName": "node",
+      "matchDepNames": ["node"]
+    },
+    {
+      "description": "pnpm pins in Moon, packageManager, and engines must stay the same version.",
+      "groupName": "pnpm",
+      "matchDepNames": ["pnpm"]
+    }
+  ]
+}

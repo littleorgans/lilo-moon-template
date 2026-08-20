@@ -117,6 +117,12 @@ the valid state.
 - Pin `oxlint-tsgolint` exactly. Its version encodes the TypeScript release, so
   `oxlint-tsgolint@7.0.2001` matches `typescript@7.0.2`. Bump that exact pin in the root
   `package.json` in lockstep with the `typescript` catalog pin in `pnpm-workspace.yaml`.
+  The `typescript lockstep` group in `renovate.json` updates those two packages in one
+  PR so the bot cannot split them.
+- Use the Oxc editor extension for oxlint and oxfmt. TypeScript 7 has no
+  `lib/tsserver.js`, so the editor uses `js/ts.tsdk.path` at `node_modules/typescript`
+  with `js/ts.experimental.useTsgo` and the TypeScript 7 extension. Format on save
+  must match `moon run root:format`. Do not enable Prettier or Biome.
 - Keep `--no-error-on-unmatched-pattern` on both oxlint and oxfmt commands in `moon.yml`. Both tools
   exit 1 when they match zero files. The flag lets a repository with no TypeScript pass, which also
   means a green lint gate over an empty selection proves nothing.
@@ -135,6 +141,12 @@ the valid state.
   the implementation lands.
 - Keep a change within its owning project. Moon uses project boundaries for dependencies, caching,
   and affected checks, so unrelated root changes widen every run.
+- Let Renovate open dependency PRs from `renovate.json`. The npm manager updates
+  `package.json`, including `packageManager`, and pnpm catalog pins in
+  `pnpm-workspace.yaml`. GitHub Actions versions and `actions/setup-node`'s
+  `node-version` come from the github-actions manager. Regex managers cover the Node
+  and pnpm pins in `.moon/toolchains.yml`. Moon and proto CLI versions are not
+  declared in this repository, so Renovate cannot bump them.
 
 ## Do not
 
