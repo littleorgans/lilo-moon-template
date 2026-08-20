@@ -114,11 +114,13 @@ the valid state.
 
 - Keep `oxlint-tsgolint` installed when `tasks.lint.command` in `moon.yml` uses `--type-aware`.
   oxlint silently skips type aware rules when the package is absent.
-- Pin `oxlint-tsgolint` exactly. Its version encodes the TypeScript release, so
-  `oxlint-tsgolint@7.0.2001` matches `typescript@7.0.2`. Bump that exact pin in the root
-  `package.json` in lockstep with the `typescript` catalog pin in `pnpm-workspace.yaml`.
-  The `typescript lockstep` group in `renovate.json` updates those two packages in one
-  PR so the bot cannot split them.
+- Pin `oxlint-tsgolint` exactly. Its npm version encodes the TypeScript release as
+  `MAJOR.MINOR.(typescriptPatch * 1000 + tsgolintPatch)`, so `7.0.2001` is TypeScript
+  `7.0.2` with tsgolint patch `1`. Bump that exact pin in the root `package.json` in
+  lockstep with the `typescript` catalog pin in `pnpm-workspace.yaml`. The
+  `tsgolint-lockstep` task fails when the encoded release does not match the catalog
+  pin, or when the version cannot be decoded. The `typescript lockstep` group in
+  `renovate.json` only batches the two updates into one PR.
 - Use the Oxc editor extension for oxlint and oxfmt. TypeScript 7 has no
   `lib/tsserver.js`, so the editor uses `js/ts.tsdk.path` at `node_modules/typescript`
   with `js/ts.experimental.useTsgo` and the TypeScript 7 extension. Format on save
