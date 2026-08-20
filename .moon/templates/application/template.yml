@@ -1,0 +1,10 @@
+title: "Vite React application"
+description: |
+  Creates a Vite React application with source, tests, and production build configuration.
+destination: "/apps/[name | kebab_case]"
+variables:
+  name:
+    type: "string"
+    default: "hello-app"
+    required: true
+    prompt: "Application name?"

@@ -1,0 +1,10 @@
+title: "Publishable TypeScript library"
+description: |
+  Creates a publishable TypeScript library with source, tests, and a dist build.
+destination: "/packages/[name | kebab_case]"
+variables:
+  name:
+    type: "string"
+    default: "format-label"
+    required: true
+    prompt: "Library name?"
