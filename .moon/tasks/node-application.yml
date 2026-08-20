@@ -18,6 +18,8 @@ tasks:
       - "index.html"
       - "public/**/*"
       - "/tsconfig.options.json"
+    deps:
+      - "^:build"
     outputs:
       - "dist"
     options:

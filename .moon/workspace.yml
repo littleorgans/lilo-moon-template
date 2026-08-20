@@ -1,6 +1,10 @@
 # Workspace layout and version control.
 # Toolchains live in toolchains.yml; inherited tasks live in tasks/.
 
+# Exact moon binary pin. Must match `moon` in `.prototools` and
+# `moon-version` in `.github/workflows/ci.yml`. Independent of littleorgans.
+versionConstraint: "=2.5.1"
+
 projects:
   globs:
     - "apps/*"

@@ -17,6 +17,8 @@ tasks:
       - "tsconfig.json"
       - "tsconfig.build.json"
       - "/tsconfig.options.json"
+    deps:
+      - "^:build"
     outputs:
       - "dist"
     options:

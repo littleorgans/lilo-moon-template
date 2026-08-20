@@ -4,12 +4,6 @@
 inheritedBy:
   toolchains: ["javascript"]
 
-# Workspace packages export dist. Every javascript consumer, library or
-# application, waits on dependency builds so it does not typecheck or bundle
-# a missing or stale dist.
-implicitDeps:
-  - "^:build"
-
 fileGroups:
   sources:
     - "src/**/*"
@@ -24,6 +18,8 @@ fileGroups:
     - "vite.config.*"
     - "vitest.config.*"
 
+# Workspace packages export dist. Put ^:build on each task that resolves
+# those exports. File-level implicitDeps would also attach it to `dev`.
 tasks:
   typecheck:
     type: "build"
@@ -34,6 +30,7 @@ tasks:
       - "@globs(configs)"
     deps:
       - "^:typecheck"
+      - "^:build"
     options:
       runInCI: "always"
 
@@ -44,12 +41,16 @@ tasks:
       - "@globs(sources)"
       - "@globs(tests)"
       - "@globs(configs)"
+    deps:
+      - "^:build"
     options:
       runInCI: "always"
 
   test-watch:
     type: "run"
     command: "vitest"
+    deps:
+      - "^:build"
     options:
       cache: false
       persistent: true
