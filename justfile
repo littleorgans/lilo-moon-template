@@ -4,15 +4,12 @@ set shell := ["bash", "-cu"]
 
 default: check
 
-# Every gate in the repo: format, lint, typecheck, test.
+# Fix what is mechanically fixable, then verify everything including the fixes.
 check:
+    moon run root:format root:lint-fix
     moon check --all
 
-# Fix everything that can be fixed automatically.
-fix:
-    moon run root:format root:lint-fix
-
-# Exactly what CI runs, against affected projects.
+# Read-only, exactly what CI runs. Fails on anything unformatted or unfixed.
 ci:
     moon ci
 
