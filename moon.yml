@@ -1,5 +1,6 @@
 # The repository root as a project. Owns the workspace-wide quality gates:
 # oxlint and oxfmt run once across every file rather than per project.
+# project-refs evaluates the root tsconfig; per-project typecheck cannot.
 
 layer: "application"
 
@@ -20,6 +21,15 @@ fileGroups:
     - "packages/**/*"
     - "services/**/*"
     - "scripts/**/*"
+    # Generated and installed files must not invalidate source task caches.
+    - "!.moon/cache/**/*"
+    - "!.moon/docker/**/*"
+    - "!**/node_modules/**/*"
+    - "!**/dist/**/*"
+    - "!**/build/**/*"
+    - "!**/out/**/*"
+    - "!**/coverage/**/*"
+    - "!**/*.tsbuildinfo"
     - "package.json"
     - "pnpm-workspace.yaml"
     - "tsconfig.json"
@@ -59,3 +69,17 @@ tasks:
     options:
       cache: false
       runInCI: false
+
+  # --dry reports TS6053 for a dangling path and does not emit.
+  # Member config globs invalidate the task on additions, removals, and edits.
+  project-refs:
+    type: "test"
+    command: "tsc --build --pretty --dry"
+    inputs:
+      - "apps/*/tsconfig*.json"
+      - "packages/*/tsconfig*.json"
+      - "services/*/tsconfig*.json"
+      - "tsconfig.json"
+      - "tsconfig.options.json"
+    options:
+      runInCI: "always"

@@ -19,9 +19,13 @@ pnpm:
   version: "11.22.0"
 
 # Keeps tsconfig project references in sync with the project graph.
+# pruneProjectReferences stays off: moon ci runs SyncProject before
+# tasks, and prune would rewrite tsconfig.json so a committed dangling
+# reference would stay green.
 typescript:
   rootOptionsConfigFileName: "tsconfig.options.json"
   syncProjectReferences: true
+  pruneProjectReferences: false
   createMissingConfig: false
   routeOutDirToCache: true
 
