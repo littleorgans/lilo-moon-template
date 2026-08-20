@@ -1,0 +1,26 @@
+# Hooks call moon tasks. They do not reimplement gates.
+# CI is still `moon ci`. These checks are a fast subset on staged files.
+
+assert_lefthook_installed: true
+
+pre-commit:
+  parallel: true
+  commands:
+    format:
+      glob: "*.{js,jsx,mjs,cjs,ts,tsx,mts,cts,json,jsonc,md,yml,yaml}"
+      run: moon run --force root:format-check -- {staged_files}
+      fail_text: "Format staged files with `moon run root:format`, then stage and commit again."
+    lint:
+      glob: "*.{js,jsx,mjs,cjs,ts,tsx,mts,cts}"
+      run: moon run --force root:lint -- {staged_files}
+      fail_text: "Fix oxlint errors, or run `moon run root:lint-fix`, then stage and commit again."
+    # Issue #11 adds moon task `root:secrets`. When that task exists on main, add:
+    #   secrets:
+    #     run: moon run --force root:secrets -- {staged_files}
+    # Do not copy secretlint config here. The moon task is the single definition.
+
+commit-msg:
+  commands:
+    commitlint:
+      run: pnpm exec commitlint --edit {1}
+      fail_text: "Use a Conventional Commit, type(scope): description. Types: feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert. Example: feat(web): add the login form."

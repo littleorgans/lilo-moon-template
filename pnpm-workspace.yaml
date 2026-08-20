@@ -3,6 +3,11 @@ packages:
   - "packages/*"
   - "services/*"
 
+# lefthook's npm postinstall is unused. Root prepare runs lefthook install.
+# pnpm 11 fails the install unless this package is listed here as a boolean.
+allowBuilds:
+  lefthook: false
+
 # One version of every shared dependency, for the whole repo.
 # Projects reference these with "catalog:" and never pin a version themselves.
 catalog:

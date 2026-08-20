@@ -19,3 +19,6 @@ coverage/
 # editors and os
 .DS_Store
 *.pem
+
+# local lefthook overrides
+lefthook-local.yml
