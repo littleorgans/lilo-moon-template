@@ -1,6 +1,11 @@
 # Install pin. CI proto install (setup-toolchain auto-install) reads this file.
 # versionConstraint in .moon/workspace.yml must equal this version.
 moon = "2.5.1"
+atlas = "1.3.0"
+
+[plugins.tools]
+# Atlas Community keeps migrate lint local. Pin the proto plugin source as well as the CLI.
+atlas = "https://raw.githubusercontent.com/crashdump/proto-tools/3cb904c05676d825cd1fdceb73437399478cc076/toml-plugins/atlas/plugin.toml"
 
 [settings]
 # Without this, proto install also reads package.json engines and would install Node 26.
