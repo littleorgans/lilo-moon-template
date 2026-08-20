@@ -147,6 +147,38 @@ tasks:
       cache: false
       runInCI: false
 
+  drizzle-generate:
+    description: "Regenerate Drizzle types from the applied Atlas migrations"
+    type: "run"
+    toolchains: "system"
+    command: "node scripts/drizzle-schema.mjs generate"
+    checks:
+      - check: "condition"
+        script: "test ! -f schema.sql"
+    options:
+      cache: false
+      runInCI: false
+
+  drizzle-check:
+    description: "Verify Drizzle types match the applied Atlas migrations"
+    type: "test"
+    toolchains: "system"
+    command: "node scripts/drizzle-schema.mjs check"
+    inputs:
+      - "migrations/**/*"
+      - "schema.sql"
+      - "drizzle/_generated/**/*"
+      - "scripts/drizzle-schema.mjs"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+    checks:
+      - check: "condition"
+        script: "test ! -f schema.sql"
+    options:
+      cache: false
+      runInCI: "always"
+
   secrets:
     type: "test"
     command: "node scripts/check-security.mjs"

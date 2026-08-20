@@ -6,6 +6,7 @@ packages:
 # lefthook's npm postinstall is unused. Root prepare runs lefthook install.
 # pnpm 11 fails the install unless this package is listed here as a boolean.
 allowBuilds:
+  esbuild: true
   lefthook: false
 
 # One version of every shared dependency, for the whole repo.
@@ -16,6 +17,9 @@ catalog:
   "@types/react-dom": "^19.2.4"
   "@vitejs/plugin-react": "^6.1.0"
   "@vitest/coverage-v8": "^4.1.11"
+  drizzle-kit: "0.31.10"
+  drizzle-orm: "0.45.2"
+  pg: "8.23.0"
   react: "^19.2.8"
   react-dom: "^19.2.8"
   typescript: "~7.0.2"
