@@ -1,5 +1,6 @@
 # The repository root as a project. Owns the workspace-wide quality gates:
 # oxlint and oxfmt run once across every file rather than per project.
+# project-refs evaluates the root tsconfig; per-project typecheck cannot.
 
 layer: "application"
 
@@ -59,3 +60,15 @@ tasks:
     options:
       cache: false
       runInCI: false
+
+  # --dry reports TS6053 for a dangling path and does not emit.
+  # @globs(sources) omits the non-glob file group entries.
+  project-refs:
+    type: "test"
+    command: "tsc --build --pretty --dry"
+    inputs:
+      - "@globs(sources)"
+      - "tsconfig.json"
+      - "tsconfig.options.json"
+    options:
+      runInCI: "always"
