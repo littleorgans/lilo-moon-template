@@ -6,12 +6,6 @@ inheritedBy:
   toolchains: ["javascript"]
   layers: ["application"]
 
-# Applications consume workspace packages through their published exports
-# (dist), so every task waits on dependency builds. Libraries import source
-# and do not inherit this file.
-implicitDeps:
-  - "^:build"
-
 tasks:
   build:
     type: "build"
@@ -22,6 +16,7 @@ tasks:
       - "tsconfig.json"
       - "vite.config.*"
       - "index.html"
+      - "public/**/*"
       - "/tsconfig.options.json"
     outputs:
       - "dist"
