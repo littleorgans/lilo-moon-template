@@ -1,6 +1,9 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": ["config:recommended", "helpers:pinGitHubActionDigests"],
+  "proto": {
+    "enabled": false
+  },
   "customManagers": [
     {
       "customType": "regex",
@@ -18,6 +21,15 @@
       "matchStrings": ["(?:^|\\n)pnpm:\\n  version: \"(?<currentValue>[^\"]+)\""],
       "depNameTemplate": "pnpm",
       "datasourceTemplate": "npm"
+    },
+    {
+      "customType": "regex",
+      "description": "Moon and proto pins in .prototools. The built-in proto manager is disabled so this file is extracted once.",
+      "managerFilePatterns": ["/^\\.prototools$/"],
+      "matchStrings": ["(?:^|\\n)(?<depName>moon|proto)\\s*=\\s*\"(?<currentValue>[^\"]+)\""],
+      "packageNameTemplate": "moonrepo/{{{depName}}}",
+      "datasourceTemplate": "github-releases",
+      "extractVersionTemplate": "^v(?<version>\\S+)"
     }
   ],
   "packageRules": [
