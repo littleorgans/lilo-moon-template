@@ -12,9 +12,11 @@ Turborepo reads npm and pnpm workspaces. It does not read `Cargo.toml` or `pypro
 baseline is language agnostic, so the task graph has to see those members when they appear.
 
 Moon does. `projects.globs` in `.moon/workspace.yml` lists `apps/*`, `packages/*`, and `services/*`
-with no language filter. The JavaScript toolchain is on. The Rust and Python toolchains are
-commented in `.moon/toolchains.yml` and wait for a real member. pnpm remains the JavaScript package
-manager. Moon is the workspace.
+with no language filter. The JavaScript toolchain is on. The Rust toolchain is on.
+`services/ping` is the Rust member. The Python toolchain stays commented in `.moon/toolchains.yml`
+until a real Python member lands. pnpm remains the JavaScript package manager. Moon is the
+workspace. A clone that keeps only ping still installs the root JavaScript tools, because oxlint,
+oxfmt, secretlint, and audit live in `devDependencies` in the root `package.json`.
 
 `justfile` holds aliases only. Task commands, inputs, outputs, and deps live in moon. Two command
 paths drift. CI runs `moon ci`.
@@ -46,7 +48,8 @@ lands. `tasks.tsgolint-lockstep` in `.moon/tasks/tsgolint-lockstep.yml` runs
 `scripts/assert-tsgolint-lockstep.mjs` on every JavaScript project and fails the graph. That is why
 the lockstep is a gate.
 
-Moon and proto versions in `.prototools` are not yet a Renovate manager. That gap is #29.
+Renovate's regex manager in `renovate.json` reads moon and proto pins in `.prototools`. The
+built-in proto manager is disabled so that file is extracted once.
 
 ## What a green gate actually proves
 
@@ -91,21 +94,27 @@ PostgREST returns `PGRST301 JWSInvalidSignature` for WorkOS tokens. That is a Wo
 ## Schema, queries, and the host
 
 Postgres is deferred until the product has data. A template without a database is incomplete only
-if you think a schema can be invented before the product. It cannot. Atlas, Drizzle, and the host
-boundary are decisions for when that data exists. Atlas and Drizzle are not in the
-tree. #21, #22, #23.
+if you think a schema can be invented before the product. It cannot. Atlas and Drizzle are in the
+tree. The identity boundary in #23 is still undecided.
 
 Atlas is the migration engine. Native SQL is the schema source of truth, so every language is a
 first class consumer. `atlas migrate lint` is the reason to accept Atlas over dbmate,
 golang-migrate, or sqlx migrate. Those others will run SQL. They will not catch a destructive
 migration before it ships.
 
-Drizzle is the TypeScript query layer. Atlas owns the schema. `drizzle-kit pull` is
-introspection. On stable kit, `pull` then `generate` emits DROP and ADD pairs on an unchanged
-database. drizzle-team/drizzle-orm#6093 documents CHECK constraints rewritten with casts, numeric
-defaults pulled as strings, partitioned parents dropped, and index opclasses lost. RLS policies,
-generated columns, and partial indexes are not a claimed pull surface. Pull output is generated
-after Atlas apply. It is never a source, and it is never fed back into a migration.
+`moon.yml` `tasks.atlas-diff` and `tasks.atlas-lint` need Docker only when `schema.sql` exists. Both
+tasks are inert without a schema. If Docker is unavailable, local Atlas lint prints its skip and
+lets `just check` continue. CI runs Atlas lint whenever a schema exists. `tasks.atlas-apply` uses
+`DATABASE_URL` and does not start a Docker development database.
+
+Drizzle is the TypeScript query layer. Atlas owns the schema. `drizzle-kit pull` is introspection.
+On stable kit, `pull` then `generate` emits DROP and ADD pairs on an unchanged database.
+drizzle-team/drizzle-orm#6093 documents CHECK constraints rewritten with casts, numeric defaults
+pulled as strings, partitioned parents dropped, and index opclasses lost. RLS policies, generated
+columns, and partial indexes are not a claimed pull surface. `moon.yml`
+`tasks.drizzle-generate` writes `drizzle/_generated/schema.ts` after applying Atlas migrations.
+`tasks.drizzle-check` compares that artifact with a fresh database. The artifact is never a source,
+and it is never fed back into a migration.
 
 Which capabilities stay portable across hosts is
 [Supabase as a Postgres host](supabase-boundary.md).
@@ -126,12 +135,12 @@ Rename the condition with the rest of the scope when you instantiate. Keep the s
 ## Left to the consuming repo
 
 Settled here: moon, oxlint, oxfmt, TypeScript 7, the lockstep gate, pnpm catalogs, the member
-layout, the generator shapes that exist, Atlas for SQL, Drizzle as generated output, Supabase as a
-host.
+layout, the generator shapes that exist, Atlas for SQL, Drizzle as generated output, and Supabase
+as a host.
 
 Not settled here: which identity vendor, which application framework you keep, whether you publish,
 to which registry, which license, which package scope, when the first Rust or Python member lands,
 and every product decision above the baseline.
 
-Changesets (#6) and git hooks (#7) will constrain how you release and how you commit. They do not
-change the graph.
+Changesets write GitHub changelogs from `changelog.repo` in `.changeset/config.json`. `lefthook.yml`
+is the hook file. They constrain how you release and how you commit. They do not change the graph.
