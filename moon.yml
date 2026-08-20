@@ -21,6 +21,15 @@ fileGroups:
     - "packages/**/*"
     - "services/**/*"
     - "scripts/**/*"
+    # Generated and installed files must not invalidate source task caches.
+    - "!.moon/cache/**/*"
+    - "!.moon/docker/**/*"
+    - "!**/node_modules/**/*"
+    - "!**/dist/**/*"
+    - "!**/build/**/*"
+    - "!**/out/**/*"
+    - "!**/coverage/**/*"
+    - "!**/*.tsbuildinfo"
     - "package.json"
     - "pnpm-workspace.yaml"
     - "tsconfig.json"
@@ -62,12 +71,14 @@ tasks:
       runInCI: false
 
   # --dry reports TS6053 for a dangling path and does not emit.
-  # @globs(sources) omits the non-glob file group entries.
+  # Member config globs invalidate the task on additions, removals, and edits.
   project-refs:
     type: "test"
     command: "tsc --build --pretty --dry"
     inputs:
-      - "@globs(sources)"
+      - "apps/*/tsconfig*.json"
+      - "packages/*/tsconfig*.json"
+      - "services/*/tsconfig*.json"
       - "tsconfig.json"
       - "tsconfig.options.json"
     options:
