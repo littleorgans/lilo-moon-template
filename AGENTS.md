@@ -34,10 +34,12 @@ Follow this procedure so Moon, pnpm, TypeScript, and CI discover the same projec
    layer: "library"
    ```
 
-   Moon uses these fields to select toolchains and inherited tasks. Every JavaScript project gets
-   `typecheck`, `test`, and `test-watch` from `inheritedBy.toolchains` in
-   `.moon/tasks/node.yml`. A library gets `build` from `inheritedBy.layers` in
-   `.moon/tasks/node-library.yml`. Keep application build tasks in their own layer scoped task file.
+   Moon detects the JavaScript toolchain from the `package.json` manifest. Confirm detection and
+   schema with `moon toolchain info javascript`. The `language` and `layer` fields in `moon.yml` are
+   project metadata and inherited task filters. `inheritedBy.toolchains` in `.moon/tasks/node.yml`
+   gives a JavaScript project `typecheck`, `test`, and `test-watch`. Both
+   `inheritedBy.toolchains` and `inheritedBy.layers` in `.moon/tasks/node-library.yml` give a
+   JavaScript library `build`. Keep application build tasks in their own layer scoped task file.
 
 3. For a JavaScript or TypeScript member, add `package.json` with a unique workspace name. Put
    runtime and development dependencies in that manifest, then reference shared versions with
@@ -49,8 +51,12 @@ Follow this procedure so Moon, pnpm, TypeScript, and CI discover the same projec
    `packages/collections/tsconfig.json`. Keep `composite`, `declaration`, and `declarationMap` from
    `compilerOptions` in `tsconfig.options.json` because Moon routes typecheck output to its cache.
 5. For a publishable library, add `tsconfig.build.json` for the `dist` build. Follow
-   `packages/collections/tsconfig.build.json`: extend the member config, set `rootDir` to `src`, set
-   `outDir` to `dist`, and exclude tests. The `build` task in `.moon/tasks/node-library.yml` emits
+   `compilerOptions`, `include`, and `exclude` in `packages/collections/tsconfig.build.json`: extend
+   the member config, set `composite` and `incremental` to `false`, set `rootDir` to `src`, set
+   `outDir` to `dist`, include only `src/**/*.ts`, and exclude tests. `composite: false` lets the
+   first compiler pass emit JavaScript without declarations. `incremental: false` keeps build
+   information out of `dist`, and `include` limits the published program to source files regardless
+   of test filenames. `tasks.build` in `.moon/tasks/node-library.yml` emits
    JavaScript and declarations from that config.
 6. Add source and tests, then run `pnpm install` to update the lockfile and workspace links. Keep
    the root `package.json` limited to repository tools because project dependencies belong to the
@@ -79,6 +85,10 @@ Follow this procedure so Moon, pnpm, TypeScript, and CI discover the same projec
   `persistent: true` where required. Moon v2 has no `local: true` task key.
 - Run `moon toolchain info <id>` before editing toolchain YAML. The installed plugin prints its
   accepted schema, while online documentation can describe another plugin version.
+- Hash every file that can change a build task's outputs in `tasks.<name>.inputs`. The
+  `tasks.build.inputs` list in `.moon/tasks/node-library.yml` includes the member manifest, both
+  member TypeScript configs, and root `tsconfig.options.json` alongside `@globs(sources)` because
+  compiler configuration changes must invalidate cached artifacts.
 - After renaming the repository directory, run `moon clean`, remove `node_modules`, and reinstall.
   The Moon cache and installed package links contain absolute paths from the old directory.
 
@@ -121,6 +131,8 @@ the valid state.
   scope, and concise description to communicate the change and support squash merges.
 - Search before adding a helper, type, or constant. Reuse or generalize the existing definition so
   the repository has one implementation of each concept.
+- Describe only state present on the current branch. Mark filed work with its issue number until
+  the implementation lands.
 - Keep a change within its owning project. Moon uses project boundaries for dependencies, caching,
   and affected checks, so unrelated root changes widen every run.
 
