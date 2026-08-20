@@ -21,6 +21,8 @@ fileGroups:
     - "packages/**/*"
     - "services/**/*"
     - "scripts/**/*"
+    - "migrations/**/*"
+    - "schema.sql"
     # Generated and installed files must not invalidate source task caches.
     - "!.moon/cache/**/*"
     - "!.moon/docker/**/*"
@@ -84,6 +86,66 @@ tasks:
       - "tsconfig.options.json"
     options:
       runInCI: "always"
+
+  # schema.sql is the applicability boundary for every Atlas task. An absent
+  # schema skips before Atlas or Docker starts. Once present, failures propagate.
+  atlas-diff:
+    description: "Generate a versioned migration from schema.sql"
+    type: "run"
+    toolchains: "system"
+    command: "atlas migrate diff"
+    args:
+      - "--dir"
+      - "file://migrations"
+      - "--to"
+      - "file://schema.sql"
+      - "--dev-url"
+      - "docker://postgres/17/dev?search_path=public"
+    checks:
+      - check: "condition"
+        script: "test ! -f schema.sql"
+    options:
+      cache: false
+      runInCI: false
+
+  atlas-lint:
+    description: "Reject unsafe versioned migrations"
+    type: "test"
+    toolchains: "system"
+    # Local checks are a fast subset and announce a missing Docker daemon.
+    # CI is authoritative: with a schema, Docker or Atlas failure fails the gate.
+    script: |
+      if test -z "${CI:-}" && ! docker info >/dev/null 2>&1; then
+        echo "Atlas lint skipped locally: Docker is unavailable; CI will run it."
+        exit 0
+      fi
+      selector="${MOON_BASE:+--git-base=$MOON_BASE}"
+      selector="${selector:---latest=1}"
+      atlas migrate lint \
+        --dir "file://migrations" \
+        --dev-url "docker://postgres/17/dev?search_path=public" \
+        "$selector"
+    checks:
+      - check: "condition"
+        script: "test ! -f schema.sql"
+    options:
+      cache: false
+      runInCI: "always"
+
+  atlas-apply:
+    description: "Apply pending migrations to DATABASE_URL"
+    type: "run"
+    toolchains: "system"
+    script: >-
+      atlas migrate apply
+      --dir "file://migrations"
+      --url "${DATABASE_URL:?set DATABASE_URL}"
+    checks:
+      - check: "condition"
+        script: "test ! -f schema.sql"
+    options:
+      cache: false
+      runInCI: false
 
   secrets:
     type: "test"
