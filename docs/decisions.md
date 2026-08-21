@@ -142,6 +142,17 @@ Moon does not version or publish packages. Its FAQ points JavaScript workspaces 
 Changesets, or Lerna. This leaves non-JavaScript release notes outside the baseline. Revisit the
 release tool when the first consumer repository ships a real non-JavaScript artifact.
 
+## Publishing relies on the protected merge boundary
+
+Strict branch protection keeps publishing behind the merge boundary. Required `CI` checks use strict
+branch protection on `main`, so every non-bypass merge has already passed lint, typecheck, and tests.
+The owner retains deliberate admin and force-push bypasses.
+
+`withastro/astro`, `changesets/changesets`, and `chakra-ui/chakra-ui` use the same build-only publish
+shape without a test-job `needs` edge. This repository has no `NPM_TOKEN`, so its publish command
+cannot run. Adding workflow sequencing now would add ceremony to a dormant path without strengthening
+the protected merge boundary.
+
 ## Left to the consuming repo
 
 Settled here: moon, oxlint, oxfmt, TypeScript 7, the lockstep gate, pnpm catalogs, the member
