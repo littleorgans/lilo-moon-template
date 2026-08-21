@@ -177,6 +177,16 @@ tasks:
       cache: false
       runInCI: "always"
 
+  rename-verifier:
+    description: "Prove rename inputs are non-empty and the verdict is definite without proving token correctness"
+    type: "test"
+    command: "bash scripts/rename-template.sh --verify-contract"
+    inputs:
+      - "scripts/rename-template.sh"
+    options:
+      cache: false
+      runInCI: "always"
+
   secrets:
     type: "test"
     command: "node scripts/check-security.mjs"
