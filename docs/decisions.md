@@ -102,8 +102,19 @@ first class consumer. `atlas migrate lint` is the reason to accept Atlas over db
 golang-migrate, or sqlx migrate. Those others will run SQL. They will not catch a destructive
 migration before it ships.
 
-`moon.yml` `tasks.atlas-diff` and `tasks.atlas-lint` need Docker only when `schema.sql` exists. Both
-tasks are inert without a schema. If Docker is unavailable, local Atlas lint prints its skip and
+The database lives under `db/`: `db/schema.sql`, `db/migrations/`, and `db/drizzle/_generated/`.
+The three moved off the repository root together because a desired-state SQL file at root reads as
+debris next to `package.json` and `moon.yml`, and because splitting the trio would separate an
+input from the artifacts derived from it.
+
+`db/schema.sql` cannot live inside `db/migrations/`. Atlas owns that directory, checksums it in
+`atlas.sum`, and treats every `.sql` file in it as a versioned migration. Adding the desired state
+there fails `atlas migrate validate` with a checksum mismatch. Re-hashing to clear that error is
+worse: `atlas migrate apply` then plans the desired state as a second migration and creates the
+same table twice. Desired state stays outside `--dir`.
+
+`moon.yml` `tasks.atlas-diff` and `tasks.atlas-lint` need Docker only when `db/schema.sql` exists.
+Both tasks are inert without a schema. If Docker is unavailable, local Atlas lint prints its skip and
 lets `just check` continue. CI runs Atlas lint whenever a schema exists. `tasks.atlas-apply` uses
 `DATABASE_URL` and does not start a Docker development database.
 
@@ -112,7 +123,7 @@ On stable kit, `pull` then `generate` emits DROP and ADD pairs on an unchanged d
 drizzle-team/drizzle-orm#6093 documents CHECK constraints rewritten with casts, numeric defaults
 pulled as strings, partitioned parents dropped, and index opclasses lost. RLS policies, generated
 columns, and partial indexes are not a claimed pull surface. `moon.yml`
-`tasks.drizzle-generate` writes `drizzle/_generated/schema.ts` after applying Atlas migrations.
+`tasks.drizzle-generate` writes `db/drizzle/_generated/schema.ts` after applying Atlas migrations.
 `tasks.drizzle-check` compares that artifact with a fresh database. The artifact is never a source,
 and it is never fed back into a migration.
 
