@@ -7,7 +7,6 @@
   "access": "public",
   "baseBranch": "main",
   "updateInternalDependencies": "patch",
-  "ignore": ["@lilo-moon/web"],
-  "privatePackages": false,
+  "privatePackages": { "version": true, "tag": false },
   "format": "oxfmt"
 }

@@ -76,7 +76,7 @@ Leave a template string in place and the next `just new-package` will put `littl
 | Generated application name                                        | `.moon/templates/application/package.json.tera`                                    |
 | Generated Vite source condition                                   | `.moon/templates/application/vite.config.ts.raw`                                   |
 | Source condition in the decision record                           | the `@lilo-moon/source` string in `docs/decisions.md`                              |
-| Changeset changelog repo and ignored private app                  | `changelog.repo` and `ignore` in `.changeset/config.json`                          |
+| Changeset changelog repo                                          | `changelog.repo` in `.changeset/config.json`                                       |
 
 The source condition is a matching pair. The key in `exports` and the string in
 `resolve.conditions` must be the same. Node's standard conditions stay pointed at `dist`. Why is
@@ -89,8 +89,7 @@ the library generator to the same SPDX id.
 public.
 
 `.changeset/config.json` `changelog.repo` is `littleorgans/lilo-moon-template`. Leave it and
-changeset version emits changelog links to that repository. `ignore` is `@lilo-moon/web`. Rename it
-with the application, or changeset will keep ignoring a package that no longer exists.
+changeset version emits changelog links to that repository.
 
 Search for leftovers:
 
@@ -101,8 +100,9 @@ git grep -n 'lilo-moon\|littleorgans\|@lilo-moon'
 After you change every table row and run `pnpm install`, search again. Hits should be limited to
 this guide's worked values, the historical CI URLs in AGENTS.md, and the comment `Independent of
 littleorgans` in `.moon/workspace.yml`. The worked values include the clone URL, rename table,
-changeset warning, search command, and this paragraph. Update the URLs if you do not want them, or
-leave them as the red and green gate examples. The workspace comment is not an identity string.
+changeset repository statement, search command, and this paragraph. Update the URLs if you do not
+want them, or leave them as the red and green gate examples. The workspace comment is not an
+identity string.
 Any other hit is an unfinished rename. If `pnpm-lock.yaml` still matches, rerun `pnpm install` and
 search again. A leftover `@lilo-moon` in a generator template will reappear on the next
 `just new-package`.
@@ -232,7 +232,8 @@ skip that procedure because `lefthook.yml`, a changeset, or a coverage threshold
 
 `lefthook.yml` runs `root:format-check`, `root:lint`, and `root:secrets` before a commit. Its
 `commit-msg` hook runs commitlint. `just ci` also runs `root:secrets` and `root:audit`. Add a
-changeset with `pnpm exec changeset` before you publish a library.
+changeset with `pnpm exec changeset` when a change belongs in the changelog for any versioned
+package, including a library or private application.
 
 ## After this page
 

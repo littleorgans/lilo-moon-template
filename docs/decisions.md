@@ -132,6 +132,16 @@ TypeScript the runtime cannot load.
 
 Rename the condition with the rest of the scope when you instantiate. Keep the split.
 
+## Changelogs cover JavaScript packages
+
+Changesets reads `package.json`, so private and publishable JavaScript packages both receive
+versions and changelogs. It cannot see `Cargo.toml`, `pyproject.toml`, or `go.mod`. `services/ping`
+sets `publish = false`, so the current Rust member has nothing to release.
+
+Moon does not version or publish packages. Its FAQ points JavaScript workspaces to Yarn releases,
+Changesets, or Lerna. This leaves non-JavaScript release notes outside the baseline. Revisit the
+release tool when the first consumer repository ships a real non-JavaScript artifact.
+
 ## Left to the consuming repo
 
 Settled here: moon, oxlint, oxfmt, TypeScript 7, the lockstep gate, pnpm catalogs, the member
