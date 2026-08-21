@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 
+# Exit 0 on success, 1 on verification or runtime failure, and 64 on invalid arguments.
 set -euo pipefail
 
 source_scope="lilo"
@@ -7,12 +8,19 @@ source_scope+="-moon"
 source_org="little"
 source_org+="organs"
 source_slug="${source_scope}-template"
+source_tokens=("$source_slug" "$source_org" "$source_scope")
+verify_pathspec=(".")
 
 usage() {
   printf 'Usage: just rename <org> <scope> <slug>\n' >&2
 }
 
 fail() {
+  printf '%s\n' "$1" >&2
+  exit 1
+}
+
+usage_error() {
   printf '%s\n' "$1" >&2
   exit 64
 }
@@ -21,15 +29,37 @@ require_command() {
   command -v "$1" >/dev/null 2>&1 || fail "Required command not found: $1"
 }
 
+verify_contract() {
+  local token
+  local token_count=0
+  local tracked_file_count
+
+  for token in "${source_tokens[@]+"${source_tokens[@]}"}"; do
+    [[ -n "$token" ]] || fail "Rename verification token list contains an empty token."
+    token_count=$((token_count + 1))
+  done
+  ((token_count > 0)) || fail "Rename verification token list is empty."
+  tracked_file_count=$(git ls-files -- "${verify_pathspec[@]}" | wc -l)
+  ((tracked_file_count > 0)) || fail "Rename verification tracked-file corpus is empty."
+  verify_absent >/dev/null 2>&1 || :
+
+  printf 'Rename verifier contract passed. Searched %d tracked files for %d tokens.\n' \
+    "$tracked_file_count" "$token_count"
+}
+
 verify_absent() {
   local found=0
+  local status
   local token
 
-  for token in "$source_slug" "$source_org" "$source_scope"; do
-    if git grep -q -F -e "$token" --; then
+  for token in "${source_tokens[@]}"; do
+    if git grep -q -F -e "$token" -- "${verify_pathspec[@]}"; then
       printf 'Rename verification failed. Tracked files still contain "%s":\n' "$token" >&2
-      git grep -n -F -e "$token" -- >&2
+      git grep -n -F -e "$token" -- "${verify_pathspec[@]}" >&2
       found=1
+    else
+      status=$?
+      ((status == 1)) || fail "Rename verification search exited ambiguously with status $status."
     fi
   done
 
@@ -46,13 +76,13 @@ validate_target() {
   local source="$3"
 
   if [[ ! "$value" =~ ^[[:alnum:]][[:alnum:]_.-]*$ ]]; then
-    fail "$label must contain only letters, numbers, periods, underscores, and hyphens."
+    usage_error "$label must contain only letters, numbers, periods, underscores, and hyphens."
   fi
   if [[ "$value" == "$source" ]]; then
-    fail "$label must differ from the template value."
+    usage_error "$label must differ from the template value."
   fi
   if [[ "$value" == *"$source_slug"* || "$value" == *"$source_org"* || "$value" == *"$source_scope"* ]]; then
-    fail "$label must not contain a template identity token."
+    usage_error "$label must not contain a template identity token."
   fi
 }
 
@@ -60,8 +90,14 @@ require_command git
 repo_root=$(git rev-parse --show-toplevel 2>/dev/null) || fail "Run this command inside a Git repository."
 cd "$repo_root"
 
+if [[ "${1:-}" == "--verify-contract" ]]; then
+  [[ "$#" -eq 1 ]] || usage_error "The --verify-contract mode takes no other arguments."
+  verify_contract
+  exit 0
+fi
+
 if [[ "${1:-}" == "--verify" ]]; then
-  [[ "$#" -eq 1 ]] || fail "The --verify mode takes no other arguments."
+  [[ "$#" -eq 1 ]] || usage_error "The --verify mode takes no other arguments."
   verify_absent
   exit 0
 fi
