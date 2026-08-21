@@ -150,7 +150,6 @@ tasks:
   drizzle-generate:
     description: "Regenerate Drizzle types from the applied Atlas migrations"
     type: "run"
-    toolchains: "system"
     command: "node scripts/drizzle-schema.mjs generate"
     checks:
       - check: "condition"
@@ -162,7 +161,6 @@ tasks:
   drizzle-check:
     description: "Verify Drizzle types match the applied Atlas migrations"
     type: "test"
-    toolchains: "system"
     command: "node scripts/drizzle-schema.mjs check"
     inputs:
       - "migrations/**/*"
