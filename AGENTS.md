@@ -103,12 +103,9 @@ fails `moon run <project>:typecheck`, a broken assertion fails `moon run <projec
 unhandled promise fails `moon run root:lint`. If format selection changes, prove malformed formatting
 fails `moon run root:format-check`. Revert each violation before trusting the final green run.
 
-PR #18 is the worked CI example. GitHub Actions run
-[32329628242](https://github.com/littleorgans/lilo-moon-template/actions/runs/32329628242) failed on a
-deliberate oxfmt violation. Run
-[32329693330](https://github.com/littleorgans/lilo-moon-template/actions/runs/32329693330) passed after
-the violation was reverted. The red run proves the workflow observed real work; the green run proves
-the valid state.
+PR #18 is the worked CI example. Its first workflow run failed on a deliberate oxfmt violation. A
+later run passed after the violation was reverted. The red run proves the workflow observed real
+work; the green run proves the valid state.
 
 ## Write tests
 
