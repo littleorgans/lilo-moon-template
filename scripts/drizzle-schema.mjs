@@ -89,7 +89,7 @@ function directoriesMatch(left, right) {
 }
 
 function generateInto(destination) {
-  const container = `lilo-drizzle-${process.pid}`;
+  const container = `drizzle-${process.pid}`;
   try {
     run("docker", [
       "run",
@@ -140,7 +140,7 @@ if (mode === "check" && !process.env.CI && !dockerIsAvailable()) {
   process.exit(0);
 }
 
-const candidateDirectory = mkdtempSync(join(tmpdir(), "lilo-drizzle-candidate-"));
+const candidateDirectory = mkdtempSync(join(tmpdir(), "drizzle-candidate-"));
 try {
   generateInto(candidateDirectory);
   if (mode === "generate") {

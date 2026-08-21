@@ -23,5 +23,11 @@ new-package name:
 new-app name:
     moon generate application -- --name "{{name}}"
 
+rename $org $scope $slug:
+    bash scripts/rename-template.sh "$org" "$scope" "$slug"
+
+rename-verify:
+    bash scripts/rename-template.sh --verify
+
 clean:
     moon clean

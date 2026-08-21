@@ -60,23 +60,14 @@ After you rename the directory itself, run `moon clean`, delete `node_modules`, 
 
 ## Rename what identifies the template
 
-Pick a package scope, a GitHub `org/repo`, and a license. Then change every field in this list.
-Leave a template string in place and the next `just new-package` will put `littleorgans` back.
+Run the rename command with a GitHub organization, a JavaScript package scope without `@`, and a
+repository slug:
 
-| What                                                              | Where                                                                              |
-| ----------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| Workspace name                                                    | `name` in the root `package.json`                                                  |
-| README heading, clone URL, and `cd` directory                     | `README.md`                                                                        |
-| Library name, `license`, `repository.url`, `repository.directory` | `packages/collections/package.json`                                                |
-| Library source condition                                          | the `@lilo-moon/source` key under `exports` in `packages/collections/package.json` |
-| Application name and workspace dependency                         | `apps/web/package.json`                                                            |
-| Application import                                                | `apps/web/src/app.tsx`                                                             |
-| Vite source condition and `optimizeDeps.exclude`                  | `apps/web/vite.config.ts`                                                          |
-| Generated library name, `license`, `repository`, source condition | `.moon/templates/library/package.json.tera`                                        |
-| Generated application name                                        | `.moon/templates/application/package.json.tera`                                    |
-| Generated Vite source condition                                   | `.moon/templates/application/vite.config.ts.raw`                                   |
-| Source condition in the decision record                           | the `@lilo-moon/source` string in `docs/decisions.md`                              |
-| Changeset changelog repo                                          | `changelog.repo` in `.changeset/config.json`                                       |
+```bash
+just rename your-org your-scope your-repo
+```
+
+Run `just rename-verify` at any time to confirm that no template identity remains in tracked files.
 
 The source condition is a matching pair. The key in `exports` and the string in
 `resolve.conditions` must be the same. Node's standard conditions stay pointed at `dist`. Why is
@@ -87,25 +78,6 @@ the library generator to the same SPDX id.
 
 `publishConfig.access` on the library generator is `"public"`. Change it if the package is not
 public.
-
-`.changeset/config.json` `changelog.repo` is `littleorgans/lilo-moon-template`. Leave it and
-changeset version emits changelog links to that repository.
-
-Search for leftovers:
-
-```bash
-git grep -n 'lilo-moon\|littleorgans\|@lilo-moon'
-```
-
-After you change every table row and run `pnpm install`, search again. Hits should be limited to
-this guide's worked values, the historical CI URLs in AGENTS.md, and the comment `Independent of
-littleorgans` in `.moon/workspace.yml`. The worked values include the clone URL, rename table,
-changeset repository statement, search command, and this paragraph. Update the URLs if you do not
-want them, or leave them as the red and green gate examples. The workspace comment is not an
-identity string.
-Any other hit is an unfinished rename. If `pnpm-lock.yaml` still matches, rerun `pnpm install` and
-search again. A leftover `@lilo-moon` in a generator template will reappear on the next
-`just new-package`.
 
 Do not change `packageManager`, `engines`, catalog pins, or the moon version. Those are the
 baseline.
