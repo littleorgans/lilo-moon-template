@@ -149,9 +149,9 @@ branch protection on `main`, so every non-bypass merge has already passed lint, 
 The owner retains deliberate admin and force-push bypasses.
 
 `withastro/astro`, `changesets/changesets`, and `chakra-ui/chakra-ui` use the same build-only publish
-shape without a test-job `needs` edge. This repository has no `NPM_TOKEN`, so its publish command
-cannot run. Adding workflow sequencing now would add ceremony to a dormant path without strengthening
-the protected merge boundary.
+shape without a test-job `needs` edge. This repository leaves `NPM_PUBLISH_ENABLED` unset, so
+Changesets receives no publish command and cannot publish the exemplar. Adding workflow sequencing
+now would add ceremony to a dormant path without strengthening the protected merge boundary.
 
 ## Left to the consuming repo
 

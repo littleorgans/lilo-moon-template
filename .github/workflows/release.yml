@@ -9,6 +9,7 @@ concurrency:
 
 permissions:
   contents: write
+  id-token: write
   pull-requests: write
 
 jobs:
@@ -20,7 +21,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
 
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
@@ -38,11 +39,10 @@ jobs:
         uses: changesets/action@a45c4d594aa4e2c509dc14a9f2b3b67ba3780d0d # v1
         with:
           version: pnpm changeset:version
-          # Publish is a no-op until repository secret NPM_TOKEN is set. Once set, its only gates
-          # are moon run :build through changeset:publish and branch protection on main.
-          publish: ${{ secrets.NPM_TOKEN != '' && 'pnpm changeset:publish' || '' }}
+          # Publishing stays disabled unless NPM_PUBLISH_ENABLED compares equal to true. Configure
+          # npm trusted publishing for every package before enabling it.
+          publish: ${{ vars.NPM_PUBLISH_ENABLED == 'true' && 'pnpm changeset:publish' || '' }}
           commit: "chore: version packages"
           title: "chore: version packages"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
