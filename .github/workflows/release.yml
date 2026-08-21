@@ -38,7 +38,8 @@ jobs:
         uses: changesets/action@a45c4d594aa4e2c509dc14a9f2b3b67ba3780d0d # v1
         with:
           version: pnpm changeset:version
-          # Publish is a no-op until repository secret NPM_TOKEN is set.
+          # Publish is a no-op until repository secret NPM_TOKEN is set. Once set, its only gates
+          # are moon run :build through changeset:publish and branch protection on main.
           publish: ${{ secrets.NPM_TOKEN != '' && 'pnpm changeset:publish' || '' }}
           commit: "chore: version packages"
           title: "chore: version packages"

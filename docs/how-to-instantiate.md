@@ -207,6 +207,23 @@ skip that procedure because `lefthook.yml`, a changeset, or a coverage threshold
 changeset with `pnpm exec changeset` when a change belongs in the changelog for any versioned
 package, including a library or private application.
 
+## Enable package publishing
+
+After you set `NPM_TOKEN`, `moon run :build` through `changeset:publish` and branch protection for
+`main` gate publishing. Adding lint, typecheck, and tests to the publish path is a non-trivial
+workflow change that must account for job sequencing within one workflow file, the `contents: write`
+and `pull-requests: write` permissions, and a workflow-level `cancel-in-progress` setting that can
+cancel a run before job-level concurrency protects a publish and can leave a partial release. This
+template has neither made nor tested that change, so it does not prescribe a recipe.
+
+The Version Packages PR uses `GITHUB_TOKEN`.
+[GitHub's `GITHUB_TOKEN` documentation](https://docs.github.com/en/actions/concepts/security/github_token)
+states that its `pull_request` workflows start in an approval-required state and wait for a
+maintainer with write access to select **Approve workflows to run**. Until then, the required `CI`
+check does not report, so the PR stays blocked. Use a GitHub App installation token or a PAT to avoid
+the approval. This repository has never run `changeset version`. The approval state is documented
+behavior, not a local observation.
+
 ## After this page
 
 Work inside the repo is AGENTS.md. Settled tool choices are
