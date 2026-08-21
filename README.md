@@ -94,7 +94,7 @@ fail, as AGENTS.md requires, before trusting `just ci`.
 A Rust-only tree still `pnpm install`s the root oxlint, oxfmt, secretlint, and audit gates. Those
 tools live in `devDependencies` in the root `package.json`.
 
-`moon.yml` `tasks.atlas-diff` and `tasks.atlas-lint` need Docker only when `schema.sql` exists.
+`moon.yml` `tasks.atlas-diff` and `tasks.atlas-lint` need Docker only when `db/schema.sql` exists.
 Without Docker, `just check` skips Atlas lint and the Drizzle schema check locally with clear
 messages. CI still runs both when a schema exists.
 

@@ -21,8 +21,8 @@ fileGroups:
     - "packages/**/*"
     - "services/**/*"
     - "scripts/**/*"
-    - "migrations/**/*"
-    - "schema.sql"
+    - "db/migrations/**/*"
+    - "db/schema.sql"
     # Generated and installed files must not invalidate source task caches.
     - "!.moon/cache/**/*"
     - "!.moon/docker/**/*"
@@ -87,23 +87,23 @@ tasks:
     options:
       runInCI: "always"
 
-  # schema.sql is the applicability boundary for every Atlas task. An absent
+  # db/schema.sql is the applicability boundary for every Atlas task. An absent
   # schema skips before Atlas or Docker starts. Once present, failures propagate.
   atlas-diff:
-    description: "Generate a versioned migration from schema.sql"
+    description: "Generate a versioned migration from db/schema.sql"
     type: "run"
     toolchains: "system"
     command: "atlas migrate diff"
     args:
       - "--dir"
-      - "file://migrations"
+      - "file://db/migrations"
       - "--to"
-      - "file://schema.sql"
+      - "file://db/schema.sql"
       - "--dev-url"
       - "docker://postgres/17/dev?search_path=public"
     checks:
       - check: "condition"
-        script: "test ! -f schema.sql"
+        script: "test ! -f db/schema.sql"
     options:
       cache: false
       runInCI: false
@@ -122,12 +122,12 @@ tasks:
       selector="${MOON_BASE:+--git-base=$MOON_BASE}"
       selector="${selector:---latest=1}"
       atlas migrate lint \
-        --dir "file://migrations" \
+        --dir "file://db/migrations" \
         --dev-url "docker://postgres/17/dev?search_path=public" \
         "$selector"
     checks:
       - check: "condition"
-        script: "test ! -f schema.sql"
+        script: "test ! -f db/schema.sql"
     options:
       cache: false
       runInCI: "always"
@@ -138,11 +138,11 @@ tasks:
     toolchains: "system"
     script: >-
       atlas migrate apply
-      --dir "file://migrations"
+      --dir "file://db/migrations"
       --url "${DATABASE_URL:?set DATABASE_URL}"
     checks:
       - check: "condition"
-        script: "test ! -f schema.sql"
+        script: "test ! -f db/schema.sql"
     options:
       cache: false
       runInCI: false
@@ -153,7 +153,7 @@ tasks:
     command: "node scripts/drizzle-schema.mjs generate"
     checks:
       - check: "condition"
-        script: "test ! -f schema.sql"
+        script: "test ! -f db/schema.sql"
     options:
       cache: false
       runInCI: false
@@ -163,16 +163,16 @@ tasks:
     type: "test"
     command: "node scripts/drizzle-schema.mjs check"
     inputs:
-      - "migrations/**/*"
-      - "schema.sql"
-      - "drizzle/_generated/**/*"
+      - "db/migrations/**/*"
+      - "db/schema.sql"
+      - "db/drizzle/_generated/**/*"
       - "scripts/drizzle-schema.mjs"
       - "package.json"
       - "pnpm-lock.yaml"
       - "pnpm-workspace.yaml"
     checks:
       - check: "condition"
-        script: "test ! -f schema.sql"
+        script: "test ! -f db/schema.sql"
     options:
       cache: false
       runInCI: "always"

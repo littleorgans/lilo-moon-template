@@ -163,6 +163,26 @@ just ci
 `moon.yml` `tasks.project-refs` must exit 0 with no TS6053. The `references` array must list only
 the members you kept.
 
+### The database exemplar
+
+`db/schema.sql` is the Atlas desired state. `example_items` is a stub that exists so
+`tasks.atlas-lint` and `tasks.drizzle-check` are exercised in CI on a fresh clone. Replace the
+table with your own schema, then:
+
+```bash
+moon run root:atlas-diff
+moon run root:drizzle-generate
+```
+
+`db/migrations/` gains a versioned file and `db/drizzle/_generated/schema.ts` is rewritten. Never
+edit either by hand, and never move `db/schema.sql` into `db/migrations/`. Atlas checksums that
+directory in `atlas.sum` and reads every `.sql` file in it as a versioned migration.
+
+Delete the whole `db/` directory if this repo has no database. The five `test ! -f db/schema.sql`
+checks in `moon.yml` make an absent schema skip every Atlas and Drizzle task before Atlas or
+Docker starts. Deleting `db/schema.sql` on its own skips those tasks as well, which leaves
+`db/migrations/` and `db/drizzle/_generated/` in the tree with nothing checking them.
+
 ## What you must not delete
 
 These are the baseline. Removing any of them is a fork, not an instantiation.
