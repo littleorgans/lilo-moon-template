@@ -73,10 +73,22 @@ procedure is [Write tests](../AGENTS.md#write-tests).
 
 ## Identity and entitlements
 
-Identity is undecided and under active discussion. #16, #17, and #23 are labelled
-`blocked:pending-decision`. Do not cite this record as a vendor commitment.
+**Decided: WorkOS.** `packages/auth` and `packages/db` are on main, and the schema keys on WorkOS
+identifiers. The record model and the signup, payment and auth workflows are
+[The user entity](user-entity.md). #16, #17 and #23 predate that decision and are still open.
 
-WorkOS AuthKit was the leading candidate. It ships users, organizations, roles, permissions, and
+What the environment actually issues, measured rather than read from documentation: a user with no
+organization gets `iss`, `sub`, `sid`, `jti`, `auth_time`, `client_id`, `iat` and `exp` and nothing
+else. Adding an organization adds `org_id`, `role` as a string, `roles` as an array, and
+`permissions`. `entitlements` appears only once Stripe Connect is configured. Both `role` and
+`roles` are emitted, which is why `toPrincipal` reads the plural and falls back to the singular.
+`sub` is a reserved claim that a JWT template cannot override.
+
+WorkOS has no setting that creates an organization for a new user, so the application does it. A
+first social sign-in therefore yields a token with no `org_id`, and that is a normal state rather
+than an error.
+
+WorkOS AuthKit ships users, organizations, roles, permissions, and
 Stripe entitlements as claims on the session JWT. The product then does not build an entitlements
 service, a sync webhook, or a billing database to approximate those claims. That is the reasoning
 that put WorkOS first. Clerk and Supabase Auth also issue asymmetric JWTs. They differ on tenant,
