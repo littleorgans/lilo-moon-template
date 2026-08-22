@@ -227,6 +227,15 @@ skip that procedure because `lefthook.yml`, a changeset, or a coverage threshold
 changeset with `pnpm exec changeset` when a change belongs in the changelog for any versioned
 package, including a library or private application.
 
+## Switch the CI runner
+
+`.github/workflows/ci.yml` selects the job runner from the repository Actions variable
+`CI_RUNNER`. Leave it unset and the job runs on `ubuntu-latest`. Set it to a runner label
+when you want a different host. It is a variable, not a secret.
+
+`.github/workflows/release.yml` stays on `ubuntu-latest`. Releases are rare, and that
+workflow has `id-token: write` for npm trusted publishing.
+
 ## Enable package publishing
 
 npm can attach a trusted publisher only after a package exists on the registry, so the first release
