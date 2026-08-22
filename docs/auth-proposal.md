@@ -1,9 +1,12 @@
 # Proposal: auth and persistence in the baseline
 
-**Status: working document for #16, #17 and #23. No code on main.** Sections marked **Settled** or
-**Decided** are agreed and were proven by running something; the evidence is quoted inline. Anything
-under "Open questions" is not. When the whole page settles, the rationale moves to
-[decisions.md](decisions.md) and the work becomes issues.
+**Status: working document for #16, #17 and #23.** `packages/auth` is on main (#57, `53a8bcf`).
+`packages/db` is on main (#59, `4e58cc5`). The user entity and `root:rls-verify` are on main (#56,
+`f03ec78`). Sections marked **Settled** or **Decided** were proven by running something; the
+evidence is quoted inline. Anything under "Open questions" is not. Unbuilt: `packages/auth-workos`
+(being written in another worktree), `packages/theme`, `packages/ui`, `packages/vite-config`, and
+the Rust mirror of verification in `services/ping` for #17. When the whole page settles, the
+rationale moves to [decisions.md](decisions.md) and the work becomes issues.
 
 Background that this page does not repeat: [Supabase as a Postgres host](supabase-boundary.md),
 [Why this baseline is shaped this way](decisions.md), and [The user entity](user-entity.md), which
@@ -24,7 +27,7 @@ App server  (persistent Node process)
    |  BEGIN
    |    SET LOCAL ROLE authenticated
    |    set_config('request.jwt.claims', claims, true)
-   |    JIT upsert by workos_org_id / workos_user_id
+   |    JIT insert: profiles always, accounts only when orgId is present
    |    queries under RLS via app.current_user_id()
    |  COMMIT
    v
@@ -49,9 +52,9 @@ packages/
   theme/                  Typed token contract, product themes, runtime applier and validator.
   ui/                     Shared React components. shadcn + Tailwind. No className escapes to apps.
   vite-config/            One Vite and Vitest factory. Owns the three workspace-package lists.
-  auth/                   verify(token) -> Principal. JWKS + jose. Portable. No vendor SDK.
-  auth-workos/            Login flows and WorkOS API calls. The quarantined provider module.
-  db/                     Drizzle client and withPrincipal(). The only place GUCs are set.
+  auth/                   On main. createVerifier, toPrincipal. JWKS + jose. No vendor SDK.
+  auth-workos/            Unbuilt. Login flows and WorkOS API calls. The quarantined provider module.
+  db/                     On main. createDatabase, withPrincipal. The only place claims enter Postgres.
   collections/            Existing library exemplar. Unchanged.
 
 services/
@@ -98,56 +101,65 @@ app gets the same auth by importing the same three packages.
 A dedicated entry under `services/` is only justified when something must outlive a request: a
 WebSocket server, a queue worker, a scheduled job. Nothing in the current scope qualifies.
 
-### What each new package is
+### What each package is
 
 **`packages/ui`** Shared React components and layout primitives. Uses `catalog:react-peer`, the
 permissive React peer range that `pnpm-workspace.yaml` already defines for exactly this case.
 Whether the sign-in form lives here or in `packages/auth-workos` is open question 3.
 
-**`packages/auth`** The seam #23 protects. Exports `verify(token): Principal` and the `Principal`
-type: `userId`, `orgId`, `roles`, `permissions`, `entitlements`. JWKS plus `jose`. Knows nothing
-about WorkOS beyond a configured issuer and JWKS URL. This is the package `services/ping` mirrors
-in Rust.
+**`packages/auth`** The seam #23 protects. On main (#57). Exports `createVerifier(options)`, which
+returns `(token) => Promise<Principal>`, plus `toPrincipal`, `AuthError` and `AuthFailure`. JWKS
+plus `jose`. No provider SDK on this path. The key set is resolved once at construction. Failures
+map to a typed reason (`malformed`, `signature`, `expired`, `issuer`, `audience`, `claims`) so
+callers branch on a value rather than on message text. Claim-shape validation is separate from
+signature verification.
+
+`Principal` is `userId: string`, `orgId: string | null`, and `roles`, `permissions`,
+`entitlements` as `readonly string[]`. `orgId` is null when the token has no `org_id`, which is a
+normal first-sign-in state. See [The user entity](user-entity.md). `toPrincipal` reads `sub`,
+`org_id`, `roles` with a fallback to singular `role`, `permissions` and `entitlements`. There is
+no separate ClaimMapper in this package. This is the package `services/ping` will mirror in Rust.
 
 **`packages/auth-workos`** Everything that does not abstract: sign-in, magic auth, MFA challenges,
 token refresh, WorkOS API calls. Uses the WorkOS SDK freely, because this is the module you rewrite
-when you swap vendors. Nothing outside this package imports `@workos-inc/*`.
+when you swap vendors. Nothing outside this package imports `@workos-inc/*`. Unbuilt.
 
-**`packages/db`** The Drizzle client plus `withPrincipal(principal, fn)`, which opens the
-transaction, sets the role and GUCs, performs the JIT upsert, and runs the caller's queries inside
-it. The GUC sequence exists once, here. A copy of it anywhere else is a bug.
+**`packages/db`** On main (#59). Exports `createDatabase(options)`, which returns `withPrincipal`
+and `close`. `withPrincipal(principal, body)` takes one client from the pool and calls `runScoped`,
+which opens one transaction, sets `SET LOCAL ROLE` and `request.jwt.claims` transaction-locally,
+inserts the profile always and the account only when `principal.orgId` is present, then runs the
+caller's queries inside that transaction. Claims are rebuilt from the verified Principal, so
+Postgres observes only values that survived verification. The role is validated as a plain
+identifier at construction and again in `runScoped`, because `SET ROLE` cannot take a bind
+parameter. The sequence lives in `runScoped` so it can be tested against a recording client. A copy
+of this sequence anywhere else is a bug.
 
 ### RLS identity
 
 `auth.uid()` is unusable. It casts the subject to `uuid`, and WorkOS subjects are text
-(`user_01HBEQ...`). Verified in the Supabase migration that defines it.
+(`user_01HBEQ...`). Verified in the Supabase migration that defines it. Policies use
+`app.current_user_id()` and `app.current_org_id()` instead. Those helpers, `FORCE ROW LEVEL
+SECURITY`, and the behavioural gate that proves them live in [The user entity](user-entity.md). Do
+not copy the earlier snippet this page carried: it lacked `nullif` and threw `22P02` on a reused
+pooled connection.
 
-Policies use our own helper instead. **Built and on main**, see
-[The user entity](user-entity.md); the version below corrects the one this page carried, which threw
-instead of failing closed:
-
-```sql
-create function app.current_user_id() returns text
-  language sql stable
-  set search_path = pg_catalog
-  as $$ select nullif(current_setting('request.jwt.claims', true), '')::jsonb ->> 'sub' $$;
-```
-
-`nullif` is load-bearing. At COMMIT a transaction-local GUC reverts to empty string rather than to
-unset, so a bare cast raises `22P02` on the next request to borrow the connection. Found by
-`root:rls-verify`, not by review.
-
-Text typed, honest about the identifier, and it survives leaving Supabase. `auth.jwt()` still works
-if we want it, but reaching for Supabase Auth helpers recouples us to the system we excluded.
+`auth.jwt()` still works if we want it, but reaching for Supabase Auth helpers recouples us to the
+system we excluded.
 
 ### Connection rules
 
 - One explicit transaction on one client. `BEGIN` through `COMMIT`, no autocommit statements.
   Transaction-local values are cleared at commit, which is also what stops identity leaking to the
-  next borrower of a pooled connection.
-- Prepared statements off on the pooler port (Drizzle `prepare: false`).
+  next borrower of a pooled connection. `runScoped` on main does this.
+- Do not call Drizzle's `.prepare()` on the pooler port. The earlier form of this rule said to set
+  `prepare: false`, which is a **postgres.js** option that `drizzle-orm/node-postgres` does not
+  have: its config takes a `Pool` or `PoolConfig` and nothing else. `pg` only prepares a statement
+  when one is named, guarded by `if (this.name)` in `pg/lib/query.js`, so ordinary queries never
+  become named prepared statements. There is no option for `createDatabase` to set. The rule is a
+  constraint on callers instead.
 - The server login role needs the Postgres `SET` option for `authenticated`. Constrained role,
-  never customer-chosen.
+  never customer-chosen. The role name defaults to `authenticated` and is refused if it is not a
+  plain identifier.
 
 ## Styling, components, and the UI boundary
 
@@ -272,7 +284,8 @@ contract needs a runtime representation and validation, not only a TypeScript ty
 produces untrusted input and gets parsed at the boundary like anything else external.
 
 **A user theme is a row.** It is scoped to a user or an org, which means the theme package touches
-the persistence plane. Cheap to account for now, expensive once the schema exists.
+the persistence plane. The `accounts` and `profiles` tables are on main. `profiles` still has no
+theme column. See [The user entity](user-entity.md).
 
 The package owns four things:
 
@@ -335,15 +348,25 @@ Two things the spike must settle:
 
 ## Spike status
 
-Throwaway worktree at `../.lilo-worktrees/stylex-spike`. Nothing on `main`.
+Throwaway worktree at `../.lilo-worktrees/stylex-spike` for the remaining UI and Start work. The
+user entity, `packages/auth` and `packages/db` are on `main`. The graph is now 32 tasks.
 
-**Done and proven:**
+**On main:**
+
+- User entity and `root:rls-verify` (#56, `f03ec78`). Evidence in [The user entity](user-entity.md).
+- `packages/auth` (#57, `53a8bcf`). `createVerifier`, `toPrincipal`, typed `AuthFailure`. Coverage
+  statements 94.11, branches 90, functions 100, lines 97.61. Eight deliberate weakenings each fail
+  at least one test.
+- `packages/db` (#59, `4e58cc5`). `createDatabase`, `withPrincipal`, `runScoped`. Coverage 100
+  percent statements, branches, functions and lines. 19 tests. Seven deliberate weakenings each
+  fail at least one test.
+
+**Proven in the spike, not on main:**
 
 - Dependency resolution for Tailwind 4 + shadcn's Radix deps + `@mantine/hooks`. `pnpm install` and
   `--frozen-lockfile` both exit 0. 920 lock nodes against main's 774, so +146.
 - The `className` / `style` ban in `apps/**`, failing on deliberate violations with file and line,
   passing when clean, and provably not reaching `packages/**`. `just ci` green at 21 tasks.
-
 - TanStack Start in this moon workspace. Live server route, SSR, `just ci` green at 21 tasks, and
   the boundary gate still firing on `src/routes/`. Needed the one `semver@6.3.1` exclusion.
 
@@ -363,10 +386,12 @@ Throwaway worktree at `../.lilo-worktrees/stylex-spike`. Nothing on `main`.
 
 All new versions go in the `pnpm-workspace.yaml` catalog. Projects reference `catalog:` and never
 pin. `minimumReleaseAge` is 1440, so a just-published version fails the install until it ages.
+`jose` is catalogued at 6.2.9 and used by `packages/auth`. `drizzle-orm` and `pg` are used by
+`packages/db`. The rest of this table is still to add.
 
 | Package                                              | Catalog         | Used by                     |
 | ---------------------------------------------------- | --------------- | --------------------------- |
-| `jose`                                               | yes             | `packages/auth`             |
+| `jose`                                               | 6.2.9, on main  | `packages/auth`             |
 | `@workos-inc/node`                                   | yes             | `packages/auth-workos` only |
 | `@tanstack/react-start`                              | yes             | `apps/web`                  |
 | `@tanstack/react-router`                             | yes             | `apps/web`                  |
@@ -383,13 +408,10 @@ Rust side for #17: a JWKS client and a JWT library, chosen when that issue is pi
 
 ## What this changes in existing records
 
-- **#16** says "do not build an entitlements service, a database, or a sync webhook". Owning the
-  customer record supersedes the database prohibition. The other two stand: no entitlements
-  service, and JIT creation keeps us out of webhook sync.
-- **#23** says to set GUCs "so `auth.uid()` and `auth.jwt()` fire". Right principle, wrong
-  mechanism. `auth.uid()` cannot fire on a WorkOS subject.
-- **#23** reads as if login flows are excluded from the template. They are excluded from the
-  _abstraction_, and shipped concretely by #16. Worth rewording.
+Issue bodies for #16 and #23 were updated when this spec landed (#55). The database prohibition in
+#16 is superseded. No entitlements service and no sync webhook stand. #23 uses
+`app.current_user_id()` rather than `auth.uid()`. Login flows are out of scope for the abstraction
+and shipped concretely by #16.
 
 ## Vendor constraints, dated
 
@@ -405,13 +427,16 @@ These are workarounds, not principles. If they lapse, the design simplifies.
 
 ## Open questions
 
-1. **Does `db/drizzle/_generated/` move into `packages/db/src/_generated/`?** Argument for: it is
-   TypeScript, and its only consumer would be that package. Argument against: it moved to `db/` in
-   #53 and this is churn. Splitting `db/` as language-neutral SQL and `packages/db` as the
-   TypeScript access layer is coherent either way.
-2. **One auth package or two?** `packages/auth` plus `packages/auth-workos` makes the boundary
-   enforceable and visible in the dependency graph. One package with two entry points is lighter.
-   The boundary is the point of #23, which argues for two.
+1. **Does `db/drizzle/_generated/` move into `packages/db/src/_generated/`?** `packages/db` is on
+   main and does not import the generated artifact. `createDatabase` hands the caller a
+   `drizzle(client)` with no schema. The artifact is still at `db/drizzle/_generated/`. Argument
+   for moving: it is TypeScript, and its only consumer would be that package. Argument against: it
+   moved to `db/` in #53 and this is churn. Splitting `db/` as language-neutral SQL and
+   `packages/db` as the TypeScript access layer is coherent either way. Not decided.
+2. ~~**One auth package or two?**~~ **Answered: two packages.** `packages/auth` holds
+   `createVerifier` and `toPrincipal`. `packages/auth-workos` will hold the vendor flows. The
+   boundary is the point of #23, and two packages make it visible in the dependency graph: nothing
+   outside `auth-workos` imports `@workos-inc/*`.
 3. **Who owns the sign-in form, `packages/ui` or `packages/auth-workos`?** UI keeps components
    together; auth-workos keeps everything vendor-shaped in one place.
 4. **Does a second app exist in the template?** "Shared auth" is a claim until two apps share it.
