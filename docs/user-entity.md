@@ -81,12 +81,15 @@ accounts, so a profile outlives any single one of them. This is the only place t
 touches the schema today, and it costs nothing to leave open.
 
 **No shared identity service.** A single customer record across products needs one database keyed on
-a stable id, not a broker in the browser redirect path. Because applications in one WorkOS
-environment share a user pool, `sub` is already identical across products. Each product's redirect
-chain ends at its own callback. Both apps reach the same rows through `packages/db`. A service in
-front of that earns its place when the apps stop sharing a codebase or a language, or when something
-outside this repo needs access, and extracting one later is not a rewrite because it would import
-the same package.
+a stable id, not a broker in the browser redirect path. Applications in one WorkOS environment share
+a user pool, so `sub` is already identical across products. They also share a session on the
+environment-level AuthKit domain: a sign-in to one application yields a code for a second
+application in the same browser, with no credential prompt. That is proven, see open question 2.
+littleorgans does not need to be an identity broker. Each product's redirect chain still ends at
+its own callback. Both apps reach the same rows through `packages/db`. A service in front of that
+earns its place when the apps stop sharing a codebase or a language, or when something outside this
+repo needs access, and extracting one later is not a rewrite because it would import the same
+package.
 
 ## The schema
 
@@ -175,9 +178,25 @@ table owner.
 
 1. **Does a brand new social user arrive without `org_id`, and can WorkOS create the organization
    itself?** Decides whether step 5 is our code or configuration.
-2. **Does silent SSO work between two AuthKit applications in one environment?** The shared user
-   pool is confirmed; a shared session is not. Testable with a second application and two localhost
-   redirect URIs.
+2. ~~**Does silent SSO work between two AuthKit applications in one environment?**~~
+   **Answered: yes, within one environment.** Proven 2026-08-22 in staging. Two AuthKit
+   applications, app A `client_01M0JSGENAGWJCN0R7JME8JWGM` and a temporary app B. Signed in to A
+   with an email sign-in code. Then requested B's authorize URL in the same browser session. The
+   redirect chain was:
+
+   1. `api.workos.com/user_management/authorize?client_id=<B>`
+   2. `shining-turtle-76-staging.authkit.app/bootstrap?client_id=<B>`
+   3. `shining-turtle-76-staging.authkit.app/?client_id=<B>`
+   4. `shining-turtle-76-staging.authkit.app/api/refresh-token?...&path=sign-in`
+   5. `localhost:5174/callback?code=...`
+
+   No sign-in form and no credential prompt. Step 4 is the mechanism: AuthKit reuses the session
+   on the shared environment-level domain and mints a fresh code for a different `client_id`.
+
+   Proven within one environment. Staging and production are separate AuthKit domains and will not
+   share a session. `maxSessionTime` and `inactivityTimeout` are per application, so two apps can
+   disagree about when the shared session expired. That disagreement was not tested.
+
 3. **Which columns does `profiles` actually need?** It is a key and a timestamp today.
 4. **Does the custom auth domain get taken, and under which name?** It is environment level, so it
    serves both products and wants to be neutral. Enabling it regenerates the redirect URI for every
