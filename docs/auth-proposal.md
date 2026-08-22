@@ -6,7 +6,9 @@ under "Open questions" is not. When the whole page settles, the rationale moves 
 [decisions.md](decisions.md) and the work becomes issues.
 
 Background that this page does not repeat: [Supabase as a Postgres host](supabase-boundary.md),
-[Why this baseline is shaped this way](decisions.md).
+[Why this baseline is shaped this way](decisions.md), and [The user entity](user-entity.md), which
+owns the record model, the signup, payment and auth workflows, and the row level security that is
+now on main.
 
 ## The shape
 
@@ -56,8 +58,8 @@ services/
   ping/                   Rust. Verifies the same token. Proof for #17, not a product.
 
 db/
-  schema.sql              Atlas desired state.
-  migrations/             Atlas versioned migrations.
+  schema.sql              Atlas desired state. Tables only; Atlas models nothing else.
+  migrations/             Atlas versioned migrations, plus the hand-written RLS one.
   drizzle/_generated/     Generated Drizzle types. See open question 1.
 ```
 
@@ -120,13 +122,20 @@ it. The GUC sequence exists once, here. A copy of it anywhere else is a bug.
 `auth.uid()` is unusable. It casts the subject to `uuid`, and WorkOS subjects are text
 (`user_01HBEQ...`). Verified in the Supabase migration that defines it.
 
-Policies use our own helper instead:
+Policies use our own helper instead. **Built and on main**, see
+[The user entity](user-entity.md); the version below corrects the one this page carried, which threw
+instead of failing closed:
 
 ```sql
 create function app.current_user_id() returns text
   language sql stable
-  as $$ select current_setting('request.jwt.claims', true)::jsonb ->> 'sub' $$;
+  set search_path = pg_catalog
+  as $$ select nullif(current_setting('request.jwt.claims', true), '')::jsonb ->> 'sub' $$;
 ```
+
+`nullif` is load-bearing. At COMMIT a transaction-local GUC reverts to empty string rather than to
+unset, so a bare cast raises `22P02` on the next request to borrow the connection. Found by
+`root:rls-verify`, not by review.
 
 Text typed, honest about the identifier, and it survives leaving Supabase. `auth.jwt()` still works
 if we want it, but reaching for Supabase Auth helpers recouples us to the system we excluded.
@@ -406,9 +415,13 @@ These are workarounds, not principles. If they lapse, the design simplifies.
 3. **Who owns the sign-in form, `packages/ui` or `packages/auth-workos`?** UI keeps components
    together; auth-workos keeps everything vendor-shaped in one place.
 4. **Does a second app exist in the template?** "Shared auth" is a claim until two apps share it.
-   An `apps/admin` would prove it and would also double the maintenance surface.
-5. **Reuse Supabase's `authenticated` role or define our own?** `authenticated` arrives with
-   sensible grants but is a Supabase artifact in a design that otherwise avoids them.
+   A second app would prove it and would also double the maintenance surface. There are now two real
+   consuming products rather than a hypothetical one, which strengthens the case without settling
+   what the template itself ships.
+5. ~~**Reuse Supabase's `authenticated` role or define our own?**~~ **Answered: reuse the name.**
+   The identity migration creates `authenticated` only when absent, so it applies unchanged to a bare
+   Postgres and to a Supabase project that already has it. We define the role and its grants;
+   matching the name costs nothing and keeps one migration working on both.
 6. **Does `packages/vite-config` derive the workspace list, or accept it as an argument?** Derivation
    removes the drift but reads the workspace at config time. An explicit argument is dumber and
    easier to debug.

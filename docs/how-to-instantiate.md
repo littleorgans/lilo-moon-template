@@ -163,11 +163,10 @@ just ci
 `moon.yml` `tasks.project-refs` must exit 0 with no TS6053. The `references` array must list only
 the members you kept.
 
-### The database exemplar
+### The database is baseline, not an exemplar
 
-`db/schema.sql` is the Atlas desired state. `example_items` is a stub that exists so
-`tasks.atlas-lint` and `tasks.drizzle-check` are exercised in CI on a fresh clone. Replace the
-table with your own schema, then:
+`db/schema.sql` holds `accounts` and `profiles`. They are the user entity and they are meant to be
+kept: see [The user entity](user-entity.md). Add your own tables alongside them, then:
 
 ```bash
 moon run root:atlas-diff
@@ -178,10 +177,18 @@ moon run root:drizzle-generate
 edit either by hand, and never move `db/schema.sql` into `db/migrations/`. Atlas checksums that
 directory in `atlas.sum` and reads every `.sql` file in it as a versioned migration.
 
-Delete the whole `db/` directory if this repo has no database. The five `test ! -f db/schema.sql`
-checks in `moon.yml` make an absent schema skip every Atlas and Drizzle task before Atlas or
-Docker starts. Deleting `db/schema.sql` on its own skips those tasks as well, which leaves
-`db/migrations/` and `db/drizzle/_generated/` in the tree with nothing checking them.
+**A new table needs a policy migration as well as a schema entry.** Atlas does not model row level
+security and drops it from a diff without saying so, so policies are hand-written under
+`db/migrations/` and the checksum is regenerated with
+`atlas migrate hash --dir file://db/migrations`. `moon.yml` `tasks.rls-verify` fails when any table
+in `public` lacks row level security enabled and forced, which is what stops a new table shipping
+readable by every tenant.
+
+Delete the whole `db/` directory only if this repo has no database at all. The six
+`test ! -f db/schema.sql` checks in `moon.yml` make an absent schema skip every Atlas, Drizzle and
+RLS task before Atlas or Docker starts. Deleting `db/schema.sql` on its own skips those tasks as
+well, which leaves `db/migrations/` and `db/drizzle/_generated/` in the tree with nothing checking
+them.
 
 ## What you must not delete
 
@@ -193,6 +200,8 @@ These are the baseline. Removing any of them is a fork, not an instantiation.
 - `justfile`
 - `scripts/assert-tsgolint-lockstep.mjs`, `scripts/check-security.mjs`, and
   `.moon/tasks/tsgolint-lockstep.yml`
+- `scripts/rls-verify.mjs`, `scripts/drizzle-schema.mjs`, and `scripts/lib/postgres-container.mjs`,
+  unless you delete `db/` entirely
 - `pnpm-workspace.yaml` catalogs
 - `tsconfig.options.json`
 - `.oxlintrc.json` and `.oxfmtrc.json`
