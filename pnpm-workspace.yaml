@@ -12,6 +12,7 @@ allowBuilds:
 # One version of every shared dependency, for the whole repo.
 # Projects reference these with "catalog:" and never pin a version themselves.
 catalog:
+  "@workos-inc/node": "10.10.0"
   "@types/node": "^24.13.3"
   "@types/pg": "8.23.1"
   "@types/react": "^19.2.18"
