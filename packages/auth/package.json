@@ -1,0 +1,38 @@
+{
+  "name": "@lilo-moon/auth",
+  "version": "0.0.0",
+  "description": "Verifies an identity provider access token and maps it to a Principal.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/littleorgans/lilo-moon-template.git",
+    "directory": "packages/auth"
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "@lilo-moon/source": "./src/index.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "jose": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:"
+  },
+  "engines": {
+    "node": ">=24.19.0"
+  }
+}
