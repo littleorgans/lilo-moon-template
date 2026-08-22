@@ -17,9 +17,19 @@ jobs:
     name: Release
     runs-on: ubuntu-latest
     steps:
+      # HELIOY_PAT, when set, makes the version PR come from a user rather than from
+      # github-actions[bot]. A bot-authored PR can land in an approval-required state, and until a
+      # maintainer approves it the required CI check never reports, so the PR cannot merge. Falling
+      # back to GITHUB_TOKEN keeps a clone working with no secret configured, at the cost of that
+      # manual approval on every release.
+      #
+      # Rename this secret when you instantiate. `just rename` does not rewrite it, because it is
+      # not one of the template identity tokens, so it will follow a clone unnoticed. The fallback
+      # is what keeps that harmless rather than broken.
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
+          token: ${{ secrets.HELIOY_PAT || secrets.GITHUB_TOKEN }}
 
       - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
 
@@ -45,4 +55,4 @@ jobs:
           commit: "chore: version packages"
           title: "chore: version packages"
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.HELIOY_PAT || secrets.GITHUB_TOKEN }}
