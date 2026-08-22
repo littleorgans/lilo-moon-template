@@ -40,6 +40,9 @@ Quality gates live in `moon.yml` at the root and in `.moon/tasks/`. Root tasks i
 run them is
 [Run the gates](AGENTS.md#run-the-gates) in AGENTS.md.
 
+GitHub Actions CI is `.github/workflows/ci.yml`. The job runner is the repository variable
+`CI_RUNNER`, which defaults to `ubuntu-latest` when unset.
+
 Vitest coverage thresholds in `vitest.config.ts` are statements 80, branches 75, functions 80, and
 lines 80, applied per project and per file. They are a floor for untested code. A test is still
 unproven until a wrong implementation fails it. That rule is [Write tests](AGENTS.md#write-tests)
