@@ -24,6 +24,9 @@ catalogs:
     '@vitest/coverage-v8':
       specifier: ^4.1.11
       version: 4.1.11
+    '@workos-inc/node':
+      specifier: 10.10.0
+      version: 10.10.0
     drizzle-kit:
       specifier: 0.31.10
       version: 0.31.10
@@ -138,6 +141,16 @@ importers:
       jose:
         specifier: 'catalog:'
         version: 6.2.9
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.13.3
+
+  packages/auth-workos:
+    dependencies:
+      '@workos-inc/node':
+        specifier: 'catalog:'
+        version: 10.10.0
     devDependencies:
       '@types/node':
         specifier: 'catalog:'
@@ -1478,6 +1491,10 @@ packages:
 
   '@vitest/utils@4.1.11':
     resolution: {integrity: sha512-zTCVGpyFsGWBhllOyKlTw/vnr6D9qxsfSDyfbyZmTyjHw5N/VuvzHpHoQjm2ZJzn4RJgx5w4r7V0er69CmLgPQ==}
+
+  '@workos-inc/node@10.10.0':
+    resolution: {integrity: sha512-qAf00a0DaIFD2yX4D11jCnMsk8w5FpE4Oif8EDBxGnPR1WNelqPeQqRrwX4/9xUpQV0asI6SFkdaffEj6IO33Q==}
+    engines: {node: '>=22.11.0'}
 
   ajv@8.20.0:
     resolution: {integrity: sha512-Thbli+OlOj+iMPYFBVBfJ3OmCAnaSyNn4M1vz9T6Gka5Jt9ba/HIR56joy65tY6kx/FCF5VXNB819Y7/GUrBGA==}
@@ -3471,6 +3488,8 @@ snapshots:
       '@vitest/pretty-format': 4.1.11
       convert-source-map: 2.0.0
       tinyrainbow: 3.1.1
+
+  '@workos-inc/node@10.10.0': {}
 
   ajv@8.20.0:
     dependencies:
