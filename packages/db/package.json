@@ -1,0 +1,41 @@
+{
+  "name": "@lilo-moon/db",
+  "version": "0.0.0",
+  "description": "Postgres access scoped to a verified Principal by row level security.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/littleorgans/lilo-moon-template.git",
+    "directory": "packages/db"
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "@lilo-moon/source": "./src/index.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@lilo-moon/auth": "workspace:*",
+    "drizzle-orm": "catalog:",
+    "pg": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "@types/pg": "catalog:"
+  },
+  "engines": {
+    "node": ">=24.19.0"
+  }
+}

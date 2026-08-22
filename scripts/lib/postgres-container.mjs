@@ -3,6 +3,12 @@
 // once.
 
 import { execFileSync, spawnSync } from "node:child_process";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
+// Resolved from this file rather than from cwd: the package test suites run from their own
+// directory, and a repo-relative path silently points at nothing there.
+const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 
 export function run(command, args, capture = false) {
   return execFileSync(command, args, {
@@ -76,5 +82,6 @@ export async function withPostgres(callback) {
 // Every task here reaches the database through the migrations, never through schema.sql, so what
 // is verified is what would actually ship.
 export function applyMigrations(databaseUrl) {
-  run("atlas", ["migrate", "apply", "--dir", "file://db/migrations", "--url", databaseUrl]);
+  const directory = resolve(repositoryRoot, "db", "migrations");
+  run("atlas", ["migrate", "apply", "--dir", `file://${directory}`, "--url", databaseUrl]);
 }
