@@ -264,13 +264,17 @@ a run before job-level concurrency protects a publish and can leave a partial re
 has exercised neither the OIDC publish path nor the extra workflow gate, so it does not prescribe an
 integration recipe.
 
-The Version Packages PR uses `GITHUB_TOKEN`.
-[GitHub's `GITHUB_TOKEN` documentation](https://docs.github.com/en/actions/concepts/security/github_token)
-states that its `pull_request` workflows start in an approval-required state and wait for a
-maintainer with write access to select **Approve workflows to run**. Until then, the required `CI`
-check does not report, so the PR stays blocked. Use a GitHub App installation token or a PAT to avoid
-the approval. This repository has never run `changeset version`. The approval state is documented
-behavior, not a local observation.
+The Version Packages PR is authored by `secrets.RELEASE_TOKEN` when that secret exists, and by
+`GITHUB_TOKEN` when it does not. Leave it unset and releases still work, but the PR arrives from
+`github-actions[bot]` in an approval-required state: its `CI` run comes back `action_required`, the
+required check never reports, and the PR cannot merge until a maintainer opens it and selects
+**Approve workflows to run**. That is
+[GitHub's documented `GITHUB_TOKEN` behavior](https://docs.github.com/en/actions/concepts/security/github_token),
+and this template hit it on the first changeset it ever produced.
+
+Set `RELEASE_TOKEN` to a token belonging to a user with write access, or to a GitHub App installation
+token, and the approval step disappears. Prefer the App token. A PAT expires, and when it does
+releases stop being proposed without an obvious signal.
 
 ## After this page
 

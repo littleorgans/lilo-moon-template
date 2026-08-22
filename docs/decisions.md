@@ -183,6 +183,15 @@ shape without a test-job `needs` edge. This repository leaves `NPM_PUBLISH_ENABL
 Changesets receives no publish command and cannot publish the exemplar. Adding workflow sequencing
 now would add ceremony to a dormant path without strengthening the protected merge boundary.
 
+Versioning and publishing are separate steps, and only the second is gated by
+`NPM_PUBLISH_ENABLED`. The first changeset this repository produced opened a Version Packages PR that
+bumps a version and writes a changelog and reaches no registry at all. Observed 2026-08-22: that PR
+came from `github-actions[bot]`, its `CI` run returned `action_required`, and it could not merge
+until a maintainer approved the workflow. `release.yml` now prefers `secrets.RELEASE_TOKEN` and falls
+back to `GITHUB_TOKEN`, which moves the authorship off the bot and removes the approval when the
+secret is set. Consumer-facing detail is in
+[Start a project from this template](how-to-instantiate.md).
+
 ## Left to the consuming repo
 
 Settled here: moon, oxlint, oxfmt, TypeScript 7, the lockstep gate, pnpm catalogs, the member
