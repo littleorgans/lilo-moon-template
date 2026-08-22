@@ -25,6 +25,15 @@ export interface Database {
   close(): Promise<void>;
 }
 
+/**
+ * A pooled connection to Postgres.
+ *
+ * Nothing here disables prepared statements, and nothing needs to. That precaution matters on a
+ * transaction-mode pooler, but `pg` only prepares a statement when one is given a name, so ordinary
+ * queries never become named prepared statements. The equivalent `prepare: false` option belongs to
+ * postgres.js and does not exist on this driver. The constraint that does apply is on callers:
+ * do not use Drizzle's `.prepare()` against a pooler port.
+ */
 export function createDatabase(options: DatabaseOptions): Database {
   const pool = new Pool({
     connectionString: options.connectionString,

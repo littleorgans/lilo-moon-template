@@ -151,8 +151,12 @@ system we excluded.
 - One explicit transaction on one client. `BEGIN` through `COMMIT`, no autocommit statements.
   Transaction-local values are cleared at commit, which is also what stops identity leaking to the
   next borrower of a pooled connection. `runScoped` on main does this.
-- Prepared statements off on the pooler port (Drizzle `prepare: false`). `createDatabase` does not
-  set this today.
+- Do not call Drizzle's `.prepare()` on the pooler port. The earlier form of this rule said to set
+  `prepare: false`, which is a **postgres.js** option that `drizzle-orm/node-postgres` does not
+  have: its config takes a `Pool` or `PoolConfig` and nothing else. `pg` only prepares a statement
+  when one is named, guarded by `if (this.name)` in `pg/lib/query.js`, so ordinary queries never
+  become named prepared statements. There is no option for `createDatabase` to set. The rule is a
+  constraint on callers instead.
 - The server login role needs the Postgres `SET` option for `authenticated`. Constrained role,
   never customer-chosen. The role name defaults to `authenticated` and is refused if it is not a
   plain identifier.
