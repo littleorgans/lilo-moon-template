@@ -167,6 +167,30 @@ tasks:
       - "db/schema.sql"
       - "db/drizzle/_generated/**/*"
       - "scripts/drizzle-schema.mjs"
+      - "scripts/lib/postgres-container.mjs"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+    checks:
+      - check: "condition"
+        script: "test ! -f db/schema.sql"
+    options:
+      cache: false
+      runInCI: "always"
+
+  # Neither db/schema.sql nor the Drizzle artifact records what the policies do: Atlas Community
+  # drops them from a diff and drizzle-kit pull drops the USING expression from SELECT policies.
+  # This task applies the migrations and observes the database, so it is the only gate that can
+  # tell a scoped policy from an open one.
+  rls-verify:
+    description: "Prove row level security scopes rows in a real database"
+    type: "test"
+    command: "node scripts/rls-verify.mjs"
+    inputs:
+      - "db/migrations/**/*"
+      - "db/schema.sql"
+      - "scripts/rls-verify.mjs"
+      - "scripts/lib/postgres-container.mjs"
       - "package.json"
       - "pnpm-lock.yaml"
       - "pnpm-workspace.yaml"

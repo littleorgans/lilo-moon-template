@@ -127,8 +127,27 @@ columns, and partial indexes are not a claimed pull surface. `moon.yml`
 `tasks.drizzle-check` compares that artifact with a fresh database. The artifact is never a source,
 and it is never fed back into a migration.
 
+Atlas Community does not model everything a schema needs. Functions, `ENABLE ROW LEVEL SECURITY`,
+policies, roles and grants are dropped from a diff silently, and the command exits 0. Written into
+`db/schema.sql` they produce a migration containing only the tables. `drizzle-kit pull` then
+misreports the same objects in the other direction: it drops the `USING` expression from SELECT
+policies, so a policy that scopes rows renders in the artifact as though it scopes nothing.
+
+Everything Atlas cannot model therefore lives in a hand-written migration under `db/migrations/`,
+which Atlas leaves alone: with the dev URL pinned to `search_path=public`, the `app` schema and the
+policies appear on neither side of a re-diff, so no drift is planned and `atlas migrate lint` passes.
+
+Because both generated artifacts misrepresent the security model without failing, neither can be
+reviewed for it. `moon.yml` `tasks.rls-verify` applies the migrations to a real Postgres and asserts
+behaviour instead: tenant scoping, fail-closed on absent claims, rejection of cross-tenant inserts,
+that claims do not outlive their transaction, and that every table in `public` has row level security
+enabled and forced. That last assertion is the one that catches a future table added without a
+policy. This is the third instance of the pattern in this record, after `--type-aware` and coverage:
+a gate that reports green while proving nothing.
+
 Which capabilities stay portable across hosts is
-[Supabase as a Postgres host](supabase-boundary.md).
+[Supabase as a Postgres host](supabase-boundary.md). The record model and the workflows above it are
+[The user entity](user-entity.md).
 
 ## JavaScript library exports
 
@@ -167,8 +186,8 @@ now would add ceremony to a dormant path without strengthening the protected mer
 ## Left to the consuming repo
 
 Settled here: moon, oxlint, oxfmt, TypeScript 7, the lockstep gate, pnpm catalogs, the member
-layout, the generator shapes that exist, Atlas for SQL, Drizzle as generated output, and Supabase
-as a host.
+layout, the generator shapes that exist, Atlas for SQL, Drizzle as generated output, Supabase
+as a host, and the `accounts` and `profiles` baseline with its row level security.
 
 Not settled here: which identity vendor, which application framework you keep, whether you publish,
 to which registry, which license, which package scope, when the first Rust or Python member lands,
