@@ -50,7 +50,7 @@ apps/
   web/                    TanStack Start. Login UI, server routes, RLS-scoped queries.
 
 packages/
-  theme/                  Planned. Typed token contract, product themes, runtime applier, validator.
+  theme/                  On main. Typed token contract, product themes, runtime applier, validator.
   ui/                     Planned. Shared React components. shadcn + Tailwind. No className escapes.
   vite-config/            Planned. One Vite and Vitest factory. Owns the workspace-package lists.
   auth/                   On main. createVerifier, toPrincipal. JWKS + jose. No vendor SDK.
@@ -348,6 +348,14 @@ and small, and it is the only route to a typed theme contract now that Tailwind 
 **The pattern already exists here.** `scripts/drizzle-schema.mjs` has `generate` and `check` modes,
 with `drizzle-check` failing CI when the committed artifact drifts from its source. Theme generation
 is the same shape and should reuse it rather than invent a second convention.
+
+Shipped 2026-08-24. `scripts/theme-css.mjs` renders `packages/theme/css/themes.css` from the typed
+themes, with `root:theme-generate` and `root:theme-check` as the task pair. Editor paints `:root`
+and `.dark`; every theme is also addressable as `[data-theme="name"]`, dark composing whether the
+mode class sits on the element or an ancestor, which answers open question 5. Values live behind a
+deliberately closed grammar (oklch and hex) because theme values become CSS text and style
+properties, so the validator is also the injection boundary. Canvas exists and is visibly distinct
+so a wrong theme on screen reads as wrong at a glance.
 
 ### shadcn in this monorepo
 
