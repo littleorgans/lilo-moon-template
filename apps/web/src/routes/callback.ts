@@ -1,7 +1,6 @@
+import { callbackRoute } from "@lilo-moon/auth-tanstack";
 import { createFileRoute } from "@tanstack/react-router";
 
-import { completeSignIn } from "../server/handlers.js";
+import { auth } from "../server/auth.js";
 
-export const Route = createFileRoute("/callback")({
-  server: { handlers: { GET: completeSignIn } },
-});
+export const Route = createFileRoute("/callback")(callbackRoute(auth));

@@ -1,7 +1,6 @@
+import { signOutRoute } from "@lilo-moon/auth-tanstack";
 import { createFileRoute } from "@tanstack/react-router";
 
-import { endSession } from "../server/handlers.js";
+import { auth } from "../server/auth.js";
 
-export const Route = createFileRoute("/api/auth/signout")({
-  server: { handlers: { GET: endSession } },
-});
+export const Route = createFileRoute("/api/auth/signout")(signOutRoute(auth));

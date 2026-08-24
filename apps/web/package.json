@@ -5,7 +5,7 @@
   "type": "module",
   "dependencies": {
     "@lilo-moon/auth": "workspace:*",
-    "@lilo-moon/auth-session": "workspace:*",
+    "@lilo-moon/auth-tanstack": "workspace:*",
     "@lilo-moon/auth-workos": "workspace:*",
     "@lilo-moon/collections": "workspace:*",
     "@lilo-moon/db": "workspace:*",

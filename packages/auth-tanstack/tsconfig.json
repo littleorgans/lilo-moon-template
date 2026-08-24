@@ -1,0 +1,19 @@
+{
+  "extends": "../../tsconfig.options.json",
+  "include": ["src/**/*.ts", "tests/**/*.ts"],
+  "compilerOptions": {
+    "outDir": "../../.moon/cache/types/packages/auth-tanstack",
+    "types": ["node"]
+  },
+  "references": [
+    {
+      "path": "../auth"
+    },
+    {
+      "path": "../auth-session"
+    },
+    {
+      "path": "../auth-workos"
+    }
+  ]
+}

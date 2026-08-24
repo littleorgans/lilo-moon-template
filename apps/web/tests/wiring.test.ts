@@ -51,8 +51,8 @@ afterEach(() => {
 
 describe("route wiring", () => {
   it("the start route builds a real authorization url through the real SDK", async () => {
-    const { startSignIn } = await import("../src/server/handlers.js");
-    const response = startSignIn(null);
+    const { auth } = await import("../src/server/auth.js");
+    const response = auth.startSignIn(null);
 
     expect(response.status).toBe(302);
     const location = new URL(response.headers.get("location") ?? "");
@@ -67,8 +67,8 @@ describe("route wiring", () => {
 
   it("the signout route clears the session", async () => {
     cookies.set("lilo_session", "sealed");
-    const { endSession } = await import("../src/server/handlers.js");
-    const response = endSession(null);
+    const { auth } = await import("../src/server/auth.js");
+    const response = auth.endSession(null);
 
     expect(response.status).toBe(302);
     expect(cookies.has("lilo_session")).toBe(false);
@@ -77,8 +77,8 @@ describe("route wiring", () => {
   // Reaching the state check through the real wiring proves the callback is connected and that it
   // refuses before any network call. The mocked request carries a state no cookie matches.
   it("the callback route refuses a forged state without calling the provider", async () => {
-    const { completeSignIn } = await import("../src/server/handlers.js");
-    const response = await completeSignIn({
+    const { auth } = await import("../src/server/auth.js");
+    const response = await auth.completeSignIn({
       request: new Request("http://localhost:5199/callback?code=abc&state=forged"),
     });
 
@@ -103,31 +103,30 @@ describe("the signed-in loader through the real composition root", () => {
   // with one, a pool is constructed but never connected to, because no session gets that far.
   it("builds its dependencies with and without a database", async () => {
     const { loadSignedView } = await import("../src/server/signed-in.js");
-    const { requestCookies } = await import("../src/server/cookies.js");
-    expect(await loadSignedView(requestCookies)).toBeNull();
+    expect(await loadSignedView()).toBeNull();
 
     process.env["DATABASE_URL"] = "postgres://user:pass@127.0.0.1:5432/postgres";
     vi.resetModules();
     const reloaded = await import("../src/server/signed-in.js");
-    const jar = await import("../src/server/cookies.js");
-    expect(await reloaded.loadSignedView(jar.requestCookies)).toBeNull();
+    expect(await reloaded.loadSignedView()).toBeNull();
   });
 });
 
 describe("getServices", () => {
   it("constructs every package from configuration, with no database when none is set", async () => {
-    const { getServices } = await import("../src/server/services.js");
-    const services = getServices();
+    const { auth } = await import("../src/server/auth.js");
+    const { getDatabase } = await import("../src/server/services.js");
+    const services = auth.services();
 
     expect(services.config.clientId).toBe(env.WORKOS_CLIENT_ID);
     expect(typeof services.auth.getAuthorizationUrl).toBe("function");
     expect(typeof services.verify).toBe("function");
-    expect(services.database).toBeNull();
+    expect(getDatabase()).toBeNull();
   });
 
   it("builds the verifier against the derived issuer and JWKS uri", async () => {
-    const { getServices } = await import("../src/server/services.js");
-    const { config } = getServices();
+    const { auth } = await import("../src/server/auth.js");
+    const { config } = auth.services();
 
     expect(config.issuer).toContain(env.WORKOS_CLIENT_ID);
     expect(config.jwksUri).toContain(env.WORKOS_CLIENT_ID);

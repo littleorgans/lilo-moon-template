@@ -1,37 +1,23 @@
-import { createAuthServices, loadAuthConfig } from "@lilo-moon/auth-session";
-import type { AuthConfig, AuthServices } from "@lilo-moon/auth-session";
 import { createDatabase } from "@lilo-moon/db";
 import type { Database } from "@lilo-moon/db";
 
 /**
- * The composition root, held per process.
+ * The database, held per process, and the only thing this application composes for itself.
  *
- * Built lazily rather than at module load, so importing a route in a test does not demand a filled
- * `.env.local`. Held per process rather than per request because each part owns something worth
- * keeping: a JWKS key set that would otherwise be refetched, and a Postgres connection pool.
+ * Identity comes ready-made from `@lilo-moon/auth-tanstack`. Persistence does not, because a
+ * product is entitled to no database, one, or several, and an auth package has no business
+ * deciding which.
  *
- * This stays in the application on purpose. It is the one file that decides which pieces this
- * product runs with, and a second application is entitled to a different answer.
+ * Built lazily so importing a route in a test does not demand a `DATABASE_URL`.
  */
-interface Services extends AuthServices {
-  readonly config: AuthConfig;
-  /** Null when DATABASE_URL is unset, which is a runnable state: sign-in works without Postgres. */
-  readonly database: Database | null;
-}
+let database: Database | null | undefined;
 
-let services: Services | null = null;
-
-export function getServices(): Services {
-  if (services !== null) return services;
-  const config = loadAuthConfig();
-  const databaseUrl = process.env["DATABASE_URL"];
-  services = {
-    config,
-    ...createAuthServices(config),
-    database:
-      databaseUrl === undefined || databaseUrl.length === 0
-        ? null
-        : createDatabase({ connectionString: databaseUrl }),
-  };
-  return services;
+export function getDatabase(): Database | null {
+  if (database !== undefined) return database;
+  const connectionString = process.env["DATABASE_URL"];
+  database =
+    connectionString === undefined || connectionString.length === 0
+      ? null
+      : createDatabase({ connectionString });
+  return database;
 }

@@ -1,12 +1,10 @@
-import type { Principal, Verifier } from "@lilo-moon/auth";
-import { readPrincipal } from "@lilo-moon/auth-session";
-import type { CookieJar } from "@lilo-moon/auth-session";
+import type { Principal } from "@lilo-moon/auth";
 import { redirect } from "@tanstack/react-router";
 
-import { requestCookies } from "./cookies.js";
+import { auth } from "./auth.js";
 import { countVisibleRows } from "./rows.js";
 import type { ScopedRunner, VisibleRows } from "./rows.js";
-import { getServices } from "./services.js";
+import { getDatabase } from "./services.js";
 
 /**
  * Everything the signed-in page shows.
@@ -23,17 +21,15 @@ export interface SignedInView {
 }
 
 export interface SignedInDeps {
-  readonly cookieKey: Buffer;
-  readonly verify: Verifier;
+  readonly principal: () => Promise<Principal | null>;
   /** Null when DATABASE_URL is unset. Narrower than a Database on purpose: this page counts rows. */
   readonly runScoped: ScopedRunner | null;
 }
 
 function liveDeps(): SignedInDeps {
-  const { config, verify, database } = getServices();
+  const database = getDatabase();
   return {
-    cookieKey: config.cookieKey,
-    verify,
+    principal: () => auth.principal(),
     // Bound rather than wrapped in an arrow: the arrow would be a function only a live database
     // could ever run, and therefore one no test could reach.
     runScoped: database === null ? null : database.withPrincipal.bind(database),
@@ -42,10 +38,9 @@ function liveDeps(): SignedInDeps {
 
 /** Builds the signed-in view, or reports that there is no session. */
 export async function loadSignedView(
-  jar: CookieJar,
   deps: SignedInDeps = liveDeps(),
 ): Promise<SignedInView | null> {
-  const principal = await readPrincipal(jar, deps);
+  const principal = await deps.principal();
   if (principal === null) return null;
   if (deps.runScoped === null) return { principal, rows: null, databaseError: null };
 
@@ -70,11 +65,8 @@ export async function loadSignedView(
  * No session is not an error, it is a person who has not signed in yet, so it redirects rather than
  * raising. A token that fails verification is different and is left to propagate.
  */
-export async function loadSignedOrRedirect(
-  jar: CookieJar = requestCookies,
-  deps: SignedInDeps = liveDeps(),
-): Promise<SignedInView> {
-  const view = await loadSignedView(jar, deps);
+export async function loadSignedOrRedirect(deps: SignedInDeps = liveDeps()): Promise<SignedInView> {
+  const view = await loadSignedView(deps);
   if (view === null) throw redirect({ to: "/" });
   return view;
 }
