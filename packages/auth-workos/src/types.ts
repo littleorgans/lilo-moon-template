@@ -39,6 +39,50 @@ export interface RequestContext {
   readonly userAgent?: string;
 }
 
+/**
+ * Where the browser is sent to prove who it is.
+ *
+ * `authkit` is the provider's own hosted sign-in page. The rest jump straight to one social
+ * provider and skip that page. Enterprise SSO is selected by `connectionId` or `organizationId`
+ * instead, so it is not a member of this union.
+ *
+ * The social credentials are configured per environment rather than per application, so every
+ * application in one environment shares them. Enabling a custom AuthKit domain regenerates each
+ * provider's redirect URI and forces re-registration with that provider, which is the reason to
+ * add providers deliberately rather than because the union permits them.
+ */
+export type AuthorizationProvider =
+  | "authkit"
+  | "AppleOAuth"
+  | "GitHubOAuth"
+  | "GoogleOAuth"
+  | "MicrosoftOAuth";
+
+export interface AuthorizationUrlOptions {
+  /** Must already be registered with the provider. An unregistered value fails at the provider. */
+  readonly redirectUri: string;
+  /**
+   * Round-tripped to the callback, and the only defence against a forged authorization response.
+   *
+   * Required rather than optional because an omitted state is a silent vulnerability: the flow
+   * still completes, and the callback can no longer tell its own redirect from an attacker's.
+   * Generate an unguessable value, store it where the callback can read it, and compare.
+   *
+   * Verified 2026-08-24: the provider wraps this value in its own signed envelope and returns it
+   * unchanged, so it is genuinely ours to use.
+   */
+  readonly state: string;
+  readonly provider?: AuthorizationProvider;
+  readonly connectionId?: string;
+  readonly organizationId?: string;
+  readonly loginHint?: string;
+  readonly screenHint?: "sign-in" | "sign-up";
+}
+
+export interface AuthenticateWithCodeOptions extends RequestContext {
+  readonly code: string;
+}
+
 export interface PasswordSignInOptions extends RequestContext {
   readonly email: string;
   readonly password: string;
@@ -100,6 +144,10 @@ export interface ProvisionedOrganization {
 }
 
 export interface WorkOSAuth {
+  /** Builds the URL that starts a redirect sign-in. Local, so it cannot fail over the network. */
+  getAuthorizationUrl(options: AuthorizationUrlOptions): string;
+  /** Exchanges the code the callback received. Verify `state` before calling this. */
+  authenticateWithCode(options: AuthenticateWithCodeOptions): Promise<Authentication>;
   signInWithPassword(options: PasswordSignInOptions): Promise<Authentication>;
   sendMagicAuthCode(options: SendMagicAuthCodeOptions): Promise<MagicAuthCode>;
   verifyMagicAuthCode(options: VerifyMagicAuthCodeOptions): Promise<Authentication>;

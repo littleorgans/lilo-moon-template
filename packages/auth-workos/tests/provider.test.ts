@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import type { WorkOSClient, WorkOSAuthError } from "../src/index.js";
 import { createWorkOSAuth } from "../src/index.js";
+import { notUnderTest } from "./support.js";
 
 type UserManagement = WorkOSClient["userManagement"];
 type MultiFactorAuth = WorkOSClient["multiFactorAuth"];
@@ -64,6 +65,8 @@ function recorder(passwordFailure?: unknown): { client: WorkOSClient; calls: Cal
     calls,
     client: {
       userManagement: {
+        getAuthorizationUrl: notUnderTest,
+        authenticateWithCode: notUnderTest,
         authenticateWithPassword(options) {
           calls.push({ method: "authenticateWithPassword", options });
           if (passwordFailure !== undefined) return Promise.reject(passwordFailure);

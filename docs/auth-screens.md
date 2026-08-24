@@ -39,13 +39,22 @@ A server route could exchange the code and redirect without ever painting. That 
 simpler, and it shows a blank tab whenever the exchange is slow. The screen costs a flash of
 spinner and removes that failure mode.
 
-Three things happen here, in order, and all of them are server side:
+Four things happen here, in order, and all of them are server side:
 
-1. Exchange the code for an access token and a refresh token.
-2. Verify the access token. `orgId` is `null`, which is normal and not an error.
-3. **Create the organization, add the user to it, and refresh.** See below.
+1. **Compare the returned `state` against the value stored when the flow started.** A mismatch
+   ends the request. Nothing else in the callback is safe until this passes.
+2. Exchange the code for an access token and a refresh token.
+3. Verify the access token. `orgId` is `null`, which is normal and not an error.
+4. **Create the organization, add the user to it, and refresh.** See below.
 
-The Principal at step 2:
+Step 1 is the one that is easy to skip, because skipping it changes nothing visible: sign-in still
+works. What it removes is the callback's only way to tell its own redirect from one an attacker
+handed the browser. `getAuthorizationUrl` therefore takes `state` as a required argument and
+refuses an empty one, so the unsafe version does not type-check. Verified 2026-08-24 that the
+provider returns the value unchanged, wrapped in its own signed envelope alongside the redirect
+URI, so it is genuinely ours to compare.
+
+The Principal at step 3:
 
 ```
 userId        "user_01HBEQ..."
