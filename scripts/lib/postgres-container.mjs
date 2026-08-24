@@ -121,18 +121,16 @@ function psql(sql, capture = false) {
 // Act, then recover, and never judge a right-image container: one first seen in Created state is
 // usually a sibling task mid-start, and removing it is how CI produced a name conflict with three
 // tasks racing a cold image pull. `docker start` is the idempotent verb for every right-image
-// state: a no-op when running, a start when created or exited. The one `docker run` conflict a
-// race can still produce resolves by looping once onto the winner's container.
+// state: a no-op when running, a start when created or exited. A `docker run` that loses the name
+// race is the same situation one step later: the conflict error itself proves a sibling just
+// created the container, so the loser recovers with the same verb rather than a second `docker
+// run`, which CI showed can lose the race twice. `waitForPostgres` is the gate either way.
 function ensurePostgres() {
-  for (let attempt = 0; ; attempt += 1) {
-    const existing = inspectContainer();
-    if (existing !== null && existing.image === IMAGE) {
-      spawnSync("docker", ["start", CONTAINER], { stdio: "ignore" });
-      break;
-    }
-    if (existing !== null) {
-      spawnSync("docker", ["rm", "--force", CONTAINER], { stdio: "ignore" });
-    }
+  const existing = inspectContainer();
+  if (existing !== null && existing.image !== IMAGE) {
+    spawnSync("docker", ["rm", "--force", CONTAINER], { stdio: "ignore" });
+  }
+  if (existing === null || existing.image !== IMAGE) {
     const started = spawnSync(
       "docker",
       [
@@ -148,11 +146,11 @@ function ensurePostgres() {
       ],
       { encoding: "utf8" },
     );
-    if (started.status === 0) break;
-    if (attempt > 0 || !/is already in use/.test(started.stderr ?? "")) {
+    if (started.status !== 0 && !/is already in use/.test(started.stderr ?? "")) {
       throw new Error(`Could not start ${CONTAINER} on 127.0.0.1:${port()}:\n${started.stderr}`);
     }
   }
+  spawnSync("docker", ["start", CONTAINER], { stdio: "ignore" });
   waitForPostgres(CONTAINER);
 }
 
