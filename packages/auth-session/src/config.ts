@@ -1,20 +1,19 @@
 import { hkdfSync } from "node:crypto";
 
 /**
- * Everything the server half needs, read from the environment exactly once.
+ * Everything the identity half needs, read from the environment exactly once.
  *
  * Nothing under `packages/` reads `process.env`. Those packages take configuration as arguments so
  * a secret cannot be picked up implicitly by a library, which is what keeps them testable and
  * portable. The application is the only layer allowed to know that an environment exists, and this
  * file is the only part of the application that does.
  */
-export interface WebConfig {
+export interface AuthConfig {
   readonly clientId: string;
   readonly apiKey: string;
   readonly redirectUri: string;
   /** Derived from the cookie password, never the password itself. */
   readonly cookieKey: Buffer;
-  readonly databaseUrl: string | null;
   /** Derived from the client id rather than configured, so the two cannot disagree. */
   readonly issuer: string;
   readonly jwksUri: string;
@@ -69,7 +68,7 @@ function cookieKeyFrom(password: string): Buffer {
   return Buffer.from(hkdfSync("sha256", password, "lilo-moon-session", "session-cookie-v1", 32));
 }
 
-export function loadConfig(env: NodeJS.ProcessEnv = process.env): WebConfig {
+export function loadAuthConfig(env: NodeJS.ProcessEnv = process.env): AuthConfig {
   const values: Readonly<Record<RequiredNames, string | undefined>> = {
     WORKOS_CLIENT_ID: env["WORKOS_CLIENT_ID"],
     WORKOS_API_KEY: env["WORKOS_API_KEY"],
@@ -80,14 +79,12 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): WebConfig {
 
   const clientId = values.WORKOS_CLIENT_ID;
   const redirectUri = values.WORKOS_REDIRECT_URI;
-  const databaseUrl = env["DATABASE_URL"];
 
   return {
     clientId,
     apiKey: values.WORKOS_API_KEY,
     redirectUri,
     cookieKey: cookieKeyFrom(values.WORKOS_COOKIE_PASSWORD),
-    databaseUrl: databaseUrl === undefined || databaseUrl.length === 0 ? null : databaseUrl,
     issuer: `https://api.workos.com/user_management/${clientId}`,
     jwksUri: `https://api.workos.com/sso/jwks/${clientId}`,
     // A Secure cookie is silently dropped over plain http, which localhost is.

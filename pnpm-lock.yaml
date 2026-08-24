@@ -152,6 +152,9 @@ importers:
       '@lilo-moon/auth':
         specifier: workspace:*
         version: link:../../packages/auth
+      '@lilo-moon/auth-session':
+        specifier: workspace:*
+        version: link:../../packages/auth-session
       '@lilo-moon/auth-workos':
         specifier: workspace:*
         version: link:../../packages/auth-workos
@@ -228,6 +231,19 @@ importers:
       jose:
         specifier: 'catalog:'
         version: 6.2.9
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.13.3
+
+  packages/auth-session:
+    dependencies:
+      '@lilo-moon/auth':
+        specifier: workspace:*
+        version: link:../auth
+      '@lilo-moon/auth-workos':
+        specifier: workspace:*
+        version: link:../auth-workos
     devDependencies:
       '@types/node':
         specifier: 'catalog:'

@@ -51,8 +51,8 @@ afterEach(() => {
 
 describe("route wiring", () => {
   it("the start route builds a real authorization url through the real SDK", async () => {
-    const { startAuthorization } = await import("../src/routes/api.auth.start.js");
-    const response = startAuthorization(null);
+    const { startSignIn } = await import("../src/server/handlers.js");
+    const response = startSignIn(null);
 
     expect(response.status).toBe(302);
     const location = new URL(response.headers.get("location") ?? "");
@@ -67,8 +67,8 @@ describe("route wiring", () => {
 
   it("the signout route clears the session", async () => {
     cookies.set("lilo_session", "sealed");
-    const { signOut } = await import("../src/routes/api.auth.signout.js");
-    const response = signOut(null);
+    const { endSession } = await import("../src/server/handlers.js");
+    const response = endSession(null);
 
     expect(response.status).toBe(302);
     expect(cookies.has("lilo_session")).toBe(false);
@@ -77,8 +77,8 @@ describe("route wiring", () => {
   // Reaching the state check through the real wiring proves the callback is connected and that it
   // refuses before any network call. The mocked request carries a state no cookie matches.
   it("the callback route refuses a forged state without calling the provider", async () => {
-    const { handleCallback } = await import("../src/routes/callback.js");
-    const response = await handleCallback({
+    const { completeSignIn } = await import("../src/server/handlers.js");
+    const response = await completeSignIn({
       request: new Request("http://localhost:5199/callback?code=abc&state=forged"),
     });
 

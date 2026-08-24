@@ -12,6 +12,9 @@
       "path": "../../packages/auth"
     },
     {
+      "path": "../../packages/auth-session"
+    },
+    {
       "path": "../../packages/auth-workos"
     },
     {

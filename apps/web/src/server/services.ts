@@ -1,24 +1,20 @@
-import { createVerifier } from "@lilo-moon/auth";
-import type { Verifier } from "@lilo-moon/auth";
-import { createWorkOSAuth } from "@lilo-moon/auth-workos";
-import type { WorkOSAuth } from "@lilo-moon/auth-workos";
+import { createAuthServices, loadAuthConfig } from "@lilo-moon/auth-session";
+import type { AuthConfig, AuthServices } from "@lilo-moon/auth-session";
 import { createDatabase } from "@lilo-moon/db";
 import type { Database } from "@lilo-moon/db";
 
-import { loadConfig } from "./config.js";
-import type { WebConfig } from "./config.js";
-
 /**
- * The three packages, composed once per process.
+ * The composition root, held per process.
  *
- * Built lazily rather than at module load so importing a route in a test does not demand a filled
- * `.env.local`. Held per process rather than per request because each one owns something worth
+ * Built lazily rather than at module load, so importing a route in a test does not demand a filled
+ * `.env.local`. Held per process rather than per request because each part owns something worth
  * keeping: a JWKS key set that would otherwise be refetched, and a Postgres connection pool.
+ *
+ * This stays in the application on purpose. It is the one file that decides which pieces this
+ * product runs with, and a second application is entitled to a different answer.
  */
-interface Services {
-  readonly config: WebConfig;
-  readonly auth: WorkOSAuth;
-  readonly verify: Verifier;
+interface Services extends AuthServices {
+  readonly config: AuthConfig;
   /** Null when DATABASE_URL is unset, which is a runnable state: sign-in works without Postgres. */
   readonly database: Database | null;
 }
@@ -27,20 +23,15 @@ let services: Services | null = null;
 
 export function getServices(): Services {
   if (services !== null) return services;
-  const config = loadConfig();
+  const config = loadAuthConfig();
+  const databaseUrl = process.env["DATABASE_URL"];
   services = {
     config,
-    auth: createWorkOSAuth({ apiKey: config.apiKey, clientId: config.clientId }),
-    // No `audience`. WorkOS access tokens carry `client_id`, not `aud`, measured against the live
-    // environment and recorded in docs/decisions.md. jose rejects a token whose `aud` is absent
-    // when an audience is expected, so setting it here would refuse every token we are issued.
-    // The issuer is already client-id specific, so it pins the token to this application anyway.
-    verify: createVerifier({
-      jwks: { uri: config.jwksUri },
-      issuer: config.issuer,
-    }),
+    ...createAuthServices(config),
     database:
-      config.databaseUrl === null ? null : createDatabase({ connectionString: config.databaseUrl }),
+      databaseUrl === undefined || databaseUrl.length === 0
+        ? null
+        : createDatabase({ connectionString: databaseUrl }),
   };
   return services;
 }

@@ -1,0 +1,16 @@
+{
+  "extends": "../../tsconfig.options.json",
+  "include": ["src/**/*.ts", "tests/**/*.ts"],
+  "compilerOptions": {
+    "outDir": "../../.moon/cache/types/packages/auth-session",
+    "types": ["node"]
+  },
+  "references": [
+    {
+      "path": "../auth"
+    },
+    {
+      "path": "../auth-workos"
+    }
+  ]
+}

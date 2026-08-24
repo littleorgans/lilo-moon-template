@@ -1,15 +1,13 @@
 import { randomBytes } from "node:crypto";
 
 import type { Principal } from "@lilo-moon/auth";
+import type { CookieJar, CookieOptions } from "@lilo-moon/auth-session";
+import { SESSION_COOKIE, seal } from "@lilo-moon/auth-session";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import { SignedInPanel } from "../src/components/signed-in-panel.js";
-import { signOut } from "../src/routes/api.auth.signout.js";
-import { startAuthorization } from "../src/routes/api.auth.start.js";
-import type { CookieJar, CookieOptions } from "../src/server/cookies.js";
 import { countVisibleRows } from "../src/server/rows.js";
-import { SESSION_COOKIE, STATE_COOKIE, seal } from "../src/server/session.js";
 import { loadSignedOrRedirect, loadSignedView } from "../src/server/signed-in.js";
 
 interface Written {
@@ -49,75 +47,6 @@ const principal: Principal = {
   permissions: ["billing:manage"],
   entitlements: [],
 };
-
-describe("startAuthorization", () => {
-  const deps = {
-    authorizationUrl: (state: string) => `https://api.workos.com/authorize?state=${state}`,
-    secureCookies: false,
-  };
-
-  it("redirects to the provider", () => {
-    const { jar } = jarWith();
-    const response = startAuthorization(null, jar, deps);
-    expect(response.status).toBe(302);
-    expect(response.headers.get("location")).toContain("api.workos.com/authorize");
-  });
-
-  // The state that goes in the cookie must be the state that goes in the URL, or the callback
-  // compares two unrelated values and no sign-in can ever complete.
-  it("puts the same state in the cookie and the url", () => {
-    const { jar, written } = jarWith();
-    const response = startAuthorization(null, jar, deps);
-    const issued = written[0];
-    expect(issued?.name).toBe(STATE_COOKIE);
-    expect(new URL(response.headers.get("location") ?? "").searchParams.get("state")).toBe(
-      issued?.value,
-    );
-  });
-
-  it("issues a different state on every attempt", () => {
-    const first = jarWith();
-    const second = jarWith();
-    startAuthorization(null, first.jar, deps);
-    startAuthorization(null, second.jar, deps);
-    expect(first.written[0]?.value).not.toBe(second.written[0]?.value);
-  });
-
-  // Strict would withhold this cookie on the callback, which arrives as a top-level navigation from
-  // the provider's origin. Sign-in would then fail every time, for a reason that looks like a
-  // provider fault. This assertion is the one that catches a well-meaning tightening.
-  it("scopes the state cookie SameSite=Lax, http-only, on the root path", () => {
-    const { jar, written } = jarWith();
-    startAuthorization(null, jar, deps);
-    expect(written[0]?.options).toMatchObject({
-      httpOnly: true,
-      sameSite: "lax",
-      path: "/",
-    });
-  });
-
-  it("expires the state rather than leaving it valid indefinitely", () => {
-    const { jar, written } = jarWith();
-    startAuthorization(null, jar, deps);
-    expect(written[0]?.options.maxAge).toBeGreaterThan(0);
-  });
-
-  it("follows the configuration on Secure so localhost is not silently cookie-less", () => {
-    const { jar, written } = jarWith();
-    startAuthorization(null, jar, { ...deps, secureCookies: true });
-    expect(written[0]?.options.secure).toBe(true);
-  });
-});
-
-describe("signOut", () => {
-  it("clears the session cookie and returns to sign in", () => {
-    const { jar, cleared } = jarWith();
-    const response = signOut(null, jar);
-    expect(cleared).toStrictEqual([SESSION_COOKIE]);
-    expect(response.status).toBe(302);
-    expect(response.headers.get("location")).toBe("/");
-  });
-});
 
 describe("loadSignedView", () => {
   const deps = {

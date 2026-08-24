@@ -2,6 +2,7 @@ language: "typescript"
 layer: "application"
 dependsOn:
   - "auth"
+  - "auth-session"
   - "auth-workos"
   - "collections"
   - "db"
