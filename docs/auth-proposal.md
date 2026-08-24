@@ -55,6 +55,7 @@ packages/
   vite-config/            One Vite and Vitest factory. Owns the three workspace-package lists.
   auth/                   On main. createVerifier, toPrincipal. JWKS + jose. No vendor SDK.
   auth-workos/            On main. Login flows and WorkOS API calls. The quarantined provider module.
+  auth-session/           On main. Sealed session cookie, CSRF state, the redirect handlers.
   db/                     On main. createDatabase, withPrincipal. The only place claims enter Postgres.
   collections/            Existing library exemplar. Unchanged.
 
@@ -97,7 +98,13 @@ real audit surface for a repo that gates on `audit.level: high`.
 
 **In the apps, not in a service.** A TanStack Start app is a persistent Node process with server
 routes, so each app has its own server half. Everything reusable lives in `packages/`, so a second
-app gets the same auth by importing the same three packages.
+app gets the same auth by importing the same four packages.
+
+That claim was briefly false. Wiring the callback put roughly 475 lines of session sealing, CSRF
+state and redirect handling inside `apps/web`, all of which a second application would have copied
+verbatim. `packages/auth-session` exists because of that, and the extraction was mechanical rather
+than a redesign: the seams it needed, `CookieJar` and the per-handler dependency objects, already
+existed because the coverage gate had refused anything that could only run inside a live request.
 
 A dedicated entry under `services/` is only justified when something must outlive a request: a
 WebSocket server, a queue worker, a scheduled job. Nothing in the current scope qualifies.
@@ -137,6 +144,18 @@ would claim a network failure mode it does not have. It requires a non-empty `st
 before any request leaves. An empty `state` type-checks and silently removes the callback's only
 defence against a forged response, and naming no identity path spends a provider round trip to
 learn something knowable locally.
+
+**`packages/auth-session`** On main. The HTTP half of signing in, and the layer that turns the
+three packages above into a request. Owns the sealed session cookie, the CSRF `state`, and
+`startAuthorization`, `handleCallback` and `signOut` as ordinary functions.
+
+It knows about no web framework. Cookies arrive through a `CookieJar` the application supplies, so
+the framework-specific part of an application is the eight-line adapter and one route file per
+handler. Swapping TanStack Start for something else is a change to those, not to this.
+
+`readPrincipal` opens the cookie and verifies the token on every request, which is the reason the
+cookie holds only the two tokens: no Principal, no email, nothing that could be minted before a
+role changed and outlive the change.
 
 **`packages/db`** On main (#59). Exports `createDatabase(options)`, which returns `withPrincipal`
 and `close`. `withPrincipal(principal, body)` takes one client from the pool and calls `runScoped`,

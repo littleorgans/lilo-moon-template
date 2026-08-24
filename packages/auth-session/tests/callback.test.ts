@@ -3,9 +3,9 @@ import { randomBytes } from "node:crypto";
 import type { Authentication, WorkOSAuth } from "@lilo-moon/auth-workos";
 import { describe, expect, it } from "vitest";
 
-import { ensureOrganization, handleCallback, organizationNameFor } from "../src/routes/callback.js";
-import type { CookieJar, CookieOptions } from "../src/server/cookies.js";
-import { SESSION_COOKIE, STATE_COOKIE, readSession } from "../src/server/session.js";
+import { ensureOrganization, handleCallback, organizationNameFor } from "../src/callback.js";
+import type { CookieJar, CookieOptions } from "../src/cookies.js";
+import { SESSION_COOKIE, STATE_COOKIE, readSession } from "../src/session.js";
 
 interface Written {
   readonly name: string;

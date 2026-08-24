@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto";
 
 import { describe, expect, it } from "vitest";
 
-import { newState, readSession, seal, stateMatches, unseal } from "../src/server/session.js";
+import { newState, readSession, seal, stateMatches, unseal } from "../src/session.js";
 
 const key = randomBytes(32);
 const other = randomBytes(32);

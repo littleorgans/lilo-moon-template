@@ -1,0 +1,39 @@
+{
+  "name": "@lilo-moon/auth-session",
+  "version": "0.0.0",
+  "description": "Sealed session cookies, CSRF state, and the redirect sign-in handlers.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/littleorgans/lilo-moon-template.git",
+    "directory": "packages/auth-session"
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "@lilo-moon/source": "./src/index.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@lilo-moon/auth": "workspace:*",
+    "@lilo-moon/auth-workos": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:"
+  },
+  "engines": {
+    "node": ">=24.19.0"
+  }
+}

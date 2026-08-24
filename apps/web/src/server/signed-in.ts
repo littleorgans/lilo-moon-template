@@ -1,17 +1,17 @@
 import type { Principal, Verifier } from "@lilo-moon/auth";
+import { readPrincipal } from "@lilo-moon/auth-session";
+import type { CookieJar } from "@lilo-moon/auth-session";
 import { redirect } from "@tanstack/react-router";
 
 import { requestCookies } from "./cookies.js";
-import type { CookieJar } from "./cookies.js";
 import { countVisibleRows } from "./rows.js";
 import type { ScopedRunner, VisibleRows } from "./rows.js";
 import { getServices } from "./services.js";
-import { SESSION_COOKIE, readSession } from "./session.js";
 
 /**
  * Everything the signed-in page shows.
  *
- * Exported because the generated route tree names it: `AppRoute` carries the loader's return type,
+ * Exported because the generated route tree names it: the route carries the loader's return type,
  * and tsc cannot write a declaration for a type it has no name for.
  */
 export interface SignedInView {
@@ -40,21 +40,13 @@ function liveDeps(): SignedInDeps {
   };
 }
 
-/**
- * Builds the signed-in view, or reports that there is no session.
- *
- * The access token is verified on every request. Nothing is trusted merely because it came out of
- * our own cookie: sealing proves we wrote it, and only the signature proves the provider issued it.
- * A cookie that survives a key rotation, or a token that has expired, has to fail here.
- */
+/** Builds the signed-in view, or reports that there is no session. */
 export async function loadSignedView(
   jar: CookieJar,
   deps: SignedInDeps = liveDeps(),
 ): Promise<SignedInView | null> {
-  const session = readSession(deps.cookieKey, jar.read(SESSION_COOKIE));
-  if (session === null) return null;
-
-  const principal = await deps.verify(session.accessToken);
+  const principal = await readPrincipal(jar, deps);
+  if (principal === null) return null;
   if (deps.runScoped === null) return { principal, rows: null, databaseError: null };
 
   try {
@@ -76,7 +68,7 @@ export async function loadSignedView(
  * The loader the signed-in route runs.
  *
  * No session is not an error, it is a person who has not signed in yet, so it redirects rather than
- * throwing. A token that fails verification is different and is left to propagate.
+ * raising. A token that fails verification is different and is left to propagate.
  */
 export async function loadSignedOrRedirect(
   jar: CookieJar = requestCookies,
