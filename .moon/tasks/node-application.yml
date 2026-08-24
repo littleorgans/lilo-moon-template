@@ -15,13 +15,12 @@ tasks:
       - "package.json"
       - "tsconfig.json"
       - "vite.config.*"
-      - "index.html"
       - "public/**/*"
       - "/tsconfig.options.json"
     deps:
       - "^:build"
     outputs:
-      - "dist"
+      - ".output"
     options:
       runInCI: "always"
 
@@ -35,7 +34,12 @@ tasks:
 
   preview:
     type: "run"
-    command: "vite preview"
+    command: "node .output/server/index.mjs"
+    # Preview is a Nitro server, not `vite preview`, so it never reads vite.config.ts. It takes the
+    # port from the environment, which is the only place the pin has any effect. It must match the
+    # dev server so one registered OAuth redirect URI serves both.
+    env:
+      PORT: "5199"
     deps:
       - "~:build"
     options:

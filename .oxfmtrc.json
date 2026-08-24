@@ -10,5 +10,5 @@
   "quoteProps": "as-needed",
   "sortImports": true,
   "sortPackageJson": true,
-  "ignorePatterns": ["**/*.gen.*", "**/_generated/**", "pnpm-lock.yaml"]
+  "ignorePatterns": ["**/*.gen.*", "**/_generated/**", "**/.output/**", "pnpm-lock.yaml"]
 }
