@@ -31,3 +31,4 @@ rename-verify:
 
 clean:
     moon clean
+    docker rm --force lilo-postgres 2>/dev/null || true

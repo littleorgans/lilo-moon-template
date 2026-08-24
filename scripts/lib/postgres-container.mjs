@@ -37,7 +37,7 @@ function waitForPostgres(container) {
         "--username",
         "postgres",
         "--dbname",
-        "app",
+        "postgres",
       ],
       { stdio: "ignore" },
     );
@@ -50,63 +50,122 @@ function waitForPostgres(container) {
   throw new Error("Postgres did not accept TCP connections within 15 seconds.");
 }
 
-// Host ports are pinned, not random. Docker's random allocation raced other containers on this
-// machine and lost (atlas-lint bound an ephemeral port that was already taken), and a random port
-// cannot be diagnosed or reserved. Same philosophy as the Vite 5199 pin: the port belongs to this
-// project, on purpose. Each task gets its own slot because moon runs the database tasks in
-// parallel, each with its own container.
+// One persistent container, not one per task run. Random per-run containers leaked on every
+// interrupted run: a killed task never reaches its cleanup, `--rm` does not stop a running
+// container, and 31 orphans were once found holding random ports. A single named container on one
+// pinned host port inverts that: tasks share the server and isolate through throwaway databases,
+// a leak self-heals on the next run, and reclaiming everything is `just clean`. Same philosophy
+// as the Vite 5199 pin: the port and the name belong to this project, on purpose.
 //
-// The default base is this project's committed identity; an instantiated template picks a fresh
-// one (docs/how-to-instantiate.md). LILO_PG_PORT_BASE overrides it from the shell environment for
-// the machine where two projects still collide. It is deliberately not in .env.example: moon loads
-// .env.local for the dev and preview tasks only, so a value there would silently not apply here.
-const DEFAULT_PORT_BASE = 54390;
+// The default port is this project's committed identity; an instantiated template picks a fresh
+// one (docs/how-to-instantiate.md), and `just rename` re-prefixes the container name. LILO_PG_PORT
+// overrides the port from the shell environment for the machine where two projects still collide.
+// It is deliberately not in .env.example: moon loads .env.local for the dev and preview tasks
+// only, so a value there would silently not apply here.
+const CONTAINER = "lilo-postgres";
+const IMAGE = "postgres:17-alpine";
+const DEFAULT_PORT = 54390;
 
-const PORT_SLOTS = {
-  "drizzle-check": 0,
-  "rls-verify": 1,
-  "atlas-lint": 2,
-  "atlas-diff": 3,
+// One throwaway database per task, so moon can run the tasks in parallel against one server. The
+// allowlist is what keeps the name a safe SQL identifier.
+const TASK_DATABASES = {
+  "drizzle-check": "drizzle_check",
+  "rls-verify": "rls_verify",
+  "atlas-lint": "atlas_lint",
+  "atlas-diff": "atlas_diff",
 };
 
-function portFor(slot) {
-  const offset = PORT_SLOTS[slot];
-  if (offset === undefined) {
-    throw new Error(`Unknown Postgres port slot ${JSON.stringify(slot)}.`);
+function port() {
+  const raw = process.env.LILO_PG_PORT;
+  const value = raw === undefined || raw === "" ? DEFAULT_PORT : Number(raw);
+  if (!Number.isInteger(value) || value < 1024 || value > 65000) {
+    throw new Error(`LILO_PG_PORT must be a port between 1024 and 65000, got ${raw}.`);
   }
-  const raw = process.env.LILO_PG_PORT_BASE;
-  const base = raw === undefined || raw === "" ? DEFAULT_PORT_BASE : Number(raw);
-  if (!Number.isInteger(base) || base < 1024 || base > 65000) {
-    throw new Error(`LILO_PG_PORT_BASE must be a port between 1024 and 65000, got ${raw}.`);
-  }
-  return base + offset;
+  return value;
 }
 
-// Starts a container, waits for TCP, and hands the callback a connection URL. The container is
-// removed whether the callback succeeds or throws. `slot` names the calling task so concurrent
-// tasks bind distinct pinned ports.
-export async function withPostgres(slot, callback) {
-  const container = `lilo-postgres-${process.pid}`;
-  const port = portFor(slot);
+// Null when absent, otherwise whether it runs and what image it runs.
+function inspectContainer() {
+  const result = spawnSync(
+    "docker",
+    ["inspect", "--format", "{{.State.Running}} {{.Config.Image}}", CONTAINER],
+    { encoding: "utf8" },
+  );
+  if (result.status !== 0) return null;
+  const [running, image] = result.stdout.trim().split(" ");
+  return { running: running === "true", image };
+}
+
+function psql(sql) {
+  run(
+    "docker",
+    ["exec", CONTAINER, "psql", "--username", "postgres", "--dbname", "postgres", "--command", sql],
+    true,
+  );
+}
+
+// Idempotent: converges on one running container of the right image regardless of what a previous
+// run left behind, and survives the race where parallel tasks all find it absent and one wins the
+// `docker run`.
+function ensurePostgres() {
+  const existing = inspectContainer();
+  if (existing !== null && (!existing.running || existing.image !== IMAGE)) {
+    spawnSync("docker", ["rm", "--force", CONTAINER], { stdio: "ignore" });
+  }
+  if (existing === null || !existing.running || existing.image !== IMAGE) {
+    const started = spawnSync(
+      "docker",
+      [
+        "run",
+        "--detach",
+        "--name",
+        CONTAINER,
+        "--env",
+        "POSTGRES_PASSWORD=postgres",
+        "--publish",
+        `127.0.0.1:${port()}:5432`,
+        IMAGE,
+      ],
+      { encoding: "utf8" },
+    );
+    if (started.status !== 0 && inspectContainer() === null) {
+      throw new Error(`Could not start ${CONTAINER} on 127.0.0.1:${port()}:\n${started.stderr}`);
+    }
+  }
+  waitForPostgres(CONTAINER);
+}
+
+// Hands the callback a URL to a fresh database inside the shared container. The DROP before the
+// CREATE is the leak guarantee: whatever an interrupted previous run left behind is removed here,
+// so the drop afterwards is a courtesy, not a requirement.
+export async function withPostgres(task, callback) {
+  const database = TASK_DATABASES[task];
+  if (database === undefined) {
+    throw new Error(`Unknown Postgres task ${JSON.stringify(task)}.`);
+  }
+  ensurePostgres();
+  psql(`DROP DATABASE IF EXISTS ${database} WITH (FORCE)`);
+  psql(`CREATE DATABASE ${database}`);
   try {
-    run("docker", [
-      "run",
-      "--detach",
-      "--rm",
-      "--name",
-      container,
-      "--env",
-      "POSTGRES_PASSWORD=postgres",
-      "--env",
-      "POSTGRES_DB=app",
-      "--publish",
-      `127.0.0.1:${port}:5432`,
-      "postgres:17-alpine",
-    ]);
-    waitForPostgres(container);
-    return await callback(`postgres://postgres:postgres@127.0.0.1:${port}/app?sslmode=disable`);
+    return await callback(
+      `postgres://postgres:postgres@127.0.0.1:${port()}/${database}?sslmode=disable`,
+    );
   } finally {
-    spawnSync("docker", ["rm", "--force", container], { stdio: "ignore" });
+    spawnSync(
+      "docker",
+      [
+        "exec",
+        CONTAINER,
+        "psql",
+        "--username",
+        "postgres",
+        "--dbname",
+        "postgres",
+        "--command",
+        `DROP DATABASE IF EXISTS ${database} WITH (FORCE)`,
+      ],
+      { stdio: "ignore" },
+    );
   }
 }
 
