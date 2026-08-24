@@ -75,6 +75,21 @@ describe("translateWorkOSError", () => {
     ["configuration", new ApiKeyRequiredException("organizations.createOrganization")],
     ["configuration", new NoApiKeyProvidedException()],
     ["unavailable", new GenericServerException(503, "down", { message: "down" }, "request_down")],
+    // The two one-time code rejections the live API was measured to return, plus the family match
+    // that covers variants it was not.
+    [
+      "code-rejected",
+      new GenericServerException(400, "bad code", { code: "invalid_one_time_code" }, "request_otc"),
+    ],
+    [
+      "code-rejected",
+      new GenericServerException(
+        400,
+        "used code",
+        { code: "one_time_code_previously_used" },
+        "request_used",
+      ),
+    ],
     ["provider", new GenericServerException(418, "teapot", {}, "request_teapot")],
     ["provider", new Error("socket closed")],
     ["provider", "non-error rejection"],

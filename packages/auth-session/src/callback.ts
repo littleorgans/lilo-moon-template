@@ -55,12 +55,44 @@ export async function ensureOrganization(
   });
 }
 
-export interface CallbackDeps {
-  readonly auth: WorkOSAuth;
+export interface SessionDeps {
   readonly cookieKey: Buffer;
   readonly secureCookies: boolean;
   /** Where a completed sign-in lands. The application's choice, not this package's. */
   readonly signedInPath: string;
+}
+
+/**
+ * Seals the tokens into the session cookie and hands the browser to the signed-in page.
+ *
+ * The one ending every sign-in path shares, whatever proved the identity: an OAuth code exchange
+ * and an email code verification both finish exactly here.
+ */
+export function establishSession(
+  jar: CookieJar,
+  deps: SessionDeps,
+  authentication: Authentication,
+): Response {
+  jar.write(
+    SESSION_COOKIE,
+    seal(deps.cookieKey, {
+      accessToken: authentication.accessToken,
+      refreshToken: authentication.refreshToken,
+    }),
+    {
+      httpOnly: true,
+      secure: deps.secureCookies,
+      sameSite: "lax",
+      path: "/",
+      maxAge: SESSION_MAX_AGE_SECONDS,
+    },
+  );
+
+  return new Response(null, { status: 302, headers: { location: deps.signedInPath } });
+}
+
+export interface CallbackDeps extends SessionDeps {
+  readonly auth: WorkOSAuth;
   /**
    * Told about every failure the provider raises.
    *
@@ -122,20 +154,5 @@ export async function handleCallback(
     return failurePage(messageFor(disposition));
   }
 
-  jar.write(
-    SESSION_COOKIE,
-    seal(deps.cookieKey, {
-      accessToken: authentication.accessToken,
-      refreshToken: authentication.refreshToken,
-    }),
-    {
-      httpOnly: true,
-      secure: deps.secureCookies,
-      sameSite: "lax",
-      path: "/",
-      maxAge: SESSION_MAX_AGE_SECONDS,
-    },
-  );
-
-  return new Response(null, { status: 302, headers: { location: deps.signedInPath } });
+  return establishSession(jar, deps, authentication);
 }

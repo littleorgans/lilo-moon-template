@@ -24,3 +24,13 @@ export function callbackRoute(runtime: AuthRuntime) {
 export function signOutRoute(runtime: AuthRuntime) {
   return { server: { handlers: { GET: runtime.endSession } } };
 }
+
+// POST, unlike the three above. Both email routes receive a form and act on it, and a GET that
+// sends an email or spends a one-time code is a GET a prefetcher can trigger.
+export function emailStartRoute(runtime: AuthRuntime) {
+  return { server: { handlers: { POST: runtime.sendEmailCode } } };
+}
+
+export function emailVerifyRoute(runtime: AuthRuntime) {
+  return { server: { handlers: { POST: runtime.verifyEmailCode } } };
+}

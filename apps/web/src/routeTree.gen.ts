@@ -12,9 +12,12 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AppRouteImport } from './routes/app'
 import { Route as CallbackRouteImport } from './routes/callback'
+import { Route as VerifyEmailRouteImport } from './routes/verify-email'
 import { Route as ApiProbeRouteImport } from './routes/api.probe'
 import { Route as ApiAuthSignoutRouteImport } from './routes/api.auth.signout'
 import { Route as ApiAuthStartRouteImport } from './routes/api.auth.start'
+import { Route as ApiAuthEmailStartRouteImport } from './routes/api.auth.email.start'
+import { Route as ApiAuthEmailVerifyRouteImport } from './routes/api.auth.email.verify'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -29,6 +32,11 @@ const AppRoute = AppRouteImport.update({
 const CallbackRoute = CallbackRouteImport.update({
   id: '/callback',
   path: '/callback',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const VerifyEmailRoute = VerifyEmailRouteImport.update({
+  id: '/verify-email',
+  path: '/verify-email',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiProbeRoute = ApiProbeRouteImport.update({
@@ -46,31 +54,50 @@ const ApiAuthStartRoute = ApiAuthStartRouteImport.update({
   path: '/api/auth/start',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAuthEmailStartRoute = ApiAuthEmailStartRouteImport.update({
+  id: '/api/auth/email/start',
+  path: '/api/auth/email/start',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAuthEmailVerifyRoute = ApiAuthEmailVerifyRouteImport.update({
+  id: '/api/auth/email/verify',
+  path: '/api/auth/email/verify',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/app': typeof AppRoute
   '/callback': typeof CallbackRoute
+  '/verify-email': typeof VerifyEmailRoute
   '/api/probe': typeof ApiProbeRoute
   '/api/auth/signout': typeof ApiAuthSignoutRoute
   '/api/auth/start': typeof ApiAuthStartRoute
+  '/api/auth/email/start': typeof ApiAuthEmailStartRoute
+  '/api/auth/email/verify': typeof ApiAuthEmailVerifyRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/app': typeof AppRoute
   '/callback': typeof CallbackRoute
+  '/verify-email': typeof VerifyEmailRoute
   '/api/probe': typeof ApiProbeRoute
   '/api/auth/signout': typeof ApiAuthSignoutRoute
   '/api/auth/start': typeof ApiAuthStartRoute
+  '/api/auth/email/start': typeof ApiAuthEmailStartRoute
+  '/api/auth/email/verify': typeof ApiAuthEmailVerifyRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/app': typeof AppRoute
   '/callback': typeof CallbackRoute
+  '/verify-email': typeof VerifyEmailRoute
   '/api/probe': typeof ApiProbeRoute
   '/api/auth/signout': typeof ApiAuthSignoutRoute
   '/api/auth/start': typeof ApiAuthStartRoute
+  '/api/auth/email/start': typeof ApiAuthEmailStartRoute
+  '/api/auth/email/verify': typeof ApiAuthEmailVerifyRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -78,34 +105,46 @@ export interface FileRouteTypes {
     | '/'
     | '/app'
     | '/callback'
+    | '/verify-email'
     | '/api/probe'
     | '/api/auth/signout'
     | '/api/auth/start'
+    | '/api/auth/email/start'
+    | '/api/auth/email/verify'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/app'
     | '/callback'
+    | '/verify-email'
     | '/api/probe'
     | '/api/auth/signout'
     | '/api/auth/start'
+    | '/api/auth/email/start'
+    | '/api/auth/email/verify'
   id:
     | '__root__'
     | '/'
     | '/app'
     | '/callback'
+    | '/verify-email'
     | '/api/probe'
     | '/api/auth/signout'
     | '/api/auth/start'
+    | '/api/auth/email/start'
+    | '/api/auth/email/verify'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AppRoute: typeof AppRoute
   CallbackRoute: typeof CallbackRoute
+  VerifyEmailRoute: typeof VerifyEmailRoute
   ApiProbeRoute: typeof ApiProbeRoute
   ApiAuthSignoutRoute: typeof ApiAuthSignoutRoute
   ApiAuthStartRoute: typeof ApiAuthStartRoute
+  ApiAuthEmailStartRoute: typeof ApiAuthEmailStartRoute
+  ApiAuthEmailVerifyRoute: typeof ApiAuthEmailVerifyRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -131,6 +170,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/verify-email': {
+      id: '/verify-email'
+      path: '/verify-email'
+      fullPath: '/verify-email'
+      preLoaderRoute: typeof VerifyEmailRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/probe': {
       id: '/api/probe'
       path: '/api/probe'
@@ -152,6 +198,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAuthStartRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/auth/email/start': {
+      id: '/api/auth/email/start'
+      path: '/api/auth/email/start'
+      fullPath: '/api/auth/email/start'
+      preLoaderRoute: typeof ApiAuthEmailStartRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/auth/email/verify': {
+      id: '/api/auth/email/verify'
+      path: '/api/auth/email/verify'
+      fullPath: '/api/auth/email/verify'
+      preLoaderRoute: typeof ApiAuthEmailVerifyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -159,9 +219,12 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AppRoute: AppRoute,
   CallbackRoute: CallbackRoute,
+  VerifyEmailRoute: VerifyEmailRoute,
   ApiProbeRoute: ApiProbeRoute,
   ApiAuthSignoutRoute: ApiAuthSignoutRoute,
   ApiAuthStartRoute: ApiAuthStartRoute,
+  ApiAuthEmailStartRoute: ApiAuthEmailStartRoute,
+  ApiAuthEmailVerifyRoute: ApiAuthEmailVerifyRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

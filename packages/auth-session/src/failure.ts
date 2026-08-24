@@ -4,7 +4,7 @@ import type { WorkOSAuthFailure } from "@lilo-moon/auth-workos";
 /**
  * What the person is told when a sign-in cannot finish, and what is written down about it.
  *
- * `WorkOSAuthFailure` has fifteen values. Someone holding a laptop can act on three. Collapsing
+ * `WorkOSAuthFailure` has sixteen values. Someone holding a laptop can act on four. Collapsing
  * them is the design decision; naming which ones collapse is what stops it becoming an accident.
  * The same rule already governs the token failures in `docs/auth-screens.md`.
  *
@@ -36,6 +36,11 @@ export function dispositionFor(reason: WorkOSAuthFailure): CallbackDisposition {
   switch (reason) {
     case "rate-limited":
     case "unavailable":
+      return "retry";
+    // The one failure the person can fix, and the email flow acts on it before this collapse:
+    // completeEmailSignIn returns the person to the code entry page instead of rendering a
+    // disposition message. The mapping here is for the log line, where "try again" is accurate.
+    case "code-rejected":
       return "retry";
     case "email-verification-required":
     case "organization-selection-required":

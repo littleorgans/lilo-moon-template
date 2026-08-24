@@ -14,6 +14,8 @@ export interface Session {
 
 export const SESSION_COOKIE = "lilo_session";
 export const STATE_COOKIE = "lilo_oauth_state";
+/** The address a code was sent to, held server-readable only, never in a URL. */
+export const EMAIL_COOKIE = "lilo_email";
 
 const IV_BYTES = 12;
 const TAG_BYTES = 16;

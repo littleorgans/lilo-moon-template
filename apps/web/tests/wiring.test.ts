@@ -87,6 +87,32 @@ describe("route wiring", () => {
   });
 });
 
+describe("the email routes through the real composition root", () => {
+  // Each refusal fires before any provider call, so the wiring is proven without a network.
+  it("refuses an empty address on the start route", async () => {
+    const { auth } = await import("../src/server/auth.js");
+    const response = await auth.sendEmailCode({
+      request: new Request("http://localhost:5199/api/auth/email/start", {
+        method: "POST",
+        body: new URLSearchParams({}),
+      }),
+    });
+    expect(response.status).toBe(400);
+  });
+
+  it("refuses a code with no surviving address cookie on the verify route", async () => {
+    const { auth } = await import("../src/server/auth.js");
+    const response = await auth.verifyEmailCode({
+      request: new Request("http://localhost:5199/api/auth/email/verify", {
+        method: "POST",
+        body: new URLSearchParams({ code: "123456" }),
+      }),
+    });
+    expect(response.status).toBe(400);
+    expect(await response.text()).toContain("Start again");
+  });
+});
+
 describe("the signed-in loader through the real composition root", () => {
   it("redirects rather than rendering when there is no session", async () => {
     const { loadSignedOrRedirect } = await import("../src/server/signed-in.js");

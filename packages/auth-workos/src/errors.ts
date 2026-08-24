@@ -104,6 +104,13 @@ export function translateWorkOSError(error: unknown): WorkOSAuthError {
   if (error instanceof ApiKeyRequiredException || error instanceof NoApiKeyProvidedException) {
     return mapped(error, "configuration");
   }
+  if (error instanceof GenericServerException && (error.code ?? "").includes("one_time_code")) {
+    // The magic auth endpoint reports a wrong, superseded, expired or reused code as a
+    // GenericServerException whose code names the one-time code, measured against the live API:
+    // `invalid_one_time_code` and `one_time_code_previously_used` were observed, and matching the
+    // family covers the variants that were not. This is the one failure the person can fix.
+    return mapped(error, "code-rejected", error.requestID);
+  }
   if (error instanceof GenericServerException && error.status >= 500) {
     return mapped(error, "unavailable", error.requestID);
   }

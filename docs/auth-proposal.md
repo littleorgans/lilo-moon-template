@@ -132,8 +132,9 @@ normal first-sign-in state. See [The user entity](user-entity.md). `toPrincipal`
 `org_id`, `roles` with a fallback to singular `role`, `permissions` and `entitlements`. There is
 no separate ClaimMapper in this package. This is the package `services/ping` will mirror in Rust.
 
-**`packages/auth-workos`** On main (#63). Everything that does not abstract: sign-in, magic auth,
-MFA challenges, token refresh, WorkOS API calls. Exports `createWorkOSAuth` and `WorkOSAuthError`.
+**`packages/auth-workos`** On main (#63). Everything that does not abstract: sign-in, magic auth
+(wired to the email-code screens since 2026-08-25), MFA challenges, token refresh, WorkOS API
+calls. Exports `createWorkOSAuth` and `WorkOSAuthError`.
 Uses the WorkOS SDK freely, because this is the module you rewrite when you swap vendors. Nothing
 outside this package imports `@workos-inc/*`, verified rather than assumed. `provisionOrganization`
 takes an `idempotencyKey`, which is what the callback keys on the WorkOS user id; see
