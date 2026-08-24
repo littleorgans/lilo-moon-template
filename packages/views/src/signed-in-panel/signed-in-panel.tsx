@@ -1,3 +1,4 @@
+import type { Principal } from "@lilo-moon/auth";
 import { Badge } from "@lilo-moon/ui/components/badge";
 import { Button } from "@lilo-moon/ui/components/button";
 import {
@@ -8,19 +9,27 @@ import {
   CardTitle,
 } from "@lilo-moon/ui/components/card";
 import { Container, Row, Stack } from "@lilo-moon/ui/components/layout";
-import { Code, CodeBlock, Heading } from "@lilo-moon/ui/components/text";
-import { Text } from "@lilo-moon/ui/components/text";
-import { getRouteApi } from "@tanstack/react-router";
+import { Code, CodeBlock, Heading, Text } from "@lilo-moon/ui/components/text";
+import type { ReactNode } from "react";
 
-// Resolved once at module scope: a hook selected off a fresh object on every render is a different
-// function each time, which is exactly what the rules of hooks forbid.
-const routeApi = getRouteApi("/app");
+/** What the signed-in page shows about the database. Produced by the application's loader. */
+export interface VisibleRows {
+  readonly accounts: number;
+  readonly profiles: number;
+}
 
-import { App as TaskBoard } from "../app.js";
-import type { SignedInView } from "../server/signed-in.js";
+export interface SignedInPanelProps {
+  readonly principal: Principal;
+  /** Null when DATABASE_URL is unset, which is a runnable state rather than a broken one. */
+  readonly rows: VisibleRows | null;
+  /** Reported rather than thrown, so a broken database still shows the verified Principal. */
+  readonly databaseError: string | null;
+  /** The product surface. The view renders it under its own heading without knowing what it is. */
+  readonly children?: ReactNode;
+}
 
 /** Pure on purpose: it takes its data as props so it can be rendered without a router or a session. */
-export function SignedInPanel({ principal, rows, databaseError }: SignedInView) {
+export function SignedInPanel({ principal, rows, databaseError, children }: SignedInPanelProps) {
   return (
     <main>
       <Container>
@@ -66,23 +75,14 @@ export function SignedInPanel({ principal, rows, databaseError }: SignedInView) 
             </CardContent>
           </Card>
 
-          <Stack gap="sm">
-            <Heading level={2}>The product</Heading>
-            <TaskBoard />
-          </Stack>
+          {children === undefined ? null : (
+            <Stack gap="sm">
+              <Heading level={2}>The product</Heading>
+              {children}
+            </Stack>
+          )}
         </Stack>
       </Container>
     </main>
   );
-}
-
-/**
- * The route's component.
- *
- * Reads the loader's data through `getRouteApi` rather than importing the route, which would be a
- * cycle: the route names this component. Kept separate from the panel so the panel stays pure and
- * can be rendered without a router.
- */
-export function SignedInRoute() {
-  return <SignedInPanel {...routeApi.useLoaderData()} />;
 }

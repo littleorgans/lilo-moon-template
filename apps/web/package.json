@@ -9,6 +9,7 @@
     "@lilo-moon/collections": "workspace:*",
     "@lilo-moon/db": "workspace:*",
     "@lilo-moon/ui": "workspace:*",
+    "@lilo-moon/views": "workspace:*",
     "@tanstack/react-router": "catalog:",
     "@tanstack/react-start": "catalog:",
     "drizzle-orm": "catalog:",
