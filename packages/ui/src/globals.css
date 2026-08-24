@@ -1,0 +1,27 @@
+/*
+ * The one Tailwind entry for the whole workspace. An application's own stylesheet is a single
+ * import of this file, so utility scanning and the theme contract are configured once, here.
+ *
+ * `source(none)` turns Tailwind's source auto-detection off; the `@source` lines below are then
+ * the complete, deliberate list of what gets scanned. Paths resolve relative to this file's real
+ * location under packages/ui/src, through the pnpm symlink.
+ */
+@import "tailwindcss" source(none);
+@import "@lilo-moon/theme/themes.css";
+
+@source "./";
+@source "../../../apps";
+
+/* Mode is a class, not a media query, so the account screen's light/dark/system choice can win. */
+@custom-variant dark (&:is(.dark *));
+
+/* Base element styling lives here because the `className` ban means an application cannot put
+   utility classes on its own <html> or <body>. */
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+  }
+}
