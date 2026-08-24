@@ -1,8 +1,9 @@
 import { WorkOS } from "@workos-inc/node";
 
 import type { WorkOSClient } from "./client.js";
-import { translateWorkOSError } from "./errors.js";
+import { WorkOSAuthError, translateWorkOSError } from "./errors.js";
 import type {
+  AuthorizationUrlOptions,
   Authentication,
   MagicAuthCode,
   MfaChallenge,
@@ -71,6 +72,44 @@ async function providerCall<T>(call: () => Promise<T>): Promise<T> {
   }
 }
 
+// The synchronous twin. `getAuthorizationUrl` builds a string locally, so wrapping it in a promise
+// would claim a network failure mode it does not have.
+function providerCallSync<T>(call: () => T): T {
+  try {
+    return call();
+  } catch (error) {
+    throw translateWorkOSError(error);
+  }
+}
+
+function misconfigured(message: string): WorkOSAuthError {
+  return new WorkOSAuthError({ reason: "configuration", message, cause: undefined });
+}
+
+/**
+ * Refuses two authorization URLs that would look fine and behave badly.
+ *
+ * An empty `state` type-checks and disables the callback's only defence against a forged
+ * authorization response, silently: the flow still completes. Selecting no identity path produces
+ * a 400 from the provider, which is a network round trip spent to learn something knowable here.
+ */
+function assertAuthorizable(options: AuthorizationUrlOptions): void {
+  if (options.state.length === 0) {
+    throw misconfigured(
+      "getAuthorizationUrl requires a non-empty state: it is what proves the callback's response is the one this application asked for.",
+    );
+  }
+  if (
+    options.provider === undefined &&
+    options.connectionId === undefined &&
+    options.organizationId === undefined
+  ) {
+    throw misconfigured(
+      "getAuthorizationUrl requires one of provider, connectionId or organizationId to choose an identity path.",
+    );
+  }
+}
+
 function clientFrom(options: WorkOSAuthOptions): WorkOSClient {
   if ("client" in options) return options.client;
   return new WorkOS({ apiKey: options.apiKey, clientId: options.clientId });
@@ -81,6 +120,34 @@ export function createWorkOSAuth(options: WorkOSAuthOptions): WorkOSAuth {
   const { clientId } = options;
 
   return {
+    getAuthorizationUrl(input): string {
+      assertAuthorizable(input);
+      return providerCallSync(() =>
+        client.userManagement.getAuthorizationUrl({
+          clientId,
+          redirectUri: input.redirectUri,
+          state: input.state,
+          ...(input.provider === undefined ? {} : { provider: input.provider }),
+          ...(input.connectionId === undefined ? {} : { connectionId: input.connectionId }),
+          ...(input.organizationId === undefined ? {} : { organizationId: input.organizationId }),
+          ...(input.loginHint === undefined ? {} : { loginHint: input.loginHint }),
+          ...(input.screenHint === undefined ? {} : { screenHint: input.screenHint }),
+        }),
+      );
+    },
+
+    async authenticateWithCode(input) {
+      const response = await providerCall(
+        async () =>
+          await client.userManagement.authenticateWithCode({
+            clientId,
+            code: input.code,
+            ...requestContext(input),
+          }),
+      );
+      return authenticationFrom(response);
+    },
+
     async signInWithPassword(input) {
       const response = await providerCall(
         async () =>

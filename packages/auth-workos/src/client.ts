@@ -48,6 +48,21 @@ interface ProviderMfaVerification {
  */
 export interface WorkOSClient {
   readonly userManagement: {
+    // Synchronous on purpose: the SDK builds this URL locally and makes no request. Mirroring that
+    // keeps the seam honest about which calls can fail over the network.
+    getAuthorizationUrl(options: {
+      readonly clientId: string;
+      readonly redirectUri: string;
+      readonly state: string;
+      readonly provider?: string;
+      readonly connectionId?: string;
+      readonly organizationId?: string;
+      readonly loginHint?: string;
+      readonly screenHint?: "sign-in" | "sign-up";
+    }): string;
+    authenticateWithCode(
+      options: ProviderRequestContext & { readonly code: string },
+    ): Promise<ProviderAuthentication>;
     authenticateWithPassword(
       options: ProviderRequestContext & { readonly email: string; readonly password: string },
     ): Promise<ProviderAuthentication>;

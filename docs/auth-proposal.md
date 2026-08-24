@@ -130,6 +130,14 @@ outside this package imports `@workos-inc/*`, verified rather than assumed. `pro
 takes an `idempotencyKey`, which is what the callback keys on the WorkOS user id; see
 [The auth screens](auth-screens.md).
 
+`getAuthorizationUrl` and `authenticateWithCode` are the redirect half, added once social login was
+real. The first is synchronous, because the SDK builds that URL locally and wrapping it in a promise
+would claim a network failure mode it does not have. It requires a non-empty `state` and one of
+`provider`, `connectionId` or `organizationId`, refusing both omissions as `configuration` failures
+before any request leaves. An empty `state` type-checks and silently removes the callback's only
+defence against a forged response, and naming no identity path spends a provider round trip to
+learn something knowable locally.
+
 **`packages/db`** On main (#59). Exports `createDatabase(options)`, which returns `withPrincipal`
 and `close`. `withPrincipal(principal, body)` takes one client from the pool and calls `runScoped`,
 which opens one transaction, sets `SET LOCAL ROLE` and `request.jwt.claims` transaction-locally,

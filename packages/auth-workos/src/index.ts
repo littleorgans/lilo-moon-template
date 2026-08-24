@@ -3,8 +3,11 @@ export { WorkOSAuthError } from "./errors.js";
 export type { WorkOSAuthErrorOptions } from "./errors.js";
 export { createWorkOSAuth } from "./provider.js";
 export type {
+  AuthenticateWithCodeOptions,
   AuthenticatedUser,
   Authentication,
+  AuthorizationProvider,
+  AuthorizationUrlOptions,
   MagicAuthCode,
   MfaChallenge,
   MfaChallengeOptions,
