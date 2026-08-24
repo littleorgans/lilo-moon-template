@@ -28,6 +28,7 @@ fileGroups:
     - "!.moon/docker/**/*"
     - "!**/node_modules/**/*"
     - "!**/dist/**/*"
+    - "!**/.output/**/*"
     - "!**/build/**/*"
     - "!**/out/**/*"
     - "!**/coverage/**/*"

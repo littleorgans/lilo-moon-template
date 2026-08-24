@@ -4,6 +4,7 @@
   "compilerOptions": {
     "lib": ["ES2024", "DOM", "DOM.Iterable"],
     "jsx": "react-jsx",
+    "verbatimModuleSyntax": false,
     "outDir": "../../.moon/cache/types/apps/web"
   },
   "references": [

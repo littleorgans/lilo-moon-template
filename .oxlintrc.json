@@ -1,6 +1,6 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["typescript", "unicorn", "oxc", "promise", "import"],
+  "plugins": ["typescript", "unicorn", "oxc", "promise", "import", "react"],
   "categories": {
     "correctness": "error",
     "suspicious": "error",
@@ -25,15 +25,26 @@
     "typescript/await-thenable": "error",
     "typescript/no-explicit-any": "error",
     "promise/prefer-await-to-then": "error",
+    "react/react-in-jsx-scope": "off",
     "no-console": ["error", { "allow": ["warn", "error"] }],
     "eqeqeq": ["error", "always", { "null": "ignore" }]
   },
   "ignorePatterns": [
     "**/dist/**",
+    "**/.output/**",
     "**/build/**",
     "**/coverage/**",
     "**/node_modules/**",
     "**/*.gen.*",
     "**/_generated/**"
+  ],
+  "overrides": [
+    {
+      "files": ["apps/**/*.tsx"],
+      "rules": {
+        "react/forbid-dom-props": ["error", { "forbid": ["className", "style"] }],
+        "react/forbid-component-props": ["error", { "forbid": ["className", "style"] }]
+      }
+    }
   ]
 }
