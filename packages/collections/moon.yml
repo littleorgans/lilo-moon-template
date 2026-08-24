@@ -1,2 +1,4 @@
 language: "typescript"
 layer: "library"
+tags:
+  - "ts-library"
