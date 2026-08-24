@@ -5,6 +5,8 @@ export type { CallbackDeps } from "./callback.js";
 export { loadAuthConfig } from "./config.js";
 export type { AuthConfig } from "./config.js";
 export type { CookieJar, CookieOptions } from "./cookies.js";
+export { dispositionFor, failurePage, messageFor, reasonFor } from "./failure.js";
+export type { CallbackDisposition, CallbackFailure } from "./failure.js";
 export { readPrincipal } from "./principal.js";
 export type { PrincipalDeps } from "./principal.js";
 export { signOut } from "./signout.js";

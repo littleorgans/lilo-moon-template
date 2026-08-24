@@ -169,6 +169,38 @@ is the worst available response, and a failure nobody is told about is one that 
 Nothing in the repo pages anyone today, so "log it" currently means a structured log line and
 nothing more. That is enough to make the failure findable and is not enough to make it noticed.
 
+## Failure at the callback
+
+The table above covers a token that fails verification. A sign-in can also be refused by the
+provider before any token exists, which is a different union: `WorkOSAuthFailure`, fifteen values,
+raised by the code exchange and by organization creation.
+
+Uncaught, those reached the browser as the framework's serialised exception. A wrong API key
+rendered `{"status":400,"message":"HTTPError"}`, which tells the person nothing and the operator
+less. The same rule as above applies, and the same discipline: collapse them, and write down which
+ones collapse.
+
+| Disposition     | Reasons                                                                                                                         | What the person sees                  |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
+| `retry`         | `rate-limited`, `unavailable`                                                                                                   | Temporarily unavailable, try again    |
+| `unsupported`   | `email-verification-required`, `organization-selection-required`, the three `mfa-*`, `radar-challenge-required`, `sso-required` | A step this application has not built |
+| `misconfigured` | `invalid-request`, `unauthorized`, `not-found`, `conflict`, `configuration`, `provider`                                         | Not set up correctly, recorded        |
+
+**`retry` is the only one that tells someone to try again**, because waiting is the entire remedy
+for exactly those two and advice that cannot work is worse than none.
+
+**`unsupported` is honest rather than reassuring.** These are real AuthKit flows the template has
+not built. Saying so stops a person pressing a button that cannot ever complete.
+
+**`misconfigured` is ours.** The person reading it can do nothing about it, so it says so and the
+failure is reported rather than only rendered. Catching an error to draw a page swallows the stack
+trace the framework would have printed, and a callback that renders without reporting trades a bad
+page for a silent outage. The default destination is one JSON line per failure on stderr,
+overridable by the application.
+
+**No message names the reason.** Several of these failures are indistinguishable from someone
+probing the callback, and a message naming the failed check tells them which one to change.
+
 ## What is settled and what is not
 
 Settled by this page: the screen list, automatic organization creation and its three rules, the
@@ -177,8 +209,9 @@ out not to need a screen on the success path, for the reason recorded above.
 
 **Built so far:** the signed-out page, the callback, and an unstyled signed-in page that prints the
 Principal. The state check, the code exchange, organization creation, the refresh, and just in time
-row creation all run. What is not built: the email-code path, the two failure screens, and every
-steady-state surface.
+row creation all run, **proven by a real Google sign-in on 2026-08-24**, and the callback renders
+the failure above for anything the provider refuses. What is not built: the email-code path, the
+screens for a token that fails verification, and every steady-state surface.
 
 Not settled: which feature the entitlement gate protects in a real product, where a `claims`
 failure is delivered beyond a log line, and whether a second app in the template renders these
