@@ -67,6 +67,8 @@ export interface CallbackDeps {
   readonly auth: WorkOSAuth;
   readonly cookieKey: Buffer;
   readonly secureCookies: boolean;
+  /** Where a completed sign-in lands. The application's choice, not this package's. */
+  readonly signedInPath: string;
 }
 
 /**
@@ -122,5 +124,5 @@ export async function handleCallback(
     },
   );
 
-  return new Response(null, { status: 302, headers: { location: "/app" } });
+  return new Response(null, { status: 302, headers: { location: deps.signedInPath } });
 }

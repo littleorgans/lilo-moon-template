@@ -1,0 +1,44 @@
+{
+  "name": "@lilo-moon/auth-tanstack",
+  "version": "0.0.0",
+  "description": "TanStack Start adapter for the auth session: cookies, runtime, and route options.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/littleorgans/lilo-moon-template.git",
+    "directory": "packages/auth-tanstack"
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "@lilo-moon/source": "./src/index.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@lilo-moon/auth": "workspace:*",
+    "@lilo-moon/auth-session": "workspace:*",
+    "@lilo-moon/auth-workos": "workspace:*"
+  },
+  "devDependencies": {
+    "@tanstack/react-start": "catalog:",
+    "@types/node": "catalog:"
+  },
+  "peerDependencies": {
+    "@tanstack/react-start": "catalog:tanstack-peer"
+  },
+  "engines": {
+    "node": ">=24.19.0"
+  }
+}

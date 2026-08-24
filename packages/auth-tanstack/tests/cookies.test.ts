@@ -6,7 +6,7 @@ const deleteCookie = vi.fn();
 
 vi.mock("@tanstack/react-start/server", () => ({ getCookie, setCookie, deleteCookie }));
 
-const { requestCookies } = await import("../src/server/cookies.js");
+const { requestCookies } = await import("../src/cookies.js");
 
 describe("requestCookies", () => {
   beforeEach(() => {

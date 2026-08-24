@@ -1,7 +1,6 @@
+import { startRoute } from "@lilo-moon/auth-tanstack";
 import { createFileRoute } from "@tanstack/react-router";
 
-import { startSignIn } from "../server/handlers.js";
+import { auth } from "../server/auth.js";
 
-export const Route = createFileRoute("/api/auth/start")({
-  server: { handlers: { GET: startSignIn } },
-});
+export const Route = createFileRoute("/api/auth/start")(startRoute(auth));

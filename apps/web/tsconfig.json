@@ -15,6 +15,9 @@
       "path": "../../packages/auth-session"
     },
     {
+      "path": "../../packages/auth-tanstack"
+    },
+    {
       "path": "../../packages/auth-workos"
     },
     {

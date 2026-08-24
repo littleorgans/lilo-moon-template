@@ -47,6 +47,11 @@ catalogs:
   react-peer:
     react: ">=19"
     react-dom: ">=19"
+  # Framework adapters declare the framework as a peer, so the application owns the version and
+  # a consumer on a different framework never installs it.
+  tanstack-peer:
+    "@tanstack/react-router": ">=1.170"
+    "@tanstack/react-start": ">=1.168"
 
 # pnpm 11 reads these from this file. A project .npmrc is auth and registry only.
 autoInstallPeers: false

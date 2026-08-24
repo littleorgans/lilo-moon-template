@@ -152,9 +152,9 @@ importers:
       '@lilo-moon/auth':
         specifier: workspace:*
         version: link:../../packages/auth
-      '@lilo-moon/auth-session':
+      '@lilo-moon/auth-tanstack':
         specifier: workspace:*
-        version: link:../../packages/auth-session
+        version: link:../../packages/auth-tanstack
       '@lilo-moon/auth-workos':
         specifier: workspace:*
         version: link:../../packages/auth-workos
@@ -245,6 +245,25 @@ importers:
         specifier: workspace:*
         version: link:../auth-workos
     devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.13.3
+
+  packages/auth-tanstack:
+    dependencies:
+      '@lilo-moon/auth':
+        specifier: workspace:*
+        version: link:../auth
+      '@lilo-moon/auth-session':
+        specifier: workspace:*
+        version: link:../auth-session
+      '@lilo-moon/auth-workos':
+        specifier: workspace:*
+        version: link:../auth-workos
+    devDependencies:
+      '@tanstack/react-start':
+        specifier: 'catalog:'
+        version: 1.168.48(crossws@0.4.12(srvx@0.11.22))(esbuild@0.28.2)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(rolldown@1.2.4)(supports-color@10.2.2)(vite@8.2.1(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.12)(yaml@2.9.0))
       '@types/node':
         specifier: 'catalog:'
         version: 24.13.3

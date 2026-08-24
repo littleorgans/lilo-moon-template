@@ -183,7 +183,7 @@ describe("handleCallback", () => {
   const issued = "the-issued-state";
 
   function callbackDeps(auth: WorkOSAuth) {
-    return { auth, cookieKey: key, secureCookies: false };
+    return { auth, cookieKey: key, secureCookies: false, signedInPath: "/app" };
   }
 
   function exchangingAuth(): { auth: WorkOSAuth; calls: Call[] } {
@@ -298,5 +298,17 @@ describe("handleCallback", () => {
     const session = written.find((cookie) => cookie.name === SESSION_COOKIE);
     expect(session?.options).toMatchObject({ httpOnly: true, sameSite: "lax", path: "/" });
     expect(session?.value).not.toContain("access-with-org");
+  });
+
+  // The landing path belongs to the application. Hardcoding it here would mean a second product
+  // had to accept this one's route names.
+  it("redirects to the path the application chose", async () => {
+    const { auth } = exchangingAuth();
+    const { jar } = jarWith({ [STATE_COOKIE]: issued });
+    const response = await handleCallback(request(`?code=c&state=${issued}`), jar, {
+      ...callbackDeps(auth),
+      signedInPath: "/workspace",
+    });
+    expect(response.headers.get("location")).toBe("/workspace");
   });
 });
