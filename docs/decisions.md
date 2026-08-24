@@ -71,6 +71,19 @@ branches 75, functions 80, and lines 80, per project and per file. They fail unt
 do not prove a named assertion. A test is proven when a wrong implementation fails it. That
 procedure is [Write tests](../AGENTS.md#write-tests).
 
+The third form of the hole is a documented procedure nobody runs. `.env.example` told the reader to
+copy it to `.env.local` and start the dev server. Nothing loaded that file. Vite reads `.env` files
+only to populate `import.meta.env` for prefixed names, never writes `process.env`, and looks beside
+`vite.config.ts` rather than at the workspace root, and no task set `envFile`. The instruction was
+false from the commit that introduced it and stayed false across six merged pull requests while
+47 tasks reported green. It could not be otherwise: `dev` and `preview` are `runInCI: false`, so
+the only thing that executes them is a person. `envFile` in `.moon/tasks/node-application.yml` is
+the fix, chosen over loading dotenv inside the application so the rule that no code reads the
+filesystem for secrets still holds. moon puts them in the environment and the application reads the
+environment.
+
+Prose that instructs is a claim like any other. Either something executes it or it is unverified.
+
 ## Identity and entitlements
 
 **Decided: WorkOS.** `packages/auth` and `packages/db` are on main, and the schema keys on WorkOS

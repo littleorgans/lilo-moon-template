@@ -29,6 +29,12 @@ tasks:
     command: "vite"
     options:
       cache: false
+      # Vite reads .env files only to populate `import.meta.env`, and only for names it is told to
+      # expose. It never writes `process.env`, which is where the application reads configuration,
+      # and it looks beside vite.config.ts rather than at the workspace root. So the file
+      # .env.example tells you to create was loaded by nothing. moon loads it here instead, which
+      # keeps the one copy of the secrets at the root where .gitignore already covers it.
+      envFile: "/.env.local"
       persistent: true
       runInCI: false
 
@@ -44,5 +50,8 @@ tasks:
       - "~:build"
     options:
       cache: false
+      # Same file as dev, for the same reason. A Nitro server reads process.env and nothing puts
+      # .env.local there.
+      envFile: "/.env.local"
       persistent: true
       runInCI: false
