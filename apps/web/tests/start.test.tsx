@@ -12,7 +12,7 @@ describe("TanStack Start", () => {
     expect(router.routesByPath["/api/probe"]).toBeDefined();
   });
 
-  it("renders the index route through the router", async () => {
+  it("renders the signed-out route through the router", async () => {
     const router = getRouter();
     router.update({ history: createMemoryHistory({ initialEntries: ["/"] }) });
 
@@ -21,7 +21,27 @@ describe("TanStack Start", () => {
     const html = renderToStaticMarkup(<RouterProvider router={router} />);
 
     expect(html).toContain("Task board");
-    expect(html).toContain("Scout baseline");
+    expect(html).toContain("Continue with Google");
+  });
+
+  // Sign-in must be a real navigation. The route it points at sets the state cookie before handing
+  // the browser to the provider, and a fetch could not do that.
+  it("starts sign-in with a link to the server route, not a fetch", async () => {
+    const router = getRouter();
+    router.update({ history: createMemoryHistory({ initialEntries: ["/"] }) });
+
+    await router.load();
+
+    expect(renderToStaticMarkup(<RouterProvider router={router} />)).toContain(
+      'href="/api/auth/start"',
+    );
+  });
+
+  it("registers the callback and the signed-in route", () => {
+    const router = getRouter();
+
+    expect(router.routesByPath["/callback"]).toBeDefined();
+    expect(router.routesByPath["/app"]).toBeDefined();
   });
 
   it("computes the probe response in the server process", async () => {

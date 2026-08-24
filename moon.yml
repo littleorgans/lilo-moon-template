@@ -48,6 +48,14 @@ tasks:
     inputs:
       - "@globs(sources)"
       - ".oxlintrc.json"
+    # Type-aware lint needs the workspace packages' declarations, and declarations come from a
+    # build. Without this edge oxlint reads `@lilo-moon/db` as an error type that acts as `any`,
+    # then reports it as no-redundant-type-constituents: a message that names a union, not the
+    # missing build. It passed locally only because dist was already there from an earlier run,
+    # and failed on a clean runner. Tagged rather than listed, so a new library inherits the edge
+    # from the generator template instead of reintroducing the bug silently.
+    deps:
+      - "#ts-library:build"
     options:
       runInCI: "always"
 

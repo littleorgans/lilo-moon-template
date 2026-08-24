@@ -27,17 +27,24 @@ numbering matches a real sequence rather than decorating one.
 
 Route `/`. No token exists.
 
-Continue with Google, or an email address that receives a sign-in code. Both work against WorkOS
-staging today. Passkeys are enabled and MFA is optional, so both appear on the AuthKit side of the
-flow rather than here.
+Continue with Google. Both Google and an emailed sign-in code work against WorkOS staging, and
+**only Google is wired**: the email path needs its own two-step form, which is a separate piece of
+work rather than a variation on this one. Passkeys are enabled and MFA is optional, so both appear
+on the AuthKit side of the flow rather than here.
 
 ### 2. Callback
 
-Route `/callback`. **Decided: this is a screen, not a bare redirect.**
+Route `/callback`. **Built as a server route that redirects on success, which is a change from the
+decision recorded here, and the reason is worth keeping.**
 
-A server route could exchange the code and redirect without ever painting. That is faster and
-simpler, and it shows a blank tab whenever the exchange is slow. The screen costs a flash of
-spinner and removes that failure mode.
+The screen was chosen to avoid a blank tab during a slow exchange. That risk turned out not to
+exist. The exchange needs the API key, so it must happen on the server, and while it runs the
+browser is still showing the provider's page waiting on our response. There is no blank tab to
+prevent. Rendering a spinner would mean returning HTML first and exchanging afterwards, which needs
+a second round trip to do worse.
+
+So success is a 302 to `/app` and nothing is painted. **Failure does render**, and that is where a
+page earns its place: a redirect cannot explain why sign-in stopped.
 
 Four things happen here, in order, and all of them are server side:
 
@@ -164,9 +171,14 @@ nothing more. That is enough to make the failure findable and is not enough to m
 
 ## What is settled and what is not
 
-Settled by this page: the screen list, the callback being a screen, automatic organization
-creation and its three rules, the failure mapping, and that free-tier policy is out of scope for
-the template.
+Settled by this page: the screen list, automatic organization creation and its three rules, the
+failure mapping, and that free-tier policy is out of scope for the template. The callback turned
+out not to need a screen on the success path, for the reason recorded above.
+
+**Built so far:** the signed-out page, the callback, and an unstyled signed-in page that prints the
+Principal. The state check, the code exchange, organization creation, the refresh, and just in time
+row creation all run. What is not built: the email-code path, the two failure screens, and every
+steady-state surface.
 
 Not settled: which feature the entitlement gate protects in a real product, where a `claims`
 failure is delivered beyond a log line, and whether a second app in the template renders these
