@@ -69,6 +69,17 @@ just rename your-org your-scope your-repo
 
 Run `just rename-verify` at any time to confirm that no template identity remains in tracked files.
 
+## Claim your ports
+
+Two pinned ports are part of the template's identity and must change per project, or two projects
+on one machine collide deterministically: the dev server port in `apps/web/vite.config.ts` (5199
+here) and `DEFAULT_PORT` in `scripts/lib/postgres-container.mjs` (54390 here), where one persistent
+container serves every database task through throwaway databases. Pick fresh values and commit
+them; the rename rewrites the `lilo-postgres` container name with the rest of the identity. The
+registered OAuth redirect URI must agree with the dev server port. `LILO_PG_PORT` in the shell
+environment overrides the database port without a commit. The container stays warm between runs;
+`just clean` removes it.
+
 The source condition is a matching pair. The key in `exports` and the string in
 `resolve.conditions` must be the same. Node's standard conditions stay pointed at `dist`. Why is
 in [Why this baseline is shaped this way](decisions.md).

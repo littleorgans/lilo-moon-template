@@ -36,7 +36,7 @@ describe("createDatabase configuration", () => {
 
 describe.skipIf(!dockerIsAvailable())("createDatabase", () => {
   it("seeds the caller's rows and scopes reads to them", async () => {
-    await withPostgres(async (connectionString) => {
+    await withPostgres("db-test", async (connectionString) => {
       applyMigrations(connectionString);
       const database = createDatabase({ connectionString });
       try {
@@ -58,7 +58,7 @@ describe.skipIf(!dockerIsAvailable())("createDatabase", () => {
   }, 60_000);
 
   it("returns the connection to the pool after a failed transaction", async () => {
-    await withPostgres(async (connectionString) => {
+    await withPostgres("db-test", async (connectionString) => {
       applyMigrations(connectionString);
       const database = createDatabase({ connectionString, maxConnections: 1 });
       try {

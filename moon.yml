@@ -101,15 +101,7 @@ tasks:
   atlas-diff:
     description: "Generate a versioned migration from db/schema.sql"
     type: "run"
-    toolchains: "system"
-    command: "atlas migrate diff"
-    args:
-      - "--dir"
-      - "file://db/migrations"
-      - "--to"
-      - "file://db/schema.sql"
-      - "--dev-url"
-      - "docker://postgres/17/dev?search_path=public"
+    command: "node scripts/atlas-dev.mjs diff"
     checks:
       - check: "condition"
         script: "test ! -f db/schema.sql"
@@ -120,20 +112,9 @@ tasks:
   atlas-lint:
     description: "Reject unsafe versioned migrations"
     type: "test"
-    toolchains: "system"
-    # Local checks are a fast subset and announce a missing Docker daemon.
-    # CI is authoritative: with a schema, Docker or Atlas failure fails the gate.
-    script: |
-      if test -z "${CI:-}" && ! docker info >/dev/null 2>&1; then
-        echo "Atlas lint skipped locally: Docker is unavailable; CI will run it."
-        exit 0
-      fi
-      selector="${MOON_BASE:+--git-base=$MOON_BASE}"
-      selector="${selector:---latest=1}"
-      atlas migrate lint \
-        --dir "file://db/migrations" \
-        --dev-url "docker://postgres/17/dev?search_path=public" \
-        "$selector"
+    # Atlas's docker:// driver publishes to a random host port; scripts/atlas-dev.mjs runs the dev
+    # database on this project's pinned port instead. Skip and CI semantics live in the script.
+    command: "node scripts/atlas-dev.mjs lint"
     checks:
       - check: "condition"
         script: "test ! -f db/schema.sql"
