@@ -1,10 +1,12 @@
 import { randomBytes } from "node:crypto";
 
-import type { Authentication, WorkOSAuth } from "@lilo-moon/auth-workos";
+import { WorkOSAuthError } from "@lilo-moon/auth-workos";
+import type { Authentication, WorkOSAuth, WorkOSAuthFailure } from "@lilo-moon/auth-workos";
 import { describe, expect, it } from "vitest";
 
 import { ensureOrganization, handleCallback, organizationNameFor } from "../src/callback.js";
 import type { CookieJar, CookieOptions } from "../src/cookies.js";
+import type { CallbackFailure } from "../src/failure.js";
 import { SESSION_COOKIE, STATE_COOKIE, readSession } from "../src/session.js";
 
 interface Written {
@@ -182,8 +184,30 @@ describe("handleCallback", () => {
   const key = randomBytes(32);
   const issued = "the-issued-state";
 
+  const logged: CallbackFailure[] = [];
+
   function callbackDeps(auth: WorkOSAuth) {
-    return { auth, cookieKey: key, secureCookies: false, signedInPath: "/app" };
+    return {
+      auth,
+      cookieKey: key,
+      secureCookies: false,
+      signedInPath: "/app",
+      log: (failure: CallbackFailure) => {
+        logged.push(failure);
+      },
+    };
+  }
+
+  /** An exchange that fails the way the vendor fails: a translated error carrying a reason. */
+  function refusingAuth(reason: WorkOSAuthFailure): WorkOSAuth {
+    return {
+      ...authDouble().auth,
+      authenticateWithCode() {
+        return Promise.reject(
+          new WorkOSAuthError({ reason, message: "the vendor said no", cause: new Error("raw") }),
+        );
+      },
+    };
   }
 
   function exchangingAuth(): { auth: WorkOSAuth; calls: Call[] } {
@@ -310,5 +334,99 @@ describe("handleCallback", () => {
       signedInPath: "/workspace",
     });
     expect(response.headers.get("location")).toBe("/workspace");
+  });
+
+  // The failure this whole path exists for. A wrong API key used to reach the browser as
+  // `{"status":400,"message":"HTTPError"}`, which tells the person nothing and the operator less.
+  it("renders a page when the provider refuses the exchange", async () => {
+    const { jar } = jarWith({ [STATE_COOKIE]: issued });
+    const response = await handleCallback(
+      request(`?code=the-code&state=${issued}`),
+      jar,
+      callbackDeps(refusingAuth("unauthorized")),
+    );
+    const body = await response.text();
+    expect(response.status).toBe(400);
+    expect(response.headers.get("content-type")).toContain("text/html");
+    expect(body).toContain("Sign-in is not set up correctly here.");
+  });
+
+  it("tells someone to try again only when the failure is transient", async () => {
+    const { jar } = jarWith({ [STATE_COOKIE]: issued });
+    const response = await handleCallback(
+      request(`?code=the-code&state=${issued}`),
+      jar,
+      callbackDeps(refusingAuth("rate-limited")),
+    );
+    expect(await response.text()).toContain("Try again in a moment.");
+  });
+
+  // Catching an error to render a page swallows the stack trace the framework would have printed.
+  // A callback that renders without reporting trades a bad page for a silent outage.
+  it("reports the failure it just swallowed", async () => {
+    const { jar } = jarWith({ [STATE_COOKIE]: issued });
+    logged.length = 0;
+    await handleCallback(
+      request(`?code=the-code&state=${issued}`),
+      jar,
+      callbackDeps(refusingAuth("configuration")),
+    );
+    expect(logged).toHaveLength(1);
+    expect(logged[0]).toMatchObject({ reason: "configuration", disposition: "misconfigured" });
+    expect(logged[0]?.error).toBeInstanceOf(WorkOSAuthError);
+  });
+
+  it("never names the provider's reason in the page", async () => {
+    const { jar } = jarWith({ [STATE_COOKIE]: issued });
+    const response = await handleCallback(
+      request(`?code=the-code&state=${issued}`),
+      jar,
+      callbackDeps(refusingAuth("sso-required")),
+    );
+    const body = await response.text();
+    expect(body).not.toContain("sso-required");
+    expect(body).not.toContain("the vendor said no");
+  });
+
+  it("sets no session when the exchange fails", async () => {
+    const { jar, written } = jarWith({ [STATE_COOKIE]: issued });
+    await handleCallback(
+      request(`?code=the-code&state=${issued}`),
+      jar,
+      callbackDeps(refusingAuth("unauthorized")),
+    );
+    expect(written).toStrictEqual([]);
+  });
+
+  // The state is spent before the exchange is attempted, so a failed exchange must not leave a
+  // replayable one behind.
+  it("still spends the state when the exchange fails", async () => {
+    const { jar, cleared } = jarWith({ [STATE_COOKIE]: issued });
+    await handleCallback(
+      request(`?code=the-code&state=${issued}`),
+      jar,
+      callbackDeps(refusingAuth("unauthorized")),
+    );
+    expect(cleared).toContain(STATE_COOKIE);
+  });
+
+  // Organization creation runs after the exchange and can fail on its own. A raw throw there would
+  // reach the browser exactly as the exchange's did.
+  it("renders a page when provisioning fails rather than the exchange", async () => {
+    const base = authDouble();
+    const auth: WorkOSAuth = {
+      ...base.auth,
+      authenticateWithCode: () => Promise.resolve(arrival),
+      provisionOrganization: () => Promise.reject(new Error("no network")),
+    };
+    const { jar } = jarWith({ [STATE_COOKIE]: issued });
+    logged.length = 0;
+    const response = await handleCallback(
+      request(`?code=the-code&state=${issued}`),
+      jar,
+      callbackDeps(auth),
+    );
+    expect(response.status).toBe(400);
+    expect(logged[0]).toMatchObject({ reason: "provider" });
   });
 });

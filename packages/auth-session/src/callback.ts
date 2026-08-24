@@ -1,20 +1,12 @@
 import type { Authentication, WorkOSAuth } from "@lilo-moon/auth-workos";
 
 import type { CookieJar } from "./cookies.js";
+import { dispositionFor, failurePage, messageFor, reasonFor } from "./failure.js";
+import type { CallbackFailure } from "./failure.js";
 import { SESSION_COOKIE, STATE_COOKIE, seal, stateMatches } from "./session.js";
 
 /** A year. The refresh token inside rotates; this is only how long the browser keeps the envelope. */
 const SESSION_MAX_AGE_SECONDS = 31_536_000;
-
-function failure(message: string): Response {
-  // Deliberately plain. Sign-in failing is not the moment to discover a styling dependency, and
-  // this page must render when everything else in the request is broken.
-  return new Response(
-    `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Sign-in failed</title></head>` +
-      `<body><h1>Sign-in failed</h1><p>${message}</p><p><a href="/">Back to sign in</a></p></body></html>`,
-    { status: 400, headers: { "content-type": "text/html; charset=utf-8" } },
-  );
-}
 
 /**
  * Names the organization for someone who has just arrived without one.
@@ -69,6 +61,15 @@ export interface CallbackDeps {
   readonly secureCookies: boolean;
   /** Where a completed sign-in lands. The application's choice, not this package's. */
   readonly signedInPath: string;
+  /**
+   * Told about every failure the provider raises.
+   *
+   * Required rather than optional. Catching an error to render a page swallows the stack trace the
+   * framework would otherwise have printed, so a callback that renders without reporting trades a
+   * bad page for a silent outage. Injected rather than written to the console here because a
+   * library that picks its own log destination is one an application cannot fit into its own.
+   */
+  readonly log: (failure: CallbackFailure) => void;
 }
 
 /**
@@ -89,7 +90,7 @@ export async function handleCallback(
   // The state check runs before anything else touches the code. Everything below this line assumes
   // the response is one this application asked for, and nothing above it may assume that.
   if (!stateMatches(jar.read(STATE_COOKIE), url.searchParams.get("state"))) {
-    return failure("This sign-in link did not come from here, or it has expired.");
+    return failurePage("This sign-in link did not come from here, or it has expired.");
   }
   // Cleared whether or not the rest succeeds. A state that stays valid is one an attacker can
   // replay, so it is spent the moment it is checked.
@@ -97,17 +98,29 @@ export async function handleCallback(
 
   const code = url.searchParams.get("code");
   if (code === null || code.length === 0) {
-    return failure("The provider did not return an authorization code.");
+    return failurePage("The provider did not return an authorization code.");
   }
 
   const userAgent = request.headers.get("user-agent");
-  const authentication = await ensureOrganization(
-    deps.auth,
-    await deps.auth.authenticateWithCode({
-      code,
-      ...(userAgent === null ? {} : { userAgent }),
-    }),
-  );
+  let authentication: Authentication;
+  try {
+    authentication = await ensureOrganization(
+      deps.auth,
+      await deps.auth.authenticateWithCode({
+        code,
+        ...(userAgent === null ? {} : { userAgent }),
+      }),
+    );
+  } catch (error) {
+    // Everything from here to the session cookie is a call to the vendor, and every one of them can
+    // fail for a reason the person cannot see. Uncaught, they leave the framework to serialise an
+    // exception into the response, which is how a wrong API key became `{"status":400,
+    // "message":"HTTPError"}` on screen.
+    const reason = reasonFor(error);
+    const disposition = dispositionFor(reason);
+    deps.log({ reason, disposition, error });
+    return failurePage(messageFor(disposition));
+  }
 
   jar.write(
     SESSION_COOKIE,

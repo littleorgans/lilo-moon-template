@@ -7,10 +7,11 @@ import {
   signOut,
   startAuthorization,
 } from "@lilo-moon/auth-session";
-import type { AuthConfig, AuthServices, CookieJar } from "@lilo-moon/auth-session";
+import type { AuthConfig, AuthServices, CallbackFailure, CookieJar } from "@lilo-moon/auth-session";
 import type { AuthorizationProvider } from "@lilo-moon/auth-workos";
 
 import { requestCookies } from "./cookies.js";
+import { reportAuthFailure } from "./log.js";
 
 export interface AuthRuntimeOptions {
   /** Which identity path a sign-in takes. `authkit` is the provider's own hosted page. */
@@ -21,6 +22,14 @@ export interface AuthRuntimeOptions {
   readonly env?: NodeJS.ProcessEnv;
   /** Overridable so a test never needs a live request context. */
   readonly cookies?: CookieJar;
+  /**
+   * Told about every sign-in the provider refuses. Defaults to a JSON line on stderr.
+   *
+   * A default exists because this is the wiring layer, where picking a sensible one is the job. It
+   * is overridable because the moment an application has real logging, a line this package prints
+   * is a line that misses the aggregator.
+   */
+  readonly log?: (failure: CallbackFailure) => void;
 }
 
 /**
@@ -86,6 +95,7 @@ export function createAuthRuntime(options: AuthRuntimeOptions): AuthRuntime {
         cookieKey: config.cookieKey,
         secureCookies: config.secureCookies,
         signedInPath: options.signedInPath,
+        log: options.log ?? reportAuthFailure,
       });
     },
 
