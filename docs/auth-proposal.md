@@ -52,6 +52,7 @@ apps/
 packages/
   theme/                  On main. Typed token contract, product themes, runtime applier, validator.
   ui/                     On main. Shared React components. shadcn + Tailwind. No className escapes.
+  views/                  On main. Product views composed from ui blocks. One directory per view.
   vite-config/            Planned. One Vite and Vitest factory. Owns the workspace-package lists.
   auth/                   On main. createVerifier, toPrincipal. JWKS + jose. No vendor SDK.
   auth-workos/            On main. Login flows and WorkOS API calls. The quarantined provider module.

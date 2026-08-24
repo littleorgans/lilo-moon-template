@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 
-import { SignedInRoute } from "../components/signed-in-panel.js";
+import { SignedInRoute } from "../components/signed-in-route.js";
 import { loadSignedOrRedirect } from "../server/signed-in.js";
 import type { SignedInView } from "../server/signed-in.js";
 

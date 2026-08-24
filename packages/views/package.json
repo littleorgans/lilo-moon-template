@@ -1,0 +1,46 @@
+{
+  "name": "@lilo-moon/views",
+  "version": "0.0.0",
+  "description": "Reusable product views: composed from the ui building blocks, aware of the product's types.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/littleorgans/lilo-moon-template.git",
+    "directory": "packages/views"
+  },
+  "files": [
+    "dist",
+    "src",
+    "!src/**/*.test.*"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    "./*": {
+      "types": "./dist/*/index.d.ts",
+      "@lilo-moon/source": "./src/*/index.ts",
+      "import": "./dist/*/index.js",
+      "default": "./dist/*/index.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@lilo-moon/auth": "workspace:*",
+    "@lilo-moon/ui": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:"
+  },
+  "peerDependencies": {
+    "react": "catalog:react-peer",
+    "react-dom": "catalog:react-peer"
+  },
+  "engines": {
+    "node": ">=24.19.0"
+  }
+}

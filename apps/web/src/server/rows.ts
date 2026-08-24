@@ -1,11 +1,7 @@
 import type { Principal } from "@lilo-moon/auth";
+import type { VisibleRows } from "@lilo-moon/views/signed-in-panel";
 import type { SQL } from "drizzle-orm";
 import { sql } from "drizzle-orm";
-
-export interface VisibleRows {
-  readonly accounts: number;
-  readonly profiles: number;
-}
 
 /**
  * The slice of a scoped transaction this page needs.

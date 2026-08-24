@@ -1,9 +1,10 @@
 import type { Principal } from "@lilo-moon/auth";
+import type { VisibleRows } from "@lilo-moon/views/signed-in-panel";
 import { redirect } from "@tanstack/react-router";
 
 import { auth } from "./auth.js";
 import { countVisibleRows } from "./rows.js";
-import type { ScopedRunner, VisibleRows } from "./rows.js";
+import type { ScopedRunner } from "./rows.js";
 import { getDatabase } from "./services.js";
 
 /**

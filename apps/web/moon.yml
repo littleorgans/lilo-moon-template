@@ -3,6 +3,7 @@ layer: "application"
 dependsOn:
   - "auth"
   - "ui"
+  - "views"
   - "auth-tanstack"
   - "collections"
   - "db"

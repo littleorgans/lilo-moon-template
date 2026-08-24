@@ -1,0 +1,7 @@
+language: "typescript"
+layer: "library"
+dependsOn:
+  - "auth"
+  - "ui"
+tags:
+  - "ts-library"

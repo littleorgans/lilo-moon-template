@@ -1,0 +1,17 @@
+{
+  "extends": "../../tsconfig.options.json",
+  "include": ["src/**/*.ts", "src/**/*.tsx", "tests/**/*.ts", "tests/**/*.tsx"],
+  "compilerOptions": {
+    "lib": ["ES2024", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
+    "outDir": "../../.moon/cache/types/packages/views"
+  },
+  "references": [
+    {
+      "path": "../auth"
+    },
+    {
+      "path": "../ui"
+    }
+  ]
+}

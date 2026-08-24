@@ -10,6 +10,7 @@
 @import "@lilo-moon/theme/themes.css";
 
 @source "./";
+@source "../../views";
 @source "../../../apps";
 
 /* Mode is a class, not a media query, so the account screen's light/dark/system choice can win. */

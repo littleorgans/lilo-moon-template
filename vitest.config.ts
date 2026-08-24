@@ -2,7 +2,10 @@ import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   test: {
-    include: ["tests/**/*.{test,spec}.{js,jsx,mjs,cjs,ts,tsx,mts,cts}"],
+    include: [
+      "tests/**/*.{test,spec}.{js,jsx,mjs,cjs,ts,tsx,mts,cts}",
+      "src/**/*.{test,spec}.{js,jsx,mjs,cjs,ts,tsx,mts,cts}",
+    ],
     coverage: {
       provider: "v8",
       include: ["src/**/*.{js,jsx,mjs,cjs,ts,tsx,mts,cts}"],
@@ -17,7 +20,7 @@ export default defineConfig({
       //
       // The rule this buys: route files hold wiring and never logic. Everything `app.tsx`
       // references is tested where it is defined. Adding a file here needs the same argument.
-      exclude: ["**/*.gen.*", "src/routes/app.tsx"],
+      exclude: ["**/*.gen.*", "**/*.{test,spec}.*", "src/routes/app.tsx"],
       reporter: ["text", "json-summary", "html"],
       thresholds: {
         perFile: true,

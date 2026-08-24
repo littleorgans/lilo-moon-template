@@ -25,7 +25,7 @@ vi.mock("@tanstack/react-router", async (importOriginal) => ({
   getRouteApi: () => ({ useLoaderData: () => view }),
 }));
 
-const { SignedInRoute } = await import("../src/components/signed-in-panel.js");
+const { SignedInRoute } = await import("../src/components/signed-in-route.js");
 
 describe("SignedInRoute", () => {
   it("renders the panel from the loader's data", () => {
