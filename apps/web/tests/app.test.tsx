@@ -3,21 +3,22 @@ import { describe, expect, it } from "vitest";
 
 import { App } from "../src/app.js";
 
-function sectionList(html: string, heading: string): string {
-  const match = html.match(new RegExp(`<section><h2>${heading}</h2><ul>(.*?)</ul></section>`));
-
-  if (!match) {
-    throw new Error(`missing <section> for ${heading}`);
+// Cards render in status order as siblings, so the chunk between one data-status marker and the
+// next is that status's card.
+function statusCard(html: string, status: string): string {
+  const chunks = html.split('data-status="');
+  const chunk = chunks.find((candidate) => candidate.startsWith(`${status}"`));
+  if (chunk === undefined) {
+    throw new Error(`missing card for ${status}`);
   }
-
-  return match[1] ?? "";
+  return chunk;
 }
 
 describe("App", () => {
   it("groups tasks by status using collections", () => {
     const html = renderToStaticMarkup(<App />);
-    const done = sectionList(html, "done");
-    const todo = sectionList(html, "todo");
+    const done = statusCard(html, "done");
+    const todo = statusCard(html, "todo");
 
     expect(done).toContain("Scout baseline");
     expect(done).toContain("Library exemplar");
@@ -25,5 +26,11 @@ describe("App", () => {
     expect(todo).toContain("Application exemplar");
     expect(todo).not.toContain("Scout baseline");
     expect(todo).not.toContain("Library exemplar");
+  });
+
+  it("badges distinguish done from todo", () => {
+    const html = renderToStaticMarkup(<App />);
+    expect(statusCard(html, "done")).toContain("bg-secondary");
+    expect(statusCard(html, "todo")).toContain("border-border");
   });
 });

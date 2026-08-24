@@ -1,5 +1,6 @@
 import { readdirSync } from "node:fs";
 
+import tailwindcss from "@tailwindcss/vite";
 import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import react from "@vitejs/plugin-react";
 import { nitro } from "nitro/vite";
@@ -12,7 +13,7 @@ const workspacePackages = readdirSync(new URL("../../packages", import.meta.url)
   .map((entry) => `@lilo-moon/${entry.name}`);
 
 export default defineConfig(({ command }) => ({
-  plugins: [tanstackStart(), react(), nitro()],
+  plugins: [tailwindcss(), tanstackStart(), react(), nitro()],
   // Not Vite's default 5173. That port is the first thing every other Vite project on the machine
   // claims, and a dev server that silently moves to 5174 breaks the OAuth redirect URI registered
   // with the identity provider. Pinned so the registered callback and the running server agree.
