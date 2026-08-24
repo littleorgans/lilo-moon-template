@@ -149,9 +149,18 @@ importers:
 
   apps/web:
     dependencies:
+      '@lilo-moon/auth':
+        specifier: workspace:*
+        version: link:../../packages/auth
+      '@lilo-moon/auth-workos':
+        specifier: workspace:*
+        version: link:../../packages/auth-workos
       '@lilo-moon/collections':
         specifier: workspace:*
         version: link:../../packages/collections
+      '@lilo-moon/db':
+        specifier: workspace:*
+        version: link:../../packages/db
       '@mantine/hooks':
         specifier: 'catalog:'
         version: 9.5.1(react@19.2.8)
@@ -173,6 +182,9 @@ importers:
       clsx:
         specifier: 'catalog:'
         version: 2.1.1
+      drizzle-orm:
+        specifier: 'catalog:'
+        version: 0.45.2(@types/pg@8.23.1)(pg@8.23.0)
       lucide-react:
         specifier: 'catalog:'
         version: 1.33.0(react@19.2.8)

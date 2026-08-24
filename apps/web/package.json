@@ -4,7 +4,10 @@
   "private": true,
   "type": "module",
   "dependencies": {
+    "@lilo-moon/auth": "workspace:*",
+    "@lilo-moon/auth-workos": "workspace:*",
     "@lilo-moon/collections": "workspace:*",
+    "@lilo-moon/db": "workspace:*",
     "@mantine/hooks": "catalog:",
     "@radix-ui/react-dialog": "catalog:",
     "@radix-ui/react-dropdown-menu": "catalog:",
@@ -12,6 +15,7 @@
     "@tanstack/react-start": "catalog:",
     "class-variance-authority": "catalog:",
     "clsx": "catalog:",
+    "drizzle-orm": "catalog:",
     "lucide-react": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",

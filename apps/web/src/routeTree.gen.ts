@@ -10,11 +10,25 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AppRouteImport } from './routes/app'
+import { Route as CallbackRouteImport } from './routes/callback'
 import { Route as ApiProbeRouteImport } from './routes/api.probe'
+import { Route as ApiAuthSignoutRouteImport } from './routes/api.auth.signout'
+import { Route as ApiAuthStartRouteImport } from './routes/api.auth.start'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AppRoute = AppRouteImport.update({
+  id: '/app',
+  path: '/app',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CallbackRoute = CallbackRouteImport.update({
+  id: '/callback',
+  path: '/callback',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiProbeRoute = ApiProbeRouteImport.update({
@@ -22,31 +36,76 @@ const ApiProbeRoute = ApiProbeRouteImport.update({
   path: '/api/probe',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAuthSignoutRoute = ApiAuthSignoutRouteImport.update({
+  id: '/api/auth/signout',
+  path: '/api/auth/signout',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAuthStartRoute = ApiAuthStartRouteImport.update({
+  id: '/api/auth/start',
+  path: '/api/auth/start',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/app': typeof AppRoute
+  '/callback': typeof CallbackRoute
   '/api/probe': typeof ApiProbeRoute
+  '/api/auth/signout': typeof ApiAuthSignoutRoute
+  '/api/auth/start': typeof ApiAuthStartRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/app': typeof AppRoute
+  '/callback': typeof CallbackRoute
   '/api/probe': typeof ApiProbeRoute
+  '/api/auth/signout': typeof ApiAuthSignoutRoute
+  '/api/auth/start': typeof ApiAuthStartRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/app': typeof AppRoute
+  '/callback': typeof CallbackRoute
   '/api/probe': typeof ApiProbeRoute
+  '/api/auth/signout': typeof ApiAuthSignoutRoute
+  '/api/auth/start': typeof ApiAuthStartRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/api/probe'
+  fullPaths:
+    | '/'
+    | '/app'
+    | '/callback'
+    | '/api/probe'
+    | '/api/auth/signout'
+    | '/api/auth/start'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/api/probe'
-  id: '__root__' | '/' | '/api/probe'
+  to:
+    | '/'
+    | '/app'
+    | '/callback'
+    | '/api/probe'
+    | '/api/auth/signout'
+    | '/api/auth/start'
+  id:
+    | '__root__'
+    | '/'
+    | '/app'
+    | '/callback'
+    | '/api/probe'
+    | '/api/auth/signout'
+    | '/api/auth/start'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AppRoute: typeof AppRoute
+  CallbackRoute: typeof CallbackRoute
   ApiProbeRoute: typeof ApiProbeRoute
+  ApiAuthSignoutRoute: typeof ApiAuthSignoutRoute
+  ApiAuthStartRoute: typeof ApiAuthStartRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -58,6 +117,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/app': {
+      id: '/app'
+      path: '/app'
+      fullPath: '/app'
+      preLoaderRoute: typeof AppRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/callback': {
+      id: '/callback'
+      path: '/callback'
+      fullPath: '/callback'
+      preLoaderRoute: typeof CallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/probe': {
       id: '/api/probe'
       path: '/api/probe'
@@ -65,12 +138,30 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiProbeRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/auth/signout': {
+      id: '/api/auth/signout'
+      path: '/api/auth/signout'
+      fullPath: '/api/auth/signout'
+      preLoaderRoute: typeof ApiAuthSignoutRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/auth/start': {
+      id: '/api/auth/start'
+      path: '/api/auth/start'
+      fullPath: '/api/auth/start'
+      preLoaderRoute: typeof ApiAuthStartRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AppRoute: AppRoute,
+  CallbackRoute: CallbackRoute,
   ApiProbeRoute: ApiProbeRoute,
+  ApiAuthSignoutRoute: ApiAuthSignoutRoute,
+  ApiAuthStartRoute: ApiAuthStartRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
