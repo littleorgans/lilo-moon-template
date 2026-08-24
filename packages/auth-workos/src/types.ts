@@ -8,6 +8,7 @@ export type WorkOSAuthFailure =
   | "mfa-verification-required"
   | "radar-challenge-required"
   | "sso-required"
+  | "code-rejected"
   | "invalid-request"
   | "unauthorized"
   | "not-found"

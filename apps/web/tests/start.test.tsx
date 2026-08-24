@@ -37,6 +37,28 @@ describe("TanStack Start", () => {
     );
   });
 
+  it("renders the code entry page through the router, quiet on a fresh visit", async () => {
+    const router = getRouter();
+    router.update({ history: createMemoryHistory({ initialEntries: ["/verify-email"] }) });
+
+    await router.load();
+
+    const html = renderToStaticMarkup(<RouterProvider router={router} />);
+    expect(html).toContain('action="/api/auth/email/verify"');
+    expect(html).not.toContain("did not work");
+  });
+
+  it("says a refused code did not work when the verify handler sends retry", async () => {
+    const router = getRouter();
+    router.update({
+      history: createMemoryHistory({ initialEntries: ["/verify-email?retry=true"] }),
+    });
+
+    await router.load();
+
+    expect(renderToStaticMarkup(<RouterProvider router={router} />)).toContain("did not work");
+  });
+
   it("registers the callback and the signed-in route", () => {
     const router = getRouter();
 

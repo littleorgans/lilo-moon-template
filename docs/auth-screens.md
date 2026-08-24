@@ -27,10 +27,33 @@ numbering matches a real sequence rather than decorating one.
 
 Route `/`. No token exists.
 
-Continue with Google. Both Google and an emailed sign-in code work against WorkOS staging, and
-**only Google is wired**: the email path needs its own two-step form, which is a separate piece of
-work rather than a variation on this one. Passkeys are enabled and MFA is optional, so both appear
-on the AuthKit side of the flow rather than here.
+Continue with Google, or ask for a code by email. **Both are wired**, proven end to end against
+WorkOS staging on 2026-08-25. Passkeys are enabled and MFA is optional, so both appear on the
+AuthKit side of the redirect flow rather than here.
+
+The two ways in are shaped differently on purpose. Google is an anchor to a server route, because
+the route mints and stores the `state` before the browser leaves. The email path is a form that
+posts, for the same underlying reason and one more: a GET that sends an email, or spends a
+one-time code, is one a link prefetcher can fire.
+
+**The email path is sign-in and sign-up at once.** Creating a code for an address nobody has used
+creates the user, measured against the live API rather than inferred from the documentation, which
+does not say so. There is no separate registration screen and no invitation to accept.
+
+### 1b. Code entry
+
+Route `/verify-email`, reached only by posting an address. The provider emails a six-digit code
+that expires in ten minutes.
+
+**The address is never shown on this page and never appears in the URL.** It is held in a
+short-lived httpOnly cookie the page cannot read, so it stays out of history entries, referrer
+headers, and server access logs, and it is that cookie which ties the code to the browser that
+asked for it. A code pasted into a different browser has no address to verify against.
+
+**A rejected code is the one provider failure the person can fix**, so it is the one that does not
+collapse into a disposition message: they return here with `?retry=true`, the copy says the code
+did not work, and the address cookie survives. A typo must not cost somebody the address they
+already proved they wanted. The cookie is spent only on success.
 
 ### 2. Callback
 
@@ -104,12 +127,18 @@ Route `/app`. A tenant exists and nobody has paid.
 
 ```
 orgId         "org_01M0JS..."
-roles         ["owner"]
-permissions   ["billing:manage"]
+roles         ["member"]
+permissions   []
 entitlements  []
 ```
 
 This is the state most accounts stay in permanently, so it is the one worth designing carefully.
+
+**The example above said `["owner"]` and `["billing:manage"]` until a live sign-in disagreed.**
+`provisionOrganization` accepts `roleSlugs` and `ensureOrganization` does not pass any, so the
+person who creates a workspace receives the environment's default role, which is `member`. Nothing
+grants `billing:manage` today. Whether the creator of a personal workspace should own it is a
+product decision rather than a defect, and it is open: see the end of this page.
 
 **What free allows is not decided here, on purpose.** The template ships the mechanism, an
 entitlement check that gates a feature and renders an upgrade prompt. The policy, which feature and
@@ -207,11 +236,12 @@ Settled by this page: the screen list, automatic organization creation and its t
 failure mapping, and that free-tier policy is out of scope for the template. The callback turned
 out not to need a screen on the success path, for the reason recorded above.
 
-**Built so far:** the signed-out page, the callback, and an unstyled signed-in page that prints the
-Principal. The state check, the code exchange, organization creation, the refresh, and just in time
-row creation all run, **proven by a real Google sign-in on 2026-08-24**, and the callback renders
-the failure above for anything the provider refuses. What is not built: the email-code path, the
-screens for a token that fails verification, and every steady-state surface.
+**Built so far:** the signed-out page, the callback, the two-step email-code path, and a styled
+signed-in page that prints the Principal. The state check, the code exchange, organization
+creation, the refresh, and just in time row creation all run, **proven by a real Google sign-in on
+2026-08-24 and a real email-code sign-in on 2026-08-25**, and the callback renders the failure
+above for anything the provider refuses. What is not built: the screens for a token that fails
+verification, and every steady-state surface.
 
 Decided 2026-08-24: free plan limits are defined per product, never by the template. The token
 carries tier names, not quantities, so each product maps its own tiers to its own limits in its own
@@ -220,5 +250,7 @@ code, and the template ships only the entitlement check and the upgrade prompt. 
 the line makes the failure findable, and paging arrives when there is something to page.
 
 Not settled: which feature the entitlement gate protects in a real product, which arrives with the
-first product, and whether a second app in the template renders these screens differently, which is
-open question 4 in [the auth proposal](auth-proposal.md).
+first product; **whether the person who creates a workspace should hold an `owner` role in it**,
+raised by the live sign-in above and answerable only by deciding what an owner may do that a member
+may not; and whether a second app in the template renders these screens differently, which is open
+question 4 in [the auth proposal](auth-proposal.md).

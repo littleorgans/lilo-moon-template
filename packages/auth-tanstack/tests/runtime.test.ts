@@ -42,19 +42,35 @@ function jarWith(present: Readonly<Record<string, string>> = {}): {
 }
 
 const runtimeWith = (jar: CookieJar, provider: "GoogleOAuth" | "authkit" = "GoogleOAuth") =>
-  createAuthRuntime({ provider, signedInPath: "/app", env, cookies: jar });
+  createAuthRuntime({
+    provider,
+    signedInPath: "/app",
+    codeEntryPath: "/verify-email",
+    env,
+    cookies: jar,
+  });
 
 describe("createAuthRuntime", () => {
   // Reading the environment at construction would make importing any route in a test depend on a
   // filled .env.local. Nothing is read until something is asked for.
   it("reads no configuration until it is used", () => {
     expect(() =>
-      createAuthRuntime({ provider: "GoogleOAuth", signedInPath: "/app", env: {} }),
+      createAuthRuntime({
+        provider: "GoogleOAuth",
+        signedInPath: "/app",
+        codeEntryPath: "/verify-email",
+        env: {},
+      }),
     ).not.toThrow();
   });
 
   it("reports the missing configuration on first use, not at import", () => {
-    const runtime = createAuthRuntime({ provider: "GoogleOAuth", signedInPath: "/app", env: {} });
+    const runtime = createAuthRuntime({
+      provider: "GoogleOAuth",
+      signedInPath: "/app",
+      codeEntryPath: "/verify-email",
+      env: {},
+    });
     expect(() => runtime.services()).toThrow("WORKOS_CLIENT_ID");
   });
 
@@ -102,6 +118,33 @@ describe("completeSignIn", () => {
       request: new Request("http://localhost:5199/callback?code=c&state=forged"),
     });
     expect(response.status).toBe(400);
+  });
+});
+
+describe("the email handlers through the runtime", () => {
+  // Each refusal fires before any provider call, so the wiring is proven without a network. The
+  // handler order itself is @lilo-moon/auth-session's to prove.
+  it("sendEmailCode refuses an empty form through the real services", async () => {
+    const { jar } = jarWith();
+    const response = await runtimeWith(jar).sendEmailCode({
+      request: new Request("http://localhost:5199/api/auth/email/start", {
+        method: "POST",
+        body: new URLSearchParams({}),
+      }),
+    });
+    expect(response.status).toBe(400);
+  });
+
+  it("verifyEmailCode refuses when no address cookie survives", async () => {
+    const { jar } = jarWith();
+    const response = await runtimeWith(jar).verifyEmailCode({
+      request: new Request("http://localhost:5199/api/auth/email/verify", {
+        method: "POST",
+        body: new URLSearchParams({ code: "123456" }),
+      }),
+    });
+    expect(response.status).toBe(400);
+    expect(await response.text()).toContain("Start again");
   });
 });
 

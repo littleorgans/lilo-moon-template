@@ -5,37 +5,9 @@ import type { Authentication, WorkOSAuth, WorkOSAuthFailure } from "@lilo-moon/a
 import { describe, expect, it } from "vitest";
 
 import { ensureOrganization, handleCallback, organizationNameFor } from "../src/callback.js";
-import type { CookieJar, CookieOptions } from "../src/cookies.js";
 import type { CallbackFailure } from "../src/failure.js";
 import { SESSION_COOKIE, STATE_COOKIE, readSession } from "../src/session.js";
-
-interface Written {
-  readonly name: string;
-  readonly value: string;
-  readonly options: CookieOptions;
-}
-
-function jarWith(present: Readonly<Record<string, string>> = {}): {
-  jar: CookieJar;
-  written: Written[];
-  cleared: string[];
-} {
-  const written: Written[] = [];
-  const cleared: string[] = [];
-  return {
-    written,
-    cleared,
-    jar: {
-      read: (name) => present[name],
-      write: (name, value, options) => {
-        written.push({ name, value, options });
-      },
-      clear: (name) => {
-        cleared.push(name);
-      },
-    },
-  };
-}
+import { jarWith } from "./support.js";
 
 const user = {
   id: "user_01HBEQ",

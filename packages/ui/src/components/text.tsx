@@ -23,6 +23,7 @@ export function Heading({ level = 1, className, ...props }: HeadingProps) {
 const toneClasses = {
   default: "text-foreground",
   muted: "text-muted-foreground",
+  destructive: "text-destructive",
 } as const;
 
 const textSizeClasses = {

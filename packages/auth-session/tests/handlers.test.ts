@@ -1,38 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import { startAuthorization } from "../src/authorize.js";
-import type { CookieJar, CookieOptions } from "../src/cookies.js";
 import { STATE_COOKIE } from "../src/session.js";
 import { SESSION_COOKIE } from "../src/session.js";
 import { signOut } from "../src/signout.js";
-
-interface Written {
-  readonly name: string;
-  readonly value: string;
-  readonly options: CookieOptions;
-}
-
-function jarWith(present: Readonly<Record<string, string>> = {}): {
-  jar: CookieJar;
-  written: Written[];
-  cleared: string[];
-} {
-  const written: Written[] = [];
-  const cleared: string[] = [];
-  return {
-    written,
-    cleared,
-    jar: {
-      read: (name) => present[name],
-      write: (name, value, options) => {
-        written.push({ name, value, options });
-      },
-      clear: (name) => {
-        cleared.push(name);
-      },
-    },
-  };
-}
+import { jarWith } from "./support.js";
 
 describe("startAuthorization", () => {
   const deps = {

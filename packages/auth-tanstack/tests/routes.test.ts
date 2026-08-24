@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { callbackRoute, signOutRoute, startRoute } from "../src/routes.js";
+import {
+  callbackRoute,
+  emailStartRoute,
+  emailVerifyRoute,
+  signOutRoute,
+  startRoute,
+} from "../src/routes.js";
 import type { AuthRuntime } from "../src/runtime.js";
 
 const runtime = {
@@ -11,6 +17,10 @@ const runtime = {
   completeSignIn: () =>
     Promise.resolve(new Response(null, { status: 302, headers: { location: "callback" } })),
   endSession: () => new Response(null, { status: 302, headers: { location: "signout" } }),
+  sendEmailCode: () =>
+    Promise.resolve(new Response(null, { status: 302, headers: { location: "email-start" } })),
+  verifyEmailCode: () =>
+    Promise.resolve(new Response(null, { status: 302, headers: { location: "email-verify" } })),
   principal: () => Promise.resolve(null),
 } satisfies AuthRuntime;
 
@@ -30,5 +40,19 @@ describe("route options", () => {
       request: new Request("http://localhost:5199/callback"),
     });
     expect(response.headers.get("location")).toBe("callback");
+  });
+
+  // POST, not GET: a GET that sends an email or spends a one-time code is one a prefetcher can
+  // trigger, so the shape of the handlers object is part of the contract.
+  it("wires the email routes to their handlers as POST", async () => {
+    const start = await emailStartRoute(runtime).server.handlers.POST({
+      request: new Request("http://localhost:5199/api/auth/email/start", { method: "POST" }),
+    });
+    expect(start.headers.get("location")).toBe("email-start");
+
+    const verify = await emailVerifyRoute(runtime).server.handlers.POST({
+      request: new Request("http://localhost:5199/api/auth/email/verify", { method: "POST" }),
+    });
+    expect(verify.headers.get("location")).toBe("email-verify");
   });
 });

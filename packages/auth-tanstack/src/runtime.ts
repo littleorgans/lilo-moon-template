@@ -1,11 +1,13 @@
 import type { Principal } from "@lilo-moon/auth";
 import {
+  completeEmailSignIn,
   createAuthServices,
   handleCallback,
   loadAuthConfig,
   readPrincipal,
   signOut,
   startAuthorization,
+  startEmailSignIn,
 } from "@lilo-moon/auth-session";
 import type { AuthConfig, AuthServices, CallbackFailure, CookieJar } from "@lilo-moon/auth-session";
 import type { AuthorizationProvider } from "@lilo-moon/auth-workos";
@@ -14,10 +16,12 @@ import { requestCookies } from "./cookies.js";
 import { reportAuthFailure } from "./log.js";
 
 export interface AuthRuntimeOptions {
-  /** Which identity path a sign-in takes. `authkit` is the provider's own hosted page. */
+  /** Which identity path a redirect sign-in takes. `authkit` is the provider's own hosted page. */
   readonly provider: AuthorizationProvider;
   /** Where a completed sign-in lands. */
   readonly signedInPath: string;
+  /** Where the person types an emailed code. Must match the application's route for that page. */
+  readonly codeEntryPath: string;
   /** Overridable so a test never depends on a filled `.env.local`. */
   readonly env?: NodeJS.ProcessEnv;
   /** Overridable so a test never needs a live request context. */
@@ -44,6 +48,8 @@ export interface AuthRuntime {
   readonly services: () => AuthServices & { readonly config: AuthConfig };
   readonly startSignIn: (context: unknown) => Response;
   readonly completeSignIn: (context: { readonly request: Request }) => Promise<Response>;
+  readonly sendEmailCode: (context: { readonly request: Request }) => Promise<Response>;
+  readonly verifyEmailCode: (context: { readonly request: Request }) => Promise<Response>;
   readonly endSession: (context: unknown) => Response;
   /** The verified caller, or null when there is no session. Raises if a token fails a check. */
   readonly principal: () => Promise<Principal | null>;
@@ -95,6 +101,28 @@ export function createAuthRuntime(options: AuthRuntimeOptions): AuthRuntime {
         cookieKey: config.cookieKey,
         secureCookies: config.secureCookies,
         signedInPath: options.signedInPath,
+        log: options.log ?? reportAuthFailure,
+      });
+    },
+
+    sendEmailCode: async (context) => {
+      const { auth, config } = services();
+      return await startEmailSignIn(context, jar, {
+        auth,
+        secureCookies: config.secureCookies,
+        codeEntryPath: options.codeEntryPath,
+        log: options.log ?? reportAuthFailure,
+      });
+    },
+
+    verifyEmailCode: async (context) => {
+      const { auth, config } = services();
+      return await completeEmailSignIn(context, jar, {
+        auth,
+        cookieKey: config.cookieKey,
+        secureCookies: config.secureCookies,
+        signedInPath: options.signedInPath,
+        codeEntryPath: options.codeEntryPath,
         log: options.log ?? reportAuthFailure,
       });
     },
