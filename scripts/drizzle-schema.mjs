@@ -59,7 +59,7 @@ function directoriesMatch(left, right) {
 }
 
 function generateInto(destination) {
-  return withPostgres((databaseUrl) => {
+  return withPostgres("drizzle-check", (databaseUrl) => {
     applyMigrations(databaseUrl);
     run("pnpm", [
       "exec",

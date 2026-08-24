@@ -57,7 +57,7 @@ if (!process.env.CI && !dockerIsAvailable()) {
   process.exit(0);
 }
 
-await withPostgres(async (databaseUrl) => {
+await withPostgres("rls-verify", async (databaseUrl) => {
   applyMigrations(databaseUrl);
   const client = new Client({ connectionString: databaseUrl });
   await client.connect();
