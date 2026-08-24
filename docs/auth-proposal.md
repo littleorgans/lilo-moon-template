@@ -50,12 +50,13 @@ apps/
   web/                    TanStack Start. Login UI, server routes, RLS-scoped queries.
 
 packages/
-  theme/                  Typed token contract, product themes, runtime applier and validator.
-  ui/                     Shared React components. shadcn + Tailwind. No className escapes to apps.
-  vite-config/            One Vite and Vitest factory. Owns the three workspace-package lists.
+  theme/                  Planned. Typed token contract, product themes, runtime applier, validator.
+  ui/                     Planned. Shared React components. shadcn + Tailwind. No className escapes.
+  vite-config/            Planned. One Vite and Vitest factory. Owns the workspace-package lists.
   auth/                   On main. createVerifier, toPrincipal. JWKS + jose. No vendor SDK.
   auth-workos/            On main. Login flows and WorkOS API calls. The quarantined provider module.
   auth-session/           On main. Sealed session cookie, CSRF state, the redirect handlers.
+  auth-tanstack/          On main. TanStack Start adapter. createAuthRuntime and the route handlers.
   db/                     On main. createDatabase, withPrincipal. The only place claims enter Postgres.
   collections/            Existing library exemplar. Unchanged.
 
@@ -149,13 +150,22 @@ learn something knowable locally.
 three packages above into a request. Owns the sealed session cookie, the CSRF `state`, and
 `startAuthorization`, `handleCallback` and `signOut` as ordinary functions.
 
-It knows about no web framework. Cookies arrive through a `CookieJar` the application supplies, so
-the framework-specific part of an application is the eight-line adapter and one route file per
-handler. Swapping TanStack Start for something else is a change to those, not to this.
+It knows about no web framework. Cookies arrive through a `CookieJar` supplied from outside, which
+`packages/auth-tanstack` provides for TanStack Start. Swapping frameworks is a change to that
+package and one route file per handler, not to this one.
 
 `readPrincipal` opens the cookie and verifies the token on every request, which is the reason the
 cookie holds only the two tokens: no Principal, no email, nothing that could be minted before a
 role changed and outlive the change.
+
+**`packages/auth-tanstack`** On main (#70). The TanStack Start binding, and the module you rewrite
+to move to another web framework. Exports `createAuthRuntime({ provider, signedInPath })`, which
+reads configuration lazily, builds the services from `packages/auth-session` once, and exposes the
+three handlers plus `principal()` in the shape Start route files expect. Owns the `CookieJar`
+backed by Start's cookie helpers and the default failure logger, a JSON line on stderr that an
+application overrides the moment it has real logging. An application writes seventeen lines: five
+choosing `provider` and `signedInPath`, and three four-line route files that exist only because
+Start builds its route tree from filenames.
 
 **`packages/db`** On main (#59). Exports `createDatabase(options)`, which returns `withPrincipal`
 and `close`. `withPrincipal(principal, body)` takes one client from the pool and calls `runScoped`,
@@ -365,6 +375,10 @@ Panda would have added neither, taking it down to two. Start puts it back to thr
 environment's `resolve.conditions` replace the client list rather than extending it, so every
 workspace package must be named in `resolve.conditions`, `ssr.resolve.conditions`, and
 `optimizeDeps.exclude`. Three hand-maintained lists per app, each failing quietly.
+
+Interim, 2026-08-24: `optimizeDeps.exclude` in `apps/web/vite.config.ts` is derived from the
+`packages/` directory listing, so that list can no longer drift. The two conditions lists remain
+hand-set, and the factory case stands for the next app.
 
 That is enough to justify the factory.
 

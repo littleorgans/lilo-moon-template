@@ -3,10 +3,10 @@ import { hkdfSync } from "node:crypto";
 /**
  * Everything the identity half needs, read from the environment exactly once.
  *
- * Nothing under `packages/` reads `process.env`. Those packages take configuration as arguments so
- * a secret cannot be picked up implicitly by a library, which is what keeps them testable and
- * portable. The application is the only layer allowed to know that an environment exists, and this
- * file is the only part of the application that does.
+ * This file is the only place under `packages/` that touches `process.env`, and only as the
+ * default argument of `loadAuthConfig`. Every other module takes configuration as arguments so a
+ * secret cannot be picked up implicitly by a library, which is what keeps them testable and
+ * portable. Tests and applications override the default by passing their own environment.
  */
 export interface AuthConfig {
   readonly clientId: string;

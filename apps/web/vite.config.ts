@@ -1,7 +1,15 @@
+import { readdirSync } from "node:fs";
+
 import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import react from "@vitejs/plugin-react";
 import { nitro } from "nitro/vite";
 import { defaultClientConditions, defaultServerConditions, defineConfig } from "vite";
+
+const workspacePackages = readdirSync(new URL("../../packages", import.meta.url), {
+  withFileTypes: true,
+})
+  .filter((entry) => entry.isDirectory())
+  .map((entry) => `@lilo-moon/${entry.name}`);
 
 export default defineConfig(({ command }) => ({
   plugins: [tanstackStart(), react(), nitro()],
@@ -23,7 +31,11 @@ export default defineConfig(({ command }) => ({
         : [...defaultClientConditions],
   },
   optimizeDeps: {
-    exclude: ["@lilo-moon/collections"],
+    // Every workspace package, or prebundling serves a stale copy while the source condition
+    // serves live files. Derived from the filesystem so a new package cannot be forgotten;
+    // directory name equals the name after the scope by convention. The two conditions lists
+    // stay hand-set, which is part of the case for packages/vite-config.
+    exclude: workspacePackages,
   },
   ssr: {
     // Start and Nitro create an SSR environment whose conditions replace the top-level ones rather
