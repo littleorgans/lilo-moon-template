@@ -2,3 +2,13 @@ language: "typescript"
 layer: "library"
 tags:
   - "ts-library"
+
+# The docker-backed tests import the shared container helper from outside this project, so it has
+# to be an explicit input or a helper change replays a stale pass from cache.
+tasks:
+  test:
+    inputs:
+      - "/scripts/lib/postgres-container.mjs"
+  test-coverage:
+    inputs:
+      - "/scripts/lib/postgres-container.mjs"

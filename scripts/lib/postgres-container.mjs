@@ -66,13 +66,15 @@ const CONTAINER = "lilo-postgres";
 const IMAGE = "postgres:17-alpine";
 const DEFAULT_PORT = 54390;
 
-// One throwaway database per task, so moon can run the tasks in parallel against one server. The
-// allowlist is what keeps the name a safe SQL identifier.
+// One throwaway database per task invocation, so moon can run the tasks in parallel against one
+// server, twice over if two checkouts run at once. The allowlist keeps the base a safe SQL
+// identifier; the pid suffix keeps concurrent invocations apart.
 const TASK_DATABASES = {
   "drizzle-check": "drizzle_check",
   "rls-verify": "rls_verify",
   "atlas-lint": "atlas_lint",
   "atlas-diff": "atlas_diff",
+  "db-test": "db_test",
 };
 
 function port() {
@@ -96,23 +98,41 @@ function inspectContainer() {
   return { running: running === "true", image };
 }
 
-function psql(sql) {
-  run(
+function psql(sql, capture = false) {
+  return run(
     "docker",
-    ["exec", CONTAINER, "psql", "--username", "postgres", "--dbname", "postgres", "--command", sql],
-    true,
+    [
+      "exec",
+      CONTAINER,
+      "psql",
+      "--username",
+      "postgres",
+      "--dbname",
+      "postgres",
+      "--tuples-only",
+      "--no-align",
+      "--command",
+      sql,
+    ],
+    capture,
   );
 }
 
-// Idempotent: converges on one running container of the right image regardless of what a previous
-// run left behind, and survives the race where parallel tasks all find it absent and one wins the
-// `docker run`.
+// Act, then recover, and never judge a right-image container: one first seen in Created state is
+// usually a sibling task mid-start, and removing it is how CI produced a name conflict with three
+// tasks racing a cold image pull. `docker start` is the idempotent verb for every right-image
+// state: a no-op when running, a start when created or exited. The one `docker run` conflict a
+// race can still produce resolves by looping once onto the winner's container.
 function ensurePostgres() {
-  const existing = inspectContainer();
-  if (existing !== null && (!existing.running || existing.image !== IMAGE)) {
-    spawnSync("docker", ["rm", "--force", CONTAINER], { stdio: "ignore" });
-  }
-  if (existing === null || !existing.running || existing.image !== IMAGE) {
+  for (let attempt = 0; ; attempt += 1) {
+    const existing = inspectContainer();
+    if (existing !== null && existing.image === IMAGE) {
+      spawnSync("docker", ["start", CONTAINER], { stdio: "ignore" });
+      break;
+    }
+    if (existing !== null) {
+      spawnSync("docker", ["rm", "--force", CONTAINER], { stdio: "ignore" });
+    }
     const started = spawnSync(
       "docker",
       [
@@ -128,22 +148,47 @@ function ensurePostgres() {
       ],
       { encoding: "utf8" },
     );
-    if (started.status !== 0 && inspectContainer() === null) {
+    if (started.status === 0) break;
+    if (attempt > 0 || !/is already in use/.test(started.stderr ?? "")) {
       throw new Error(`Could not start ${CONTAINER} on 127.0.0.1:${port()}:\n${started.stderr}`);
     }
   }
   waitForPostgres(CONTAINER);
 }
 
-// Hands the callback a URL to a fresh database inside the shared container. The DROP before the
-// CREATE is the leak guarantee: whatever an interrupted previous run left behind is removed here,
-// so the drop afterwards is a courtesy, not a requirement.
+// A pid whose process is gone names a database no run is using. Signal 0 probes liveness without
+// sending anything. Pid reuse keeps a stale database one round longer, which costs nothing.
+function processIsAlive(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// The leak guarantee. An interrupted run cannot clean up after itself, so every new run cleans up
+// after the dead: any database of this task whose owning process no longer exists is dropped.
+function dropStaleDatabases(base) {
+  const listed = psql("SELECT datname FROM pg_database WHERE datistemplate = false", true).trim();
+  for (const name of listed === "" ? [] : listed.split("\n")) {
+    if (!name.startsWith(`${base}_`) || !/^[a-z_]+_\d+$/.test(name)) continue;
+    const pid = Number(name.slice(base.length + 1));
+    if (!Number.isInteger(pid) || processIsAlive(pid)) continue;
+    psql(`DROP DATABASE IF EXISTS ${name} WITH (FORCE)`);
+  }
+}
+
+// Hands the callback a URL to a fresh database inside the shared container. The drop afterwards
+// is a courtesy; dropStaleDatabases on the next run is the guarantee.
 export async function withPostgres(task, callback) {
-  const database = TASK_DATABASES[task];
-  if (database === undefined) {
+  const base = TASK_DATABASES[task];
+  if (base === undefined) {
     throw new Error(`Unknown Postgres task ${JSON.stringify(task)}.`);
   }
   ensurePostgres();
+  dropStaleDatabases(base);
+  const database = `${base}_${process.pid}`;
   psql(`DROP DATABASE IF EXISTS ${database} WITH (FORCE)`);
   psql(`CREATE DATABASE ${database}`);
   try {
