@@ -1,0 +1,56 @@
+{
+  "name": "@lilo-moon/ui",
+  "version": "0.0.0",
+  "description": "Shared React components: shadcn primitives, layout, and the Tailwind entry stylesheet.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/littleorgans/lilo-moon-template.git",
+    "directory": "packages/ui"
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    "./globals.css": "./src/globals.css",
+    "./components/*": {
+      "types": "./dist/components/*.d.ts",
+      "@lilo-moon/source": "./src/components/*.tsx",
+      "import": "./dist/components/*.js",
+      "default": "./dist/components/*.js"
+    },
+    "./lib/*": {
+      "types": "./dist/lib/*.d.ts",
+      "@lilo-moon/source": "./src/lib/*.ts",
+      "import": "./dist/lib/*.js",
+      "default": "./dist/lib/*.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@lilo-moon/theme": "workspace:*",
+    "class-variance-authority": "catalog:",
+    "clsx": "catalog:",
+    "radix-ui": "catalog:",
+    "tailwind-merge": "catalog:",
+    "tailwindcss": "catalog:"
+  },
+  "devDependencies": {
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:"
+  },
+  "peerDependencies": {
+    "react": "catalog:react-peer",
+    "react-dom": "catalog:react-peer"
+  },
+  "engines": {
+    "node": ">=24.19.0"
+  }
+}

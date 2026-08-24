@@ -51,7 +51,7 @@ apps/
 
 packages/
   theme/                  On main. Typed token contract, product themes, runtime applier, validator.
-  ui/                     Planned. Shared React components. shadcn + Tailwind. No className escapes.
+  ui/                     On main. Shared React components. shadcn + Tailwind. No className escapes.
   vite-config/            Planned. One Vite and Vitest factory. Owns the workspace-package lists.
   auth/                   On main. createVerifier, toPrincipal. JWKS + jose. No vendor SDK.
   auth-workos/            On main. Login flows and WorkOS API calls. The quarantined provider module.
@@ -428,15 +428,21 @@ now 37 tasks.
 
 **Still to prove:**
 
-1. `packages/ui` carrying real shadcn components, consumed by `apps/web`, with the app importing the
-   package's `globals.css` and Tailwind's `@source` covering both.
-2. `moon run web:test` with coverage thresholds against components living in a workspace package.
-3. Layout primitives (`Stack`, `Row`, `Grid`, `Container`) sufficient that `apps/` needs no
-   `className`. If they are not, the boundary is unusable and the policy needs revisiting.
+1. Proven 2026-08-24. `packages/ui` carries the new-york-v4 button, card, input, label and badge
+   (registry sources verbatim apart from the `cn` import), `apps/web`'s stylesheet is one import of
+   the package's `globals.css`, and the compiled CSS contains utilities scanned from both sides.
+   The entry uses `source(none)` so the `@source` list is deliberate rather than auto-detected.
+   Note the registry now imports the unified `radix-ui` package, not per-component `@radix-ui/*`.
+2. Proven 2026-08-24. App tests render the package's components through `renderToStaticMarkup` and
+   every coverage threshold holds; the components themselves are tested where they live.
+3. Proven for the current screens, 2026-08-24. All three app surfaces restyled through `Container`,
+   `Stack`, `Row`, `Grid` plus `Heading`, `Text`, `Code`, `CodeBlock`, with the `className` gate
+   green. Every primitive value maps to a literal class string because Tailwind finds classes by
+   scanning source text. The policy holds; revisit only if a future screen defeats the primitives.
 4. `packages/vite-config` consumed by `apps/web`, resolving without a prior build, or the moon task
    edge documented if it cannot.
-5. A second theme, to check that `data-theme` variable reassignment holds up across two product
-   types before more than one exists.
+5. Proven 2026-08-24, live: setting `data-theme="canvas"` plus `.dark` on `<html>` restyles the
+   running sign-in page. Both generated blocks and the runtime switch verified in a browser.
 
 ## Dependencies to add
 

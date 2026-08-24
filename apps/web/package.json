@@ -8,6 +8,7 @@
     "@lilo-moon/auth-tanstack": "workspace:*",
     "@lilo-moon/collections": "workspace:*",
     "@lilo-moon/db": "workspace:*",
+    "@lilo-moon/ui": "workspace:*",
     "@tanstack/react-router": "catalog:",
     "@tanstack/react-start": "catalog:",
     "drizzle-orm": "catalog:",
@@ -15,11 +16,13 @@
     "react-dom": "catalog:"
   },
   "devDependencies": {
+    "@tailwindcss/vite": "catalog:",
     "@types/node": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
     "@vitejs/plugin-react": "catalog:",
     "nitro": "catalog:",
+    "tailwindcss": "catalog:",
     "vite": "catalog:"
   }
 }

@@ -1,6 +1,8 @@
 import { HeadContent, Outlet, Scripts, createRootRoute } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 
+import stylesUrl from "../styles.css?url";
+
 export const Route = createRootRoute({
   head: () => ({
     meta: [
@@ -8,6 +10,7 @@ export const Route = createRootRoute({
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: "Task board" },
     ],
+    links: [{ rel: "stylesheet", href: stylesUrl }],
   }),
   component: RootComponent,
 });

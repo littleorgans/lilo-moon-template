@@ -2,6 +2,7 @@ language: "typescript"
 layer: "application"
 dependsOn:
   - "auth"
+  - "ui"
   - "auth-tanstack"
   - "collections"
   - "db"
