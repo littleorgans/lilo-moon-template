@@ -3,7 +3,8 @@
 **Status: the schema is on main and proven by `root:rls-verify`. The workflows around it are
 agreed but unbuilt.** This page covers who owns which record and what happens at signup, payment
 and auth. The package layout and the verification seam are in
-[the auth proposal](auth-proposal.md), which this page does not repeat.
+[the auth proposal](auth-proposal.md), and the screens these workflows put in front of a person are
+[The auth screens](auth-screens.md). This page does not repeat either.
 
 ## Who owns what
 
@@ -28,6 +29,20 @@ one. Every user gets a personal organization at signup whether or not they ever 
 costs nothing and it means adding a second person later is a membership insert rather than a
 migration of the table everything else keys off.
 
+### A team fee and a per-seat price can coexist
+
+One Stripe subscription carries several prices, so a flat recurring price for the team and a
+licensed per-seat price sit on the same subscription against the organization's Stripe customer.
+
+WorkOS exposes the two halves as independent switches, `stripeEntitlementsEnabled` and
+`stripeSeatSyncEnabled`. Seat sync pushes the organization's member count into Stripe as the
+quantity, which is what keeps the per-seat line correct without a reconciliation job of our own.
+
+**The `entitlements` claim carries feature names, not quantities.** The token says `cubicell:pro`.
+It does not say how many seats. Anything needing the seat number reads WorkOS or Stripe off the
+request path. Gates are therefore written as "does this organization have this feature" and never
+as "how many of X does it have".
+
 **Entitlements must be namespaced per product from the first Stripe product created.** Stripe
 Connect is configured per WorkOS environment, and both products share one environment because that
 is what gives them a shared user pool. One organization therefore has one Stripe customer carrying
@@ -44,15 +59,18 @@ live subscriptions is unpleasant, which is why it is written down before the fir
 3. The app exchanges the code for an access token and a refresh token.
 4. The token carries `sub`. It carries `org_id` only if the user belongs to an organization, and a
    new user does not.
-5. The app creates the organization and adds the user to it.
+5. The app creates the organization and adds the user to it, automatically, with no screen.
 6. Refresh. The token now carries `org_id`.
 7. In the transaction that verified that token, insert the `accounts` and `profiles` rows.
 
-Step 5 is the one that surprises people: social signup hands you an identity, not a tenant.
+Step 5 is the one that surprises people: social signup hands you an identity, not a tenant. It is
+**permanently application code**, because WorkOS has no setting that creates an organization for a
+new user. Measured, see open question 1.
 
-Steps 4 and 5 are **unverified**. Whether a new social user truly arrives without `org_id`, and
-whether WorkOS can create the organization itself, are not covered by the documentation and are
-testable in staging in a few minutes.
+The organization is named from the profile when one exists and from the full email address
+otherwise, it is created with **no domains attached**, and creation is keyed on the WorkOS user id
+so a retry cannot produce two. The reasoning behind all three rules, and the screens either side of
+this step, are [The auth screens](auth-screens.md).
 
 ### Payment
 
@@ -176,8 +194,12 @@ table owner.
 
 ## Open questions
 
-1. **Does a brand new social user arrive without `org_id`, and can WorkOS create the organization
-   itself?** Decides whether step 5 is our code or configuration.
+1. ~~**Does a brand new social user arrive without `org_id`, and can WorkOS create the organization
+   itself?**~~ **Answered: yes, and no.** A token issued to a user with no organization carries
+   `iss`, `sub`, `sid`, `jti`, `auth_time`, `client_id`, `iat` and `exp` and nothing else, measured
+   in staging. No WorkOS setting creates an organization for a new user, and the API offers no such
+   hook. Step 5 is application code permanently, and it runs unattended inside the callback. The
+   three rules it must follow are in [The auth screens](auth-screens.md).
 2. ~~**Does silent SSO work between two AuthKit applications in one environment?**~~
    **Answered: yes, within one environment.** Proven 2026-08-22 in staging. Two AuthKit
    applications, app A `client_01M0JSGENAGWJCN0R7JME8JWGM` and a temporary app B. Signed in to A
