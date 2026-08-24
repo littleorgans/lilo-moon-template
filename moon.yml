@@ -187,6 +187,29 @@ tasks:
       cache: false
       runInCI: "always"
 
+  theme-generate:
+    description: "Regenerate the theme CSS artifact from the typed tokens"
+    type: "run"
+    command: "node scripts/theme-css.mjs generate"
+    deps:
+      - "theme:build"
+    options:
+      cache: false
+      runInCI: false
+
+  theme-check:
+    description: "Verify the theme CSS artifact matches the typed tokens"
+    type: "test"
+    command: "node scripts/theme-css.mjs check"
+    deps:
+      - "theme:build"
+    inputs:
+      - "packages/theme/src/**/*"
+      - "packages/theme/css/**/*"
+      - "scripts/theme-css.mjs"
+    options:
+      runInCI: "always"
+
   # Neither db/schema.sql nor the Drizzle artifact records what the policies do: Atlas Community
   # drops them from a diff and drizzle-kit pull drops the USING expression from SELECT policies.
   # This task applies the migrations and observes the database, so it is the only gate that can

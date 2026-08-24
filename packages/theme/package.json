@@ -1,0 +1,34 @@
+{
+  "name": "@lilo-moon/theme",
+  "version": "0.0.0",
+  "description": "Typed design token contract, product themes, and the CSS generated from them.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/littleorgans/lilo-moon-template.git",
+    "directory": "packages/theme"
+  },
+  "files": [
+    "dist",
+    "src",
+    "css"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "@lilo-moon/source": "./src/index.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./themes.css": "./css/themes.css"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=24.19.0"
+  }
+}
