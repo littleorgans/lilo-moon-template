@@ -213,7 +213,12 @@ row creation all run, **proven by a real Google sign-in on 2026-08-24**, and the
 the failure above for anything the provider refuses. What is not built: the email-code path, the
 screens for a token that fails verification, and every steady-state surface.
 
-Not settled: which feature the entitlement gate protects in a real product, where a `claims`
-failure is delivered beyond a log line, and whether a second app in the template renders these
-screens differently. The first two belong to the first product. The third is open question 4 in
-[the auth proposal](auth-proposal.md).
+Decided 2026-08-24: free plan limits are defined per product, never by the template. The token
+carries tier names, not quantities, so each product maps its own tiers to its own limits in its own
+code, and the template ships only the entitlement check and the upgrade prompt. Also decided: a
+`claims` failure is delivered nowhere beyond its log line for now. The screen informs the person,
+the line makes the failure findable, and paging arrives when there is something to page.
+
+Not settled: which feature the entitlement gate protects in a real product, which arrives with the
+first product, and whether a second app in the template renders these screens differently, which is
+open question 4 in [the auth proposal](auth-proposal.md).
