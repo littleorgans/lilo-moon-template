@@ -1,11 +1,12 @@
 # Proposal: auth and persistence in the baseline
 
 **Status: working document for #16, #17 and #23.** `packages/auth` is on main (#57, `53a8bcf`).
-`packages/db` is on main (#59, `4e58cc5`). The user entity and `root:rls-verify` are on main (#56,
-`f03ec78`). Sections marked **Settled** or **Decided** were proven by running something; the
-evidence is quoted inline. Anything under "Open questions" is not. Unbuilt: `packages/auth-workos`
-(being written in another worktree), `packages/theme`, `packages/ui`, `packages/vite-config`, and
-the Rust mirror of verification in `services/ping` for #17. When the whole page settles, the
+`packages/db` is on main (#59, `4e58cc5`). `packages/auth-workos` is on main (#63, `bba230c`).
+The user entity and `root:rls-verify` are on main (#56, `f03ec78`). Sections marked **Settled** or
+**Decided** were proven by running something; the evidence is quoted inline. Anything under "Open
+questions" is not. Unbuilt: `packages/theme`, `packages/ui`, `packages/vite-config`, the Rust
+mirror of verification in `services/ping` for #17, and every screen in
+[The auth screens](auth-screens.md). When the whole page settles, the
 rationale moves to [decisions.md](decisions.md) and the work becomes issues.
 
 Background that this page does not repeat: [Supabase as a Postgres host](supabase-boundary.md),
@@ -53,7 +54,7 @@ packages/
   ui/                     Shared React components. shadcn + Tailwind. No className escapes to apps.
   vite-config/            One Vite and Vitest factory. Owns the three workspace-package lists.
   auth/                   On main. createVerifier, toPrincipal. JWKS + jose. No vendor SDK.
-  auth-workos/            Unbuilt. Login flows and WorkOS API calls. The quarantined provider module.
+  auth-workos/            On main. Login flows and WorkOS API calls. The quarantined provider module.
   db/                     On main. createDatabase, withPrincipal. The only place claims enter Postgres.
   collections/            Existing library exemplar. Unchanged.
 
@@ -112,7 +113,9 @@ returns `(token) => Promise<Principal>`, plus `toPrincipal`, `AuthError` and `Au
 plus `jose`. No provider SDK on this path. The key set is resolved once at construction. Failures
 map to a typed reason (`malformed`, `signature`, `expired`, `issuer`, `audience`, `claims`) so
 callers branch on a value rather than on message text. Claim-shape validation is separate from
-signature verification.
+signature verification. How those six reasons collapse into what a person is actually shown is in
+[The auth screens](auth-screens.md): four become one message that names no reason, `expired` is
+handled silently by a refresh, and `claims` is the only one that is our outage rather than theirs.
 
 `Principal` is `userId: string`, `orgId: string | null`, and `roles`, `permissions`,
 `entitlements` as `readonly string[]`. `orgId` is null when the token has no `org_id`, which is a
@@ -120,9 +123,12 @@ normal first-sign-in state. See [The user entity](user-entity.md). `toPrincipal`
 `org_id`, `roles` with a fallback to singular `role`, `permissions` and `entitlements`. There is
 no separate ClaimMapper in this package. This is the package `services/ping` will mirror in Rust.
 
-**`packages/auth-workos`** Everything that does not abstract: sign-in, magic auth, MFA challenges,
-token refresh, WorkOS API calls. Uses the WorkOS SDK freely, because this is the module you rewrite
-when you swap vendors. Nothing outside this package imports `@workos-inc/*`. Unbuilt.
+**`packages/auth-workos`** On main (#63). Everything that does not abstract: sign-in, magic auth,
+MFA challenges, token refresh, WorkOS API calls. Exports `createWorkOSAuth` and `WorkOSAuthError`.
+Uses the WorkOS SDK freely, because this is the module you rewrite when you swap vendors. Nothing
+outside this package imports `@workos-inc/*`, verified rather than assumed. `provisionOrganization`
+takes an `idempotencyKey`, which is what the callback keys on the WorkOS user id; see
+[The auth screens](auth-screens.md).
 
 **`packages/db`** On main (#59). Exports `createDatabase(options)`, which returns `withPrincipal`
 and `close`. `withPrincipal(principal, body)` takes one client from the pool and calls `runScoped`,
@@ -349,7 +355,8 @@ Two things the spike must settle:
 ## Spike status
 
 Throwaway worktree at `../.lilo-worktrees/stylex-spike` for the remaining UI and Start work. The
-user entity, `packages/auth` and `packages/db` are on `main`. The graph is now 32 tasks.
+user entity, `packages/auth`, `packages/db` and `packages/auth-workos` are on `main`. The graph is
+now 37 tasks.
 
 **On main:**
 
@@ -424,6 +431,17 @@ These are workarounds, not principles. If they lapse, the design simplifies.
   email sender domain on magic-auth and verification mail.
 - **Social login and enterprise SSO redirect** through `api.workos.com` by construction. Own-UI
   covers password, magic auth and MFA only.
+- **Google OAuth is one credential per WorkOS environment, not per application.** Configured and
+  proven working in staging 2026-08-24. Every AuthKit application in an environment shares it, and
+  `state` carries the application's own redirect URI, so cubicell and audioface cannot have
+  separate Google clients while sharing a user pool. Staging and production are separate
+  environments with separate credentials, and production's redirect URI does not exist until Google
+  is configured there. The redirect URI is environment specific
+  (`https://auth.workos.com/sso/oauth/google/<id>/callback`), Authorized JavaScript origins are
+  left empty because the code exchange is server to server, and "Return Google OAuth tokens" is off
+  because nothing here calls a Google API. Enabling a custom AuthKit domain changes that redirect
+  URI and forces re-registration in Google, which is the reason to add no further social providers
+  until the domain question is settled.
 
 ## Open questions
 

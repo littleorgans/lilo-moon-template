@@ -86,13 +86,34 @@ else. Adding an organization adds `org_id`, `role` as a string, `roles` as an ar
 
 WorkOS has no setting that creates an organization for a new user, so the application does it. A
 first social sign-in therefore yields a token with no `org_id`, and that is a normal state rather
-than an error.
+than an error. The application creates the organization unattended inside the callback, with no
+naming screen, because the org-of-one is the common case and its name is invisible until somebody
+is invited. It attaches no domains to that organization: a verified domain captures every address
+carrying it, and domain-based SSO routing runs before password auth, which a probe against a seeded
+organization demonstrated by getting routed to SAML. Creation is keyed on the WorkOS user id so a
+retried callback cannot mint a second organization. [The auth screens](auth-screens.md) holds the
+full screen inventory and the failure mapping that goes with it.
+
+**Social OAuth credentials belong to a WorkOS environment, not to an application.** There is one
+Google credential per environment per provider, and every AuthKit application in that environment
+shares it; the `state` parameter carries each application's own redirect URI. Two products sharing a
+user pool therefore cannot hold separate Google clients, and that is a consequence of the shared
+pool rather than a limitation to work around. Staging and production are separate environments with
+separate credentials and separate redirect URIs. Verified 2026-08-24 by following the authorize URL
+to Google's sign-in page.
+
+Two details cost time to learn. The redirect URI is environment specific, of the form
+`https://auth.workos.com/sso/oauth/google/<id>/callback`, and the generic path that a search
+suggests will answer a request without being correct for any particular environment. Authorized
+JavaScript origins are left empty, because they exist for browser-side flows and WorkOS exchanges
+the code server to server; the Google console makes the field look mandatory by rendering one blank
+row and then validating it.
 
 WorkOS AuthKit ships users, organizations, roles, permissions, and
 Stripe entitlements as claims on the session JWT. The product then does not build an entitlements
 service, a sync webhook, or a billing database to approximate those claims. That is the reasoning
-that put WorkOS first. Clerk and Supabase Auth also issue asymmetric JWTs. They differ on tenant,
-role, and permissions claims. Which claim model to buy is the open question.
+that put WorkOS first. Clerk and Supabase Auth also issue asymmetric JWTs and differ on tenant,
+role and permissions claims, which is what the seam in #23 exists to absorb. They were not chosen.
 
 Whichever vendor wins, verification uses that vendor's JWKS URL and a stock JWT library. No vendor
 SDK on the verification path. The mapped `Principal` is `userId`, `orgId`, `roles`, `permissions`,
@@ -105,9 +126,10 @@ PostgREST returns `PGRST301 JWSInvalidSignature` for WorkOS tokens. That is a Wo
 
 ## Schema, queries, and the host
 
-Postgres is deferred until the product has data. A template without a database is incomplete only
-if you think a schema can be invented before the product. It cannot. Atlas and Drizzle are in the
-tree. The identity boundary in #23 is still undecided.
+Product tables are deferred until the product has data. A template without a database is incomplete
+only if you think a schema can be invented before the product. It cannot. What is not deferred is
+the identity baseline: `accounts` and `profiles` are on main with row level security forced, because
+those two tables follow from the identity decision rather than from any product.
 
 Atlas is the migration engine. Native SQL is the schema source of truth, so every language is a
 first class consumer. `atlas migrate lint` is the reason to accept Atlas over dbmate,
@@ -208,11 +230,16 @@ secret is set. Consumer-facing detail is in
 
 Settled here: moon, oxlint, oxfmt, TypeScript 7, the lockstep gate, pnpm catalogs, the member
 layout, the generator shapes that exist, Atlas for SQL, Drizzle as generated output, Supabase
-as a host, and the `accounts` and `profiles` baseline with its row level security.
+as a host, the `accounts` and `profiles` baseline with its row level security, and WorkOS as the
+identity vendor.
 
-Not settled here: which identity vendor, which application framework you keep, whether you publish,
-to which registry, which license, which package scope, when the first Rust or Python member lands,
-and every product decision above the baseline.
+Swapping the identity vendor is a supported move rather than an unmade decision, and #23 is the
+seam that makes it one: rewrite `packages/auth-workos`, keep `packages/auth`. The schema keys on
+`workos_org_id` and `workos_user_id`, so a swap renames two columns.
+
+Not settled here: which application framework you keep, whether you publish, to which registry,
+which license, which package scope, when the first Rust or Python member lands, what a free tier
+allows, and every product decision above the baseline.
 
 Changesets write GitHub changelogs from `changelog.repo` in `.changeset/config.json`. `lefthook.yml`
 is the hook file. They constrain how you release and how you commit. They do not change the graph.
