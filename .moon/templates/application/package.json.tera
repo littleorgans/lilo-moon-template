@@ -8,6 +8,7 @@
     "react-dom": "catalog:"
   },
   "devDependencies": {
+    "@lilo-moon/vite-config": "workspace:*",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
     "@vitejs/plugin-react": "catalog:",

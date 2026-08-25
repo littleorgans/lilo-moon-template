@@ -1,0 +1,36 @@
+{
+  "name": "@lilo-moon/vite-config",
+  "version": "0.0.0",
+  "description": "Workspace source resolution for the Vite configs of applications in this repo.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/littleorgans/lilo-moon-template.git",
+    "directory": "packages/vite-config"
+  },
+  "files": [
+    "src"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "vite": "catalog:"
+  },
+  "peerDependencies": {
+    "vite": "catalog:vite-peer"
+  },
+  "engines": {
+    "node": ">=24.19.0"
+  }
+}

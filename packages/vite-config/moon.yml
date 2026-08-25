@@ -1,0 +1,14 @@
+language: "typescript"
+layer: "library"
+tags:
+  - "ts-library"
+
+workspace:
+  inheritedTasks:
+    # No build, on purpose. This package is only ever loaded by Vite's own config loader, which
+    # compiles TypeScript, so it publishes `src` as its only export. Building it would mean the
+    # exports map pointed at `dist`, and every application's `vite.config.ts` would then need this
+    # package built before it could be read at all: a build ordering edge in front of `web:dev`.
+    # Shipping source is what removes that. See `workspaceSourceConfig` for the measurement.
+    exclude:
+      - "build"

@@ -1,12 +1,10 @@
+import { workspaceSourceConfig } from "@lilo-moon/vite-config";
 import react from "@vitejs/plugin-react";
-import { defaultClientConditions, defineConfig } from "vite";
+import { defineConfig } from "vite";
 
-export default defineConfig(({ command }) => ({
+export default defineConfig((env) => ({
   plugins: [react()],
-  resolve: {
-    conditions:
-      command === "serve"
-        ? [...defaultClientConditions, "@lilo-moon/source"]
-        : [...defaultClientConditions],
-  },
+  // Makes workspace packages resolve to their source while serving. Three settings that have to
+  // agree; see @lilo-moon/vite-config for what each one prevents.
+  ...workspaceSourceConfig(env),
 }));

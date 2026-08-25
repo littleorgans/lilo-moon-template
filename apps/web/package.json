@@ -17,6 +17,7 @@
     "react-dom": "catalog:"
   },
   "devDependencies": {
+    "@lilo-moon/vite-config": "workspace:*",
     "@tailwindcss/vite": "catalog:",
     "@types/node": "catalog:",
     "@types/react": "catalog:",

@@ -4,7 +4,7 @@
 `packages/db` is on main (#59, `4e58cc5`). `packages/auth-workos` is on main (#63, `bba230c`).
 The user entity and `root:rls-verify` are on main (#56, `f03ec78`). Sections marked **Settled** or
 **Decided** were proven by running something; the evidence is quoted inline. Anything under "Open
-questions" is not. Unbuilt: `packages/theme`, `packages/ui`, `packages/vite-config`, the Rust
+questions" is not. Unbuilt: `packages/theme`, `packages/ui`, the Rust
 mirror of verification in `services/ping` for #17, and every screen in
 [The auth screens](auth-screens.md). When the whole page settles, the
 rationale moves to [decisions.md](decisions.md) and the work becomes issues.
@@ -53,7 +53,7 @@ packages/
   theme/                  On main. Typed token contract, product themes, runtime applier, validator.
   ui/                     On main. Shared React components. shadcn + Tailwind. No className escapes.
   views/                  On main. Product views composed from ui blocks. One directory per view.
-  vite-config/            Planned. One Vite and Vitest factory. Owns the workspace-package lists.
+  vite-config/            On main. Workspace source resolution for app Vite configs. Never built.
   auth/                   On main. createVerifier, toPrincipal. JWKS + jose. No vendor SDK.
   auth-workos/            On main. Login flows and WorkOS API calls. The quarantined provider module.
   auth-session/           On main. Sealed session cookie, CSRF state, the redirect handlers.
@@ -396,12 +396,31 @@ The repo's existing convention is root config files: `tsconfig.options.json` via
 `vitest.config.ts`, root `.oxlintrc.json` and `.oxfmtrc.json`. Those stay. Only the executable config
 has the duplication problem, so only it becomes a package.
 
-Two things the spike must settle:
+**Both open questions answered, 2026-08-26, by measurement.**
 
-1. Vite loads `vite.config.ts` through its own esbuild pass, which may not honour the
-   `@lilo-moon/source` condition. If it does not, `packages/vite-config` must be built before apps
-   can consume it, which is a moon task-ordering edge and not just a `dependsOn` line.
-2. Whether `apps/web` gains a plain graph edge or a build-order dependency follows from 1.
+1. **Vite's config loader does not honour the `@lilo-moon/source` condition.** With the exports map
+   pointing at `./dist` and no `dist` present, `moon run web:dev` fails before Vite starts:
+   `[plugin externalize-deps] Failed to resolve entry for package "@lilo-moon/vite-config"`. The
+   condition is simply absent from that resolution.
+2. **It needs no build edge anyway, because it ships source.** This package is only ever loaded by
+   Vite's own config loader, and that loader compiles TypeScript. So its exports map points at
+   `./src/index.ts` and there is no `dist` to order against. `apps/web` gains a plain graph edge.
+   `web:dev`, `web:build` and `web:typecheck` were all run against it with no `dist` anywhere.
+
+That shape is deliberate and load-bearing. Restoring the repo's usual `dist` export here would put
+the build edge back in front of every application's `vite.config.ts`, so `packages/vite-config`
+excludes the inherited `build` task in its `moon.yml` and says why there.
+
+**What it exports, and what it does not.** One function, `workspaceSourceConfig(env)`, spread into
+an application's config. It owns the three settings that have to agree: the serve-only
+`@lilo-moon/source` condition, the same condition on the SSR environment, whose list _replaces_ the
+top-level one rather than extending it, and `optimizeDeps.exclude` covering every workspace
+package. It does not own plugins, ports or anything else an application should choose for itself.
+There is no Vitest half: the root `vitest.config.ts` already solves that, per the paragraph above.
+
+Proven live 2026-08-26 beyond the unit tests: with `packages/views` source edited and its `dist`
+left stale, the dev server's server-rendered HTML carried the edited string. The SSR half resolves
+to source, which is the half that fails silently when the condition is set only once.
 
 ## Spike status
 
@@ -441,8 +460,9 @@ now 37 tasks.
    `Stack`, `Row`, `Grid` plus `Heading`, `Text`, `Code`, `CodeBlock`, with the `className` gate
    green. Every primitive value maps to a literal class string because Tailwind finds classes by
    scanning source text. The policy holds; revisit only if a future screen defeats the primitives.
-4. `packages/vite-config` consumed by `apps/web`, resolving without a prior build, or the moon task
-   edge documented if it cannot.
+4. Proven 2026-08-26. `packages/vite-config` is consumed by `apps/web` and resolves with no prior
+   build, because it ships source rather than `dist`. No moon task edge was needed. The app
+   template consumes it too, so a generated app starts with the resolution already correct.
 5. Proven 2026-08-24, live: setting `data-theme="canvas"` plus `.dark` on `<html>` restyles the
    running sign-in page. Both generated blocks and the runtime switch verified in a browser.
 
@@ -522,6 +542,8 @@ These are workarounds, not principles. If they lapse, the design simplifies.
    The identity migration creates `authenticated` only when absent, so it applies unchanged to a bare
    Postgres and to a Supabase project that already has it. We define the role and its grants;
    matching the name costs nothing and keeps one migration working on both.
-6. **Does `packages/vite-config` derive the workspace list, or accept it as an argument?** Derivation
-   removes the drift but reads the workspace at config time. An explicit argument is dumber and
-   easier to debug.
+6. ~~**Does `packages/vite-config` derive the workspace list, or accept it as an argument?**~~
+   **Answered 2026-08-26: derive.** Reading `packages/` at config time is what stops a new package
+   being left out of `optimizeDeps.exclude`, and being left out is a failure that shows up as a
+   package's edits not appearing rather than as an error. No override argument was added, because
+   nothing has wanted one.
