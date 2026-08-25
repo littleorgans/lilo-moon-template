@@ -1,18 +1,11 @@
-import { readdirSync } from "node:fs";
-
+import { workspaceSourceConfig } from "@lilo-moon/vite-config";
 import tailwindcss from "@tailwindcss/vite";
 import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import react from "@vitejs/plugin-react";
 import { nitro } from "nitro/vite";
-import { defaultClientConditions, defaultServerConditions, defineConfig } from "vite";
+import { defineConfig } from "vite";
 
-const workspacePackages = readdirSync(new URL("../../packages", import.meta.url), {
-  withFileTypes: true,
-})
-  .filter((entry) => entry.isDirectory())
-  .map((entry) => `@lilo-moon/${entry.name}`);
-
-export default defineConfig(({ command }) => ({
+export default defineConfig((env) => ({
   plugins: [tailwindcss(), tanstackStart(), react(), nitro()],
   // Not Vite's default 5173. That port is the first thing every other Vite project on the machine
   // claims, and a dev server that silently moves to 5174 breaks the OAuth redirect URI registered
@@ -23,29 +16,7 @@ export default defineConfig(({ command }) => ({
   // from the environment and never opens this file. A `preview` key here would read as though it
   // pinned the port and would not. That pin lives in `.moon/tasks/node-application.yml`.
   server: { port: 5199, strictPort: true },
-  resolve: {
-    // `resolve.conditions` replaces the default list. Spread it, then add
-    // the workspace-private source condition for serve only.
-    conditions:
-      command === "serve"
-        ? [...defaultClientConditions, "@lilo-moon/source"]
-        : [...defaultClientConditions],
-  },
-  optimizeDeps: {
-    // Every workspace package, or prebundling serves a stale copy while the source condition
-    // serves live files. Derived from the filesystem so a new package cannot be forgotten;
-    // directory name equals the name after the scope by convention. The two conditions lists
-    // stay hand-set, which is part of the case for packages/vite-config.
-    exclude: workspacePackages,
-  },
-  ssr: {
-    // Start and Nitro create an SSR environment whose conditions replace the top-level ones rather
-    // than extending them, so the workspace source condition has to be set a second time here.
-    resolve: {
-      conditions:
-        command === "serve"
-          ? [...defaultServerConditions, "@lilo-moon/source"]
-          : [...defaultServerConditions],
-    },
-  },
+  // Resolve, prebundling and the SSR environment's own condition list. Three settings that have to
+  // agree, and disagree quietly when they do not, so they live in one place for every application.
+  ...workspaceSourceConfig(env),
 }));
