@@ -19,6 +19,7 @@ describe("reportAuthFailure", () => {
   it("writes one structured line naming the failure", () => {
     const { lines, restore } = captured();
     reportAuthFailure({
+      kind: "callback",
       reason: "unauthorized",
       disposition: "misconfigured",
       error: new Error("Invalid client secret."),
@@ -28,7 +29,7 @@ describe("reportAuthFailure", () => {
     expect(JSON.parse(lines[0] ?? "{}")).toStrictEqual({
       event: "auth.callback.failed",
       reason: "unauthorized",
-      disposition: "misconfigured",
+      outcome: "misconfigured",
       error: "Invalid client secret.",
     });
   });
@@ -40,6 +41,7 @@ describe("reportAuthFailure", () => {
     const cyclic: { self?: unknown } = {};
     cyclic.self = cyclic;
     reportAuthFailure({
+      kind: "callback",
       reason: "provider",
       disposition: "misconfigured",
       error: new WorkOSAuthError({ reason: "provider", message: "vendor said no", cause: cyclic }),
@@ -48,9 +50,33 @@ describe("reportAuthFailure", () => {
     expect(JSON.parse(lines[0] ?? "{}")).toMatchObject({ error: "vendor said no" });
   });
 
+  // One sink, two kinds. A token failure must not be silently dropped by a logger written for
+  // callbacks, and the event name has to say which stream a collector is reading.
+  it("names a rejected token as its own event", () => {
+    const { lines, restore } = captured();
+    reportAuthFailure({
+      kind: "token",
+      reason: "signature",
+      status: "ended",
+      error: new Error("signature verification failed"),
+    });
+    restore();
+    expect(JSON.parse(lines[0] ?? "{}")).toStrictEqual({
+      event: "auth.token.failed",
+      reason: "signature",
+      outcome: "ended",
+      error: "signature verification failed",
+    });
+  });
+
   it("reports something for a throw that was never an Error", () => {
     const { lines, restore } = captured();
-    reportAuthFailure({ reason: "provider", disposition: "misconfigured", error: "a bare string" });
+    reportAuthFailure({
+      kind: "callback",
+      reason: "provider",
+      disposition: "misconfigured",
+      error: "a bare string",
+    });
     restore();
     expect(JSON.parse(lines[0] ?? "{}")).toMatchObject({ error: "a bare string" });
   });

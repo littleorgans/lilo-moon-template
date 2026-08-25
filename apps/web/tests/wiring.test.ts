@@ -126,15 +126,16 @@ describe("the signed-in loader through the real composition root", () => {
   });
 
   // Exercises liveDeps in both shapes. With no DATABASE_URL there is no scoped runner at all;
-  // with one, a pool is constructed but never connected to, because no session gets that far.
+  // with one, a pool is constructed but never connected to, because no session gets that far. Both
+  // redirect, because the mocked request carries no session cookie.
   it("builds its dependencies with and without a database", async () => {
-    const { loadSignedView } = await import("../src/server/signed-in.js");
-    expect(await loadSignedView()).toBeNull();
+    const { loadSignedOrRedirect } = await import("../src/server/signed-in.js");
+    await expect(loadSignedOrRedirect()).rejects.toBeInstanceOf(Response);
 
     process.env["DATABASE_URL"] = "postgres://user:pass@127.0.0.1:5432/postgres";
     vi.resetModules();
     const reloaded = await import("../src/server/signed-in.js");
-    expect(await reloaded.loadSignedView()).toBeNull();
+    await expect(reloaded.loadSignedOrRedirect()).rejects.toBeInstanceOf(Response);
   });
 });
 

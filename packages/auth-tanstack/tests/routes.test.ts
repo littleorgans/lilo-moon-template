@@ -21,7 +21,7 @@ const runtime = {
     Promise.resolve(new Response(null, { status: 302, headers: { location: "email-start" } })),
   verifyEmailCode: () =>
     Promise.resolve(new Response(null, { status: 302, headers: { location: "email-verify" } })),
-  principal: () => Promise.resolve(null),
+  access: () => Promise.resolve({ status: "anonymous" as const }),
 } satisfies AuthRuntime;
 
 // Each factory must wire its own handler. Three routes that all point at the same function would

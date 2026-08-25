@@ -1,3 +1,5 @@
+export { readAccess } from "./access.js";
+export type { Access, AccessDeps } from "./access.js";
 export { startAuthorization } from "./authorize.js";
 export type { AuthorizeDeps } from "./authorize.js";
 export {
@@ -13,9 +15,12 @@ export { loadAuthConfig } from "./config.js";
 export type { AuthConfig } from "./config.js";
 export type { CookieJar, CookieOptions } from "./cookies.js";
 export { dispositionFor, failurePage, messageFor, reasonFor } from "./failure.js";
-export type { CallbackDisposition, CallbackFailure } from "./failure.js";
-export { readPrincipal } from "./principal.js";
-export type { PrincipalDeps } from "./principal.js";
+export type {
+  AuthFailureReport,
+  CallbackDisposition,
+  CallbackFailure,
+  TokenFailure,
+} from "./failure.js";
 export { signOut } from "./signout.js";
 export { createAuthServices } from "./services.js";
 export type { AuthServices } from "./services.js";
@@ -28,5 +33,6 @@ export {
   seal,
   stateMatches,
   unseal,
+  writeSession,
 } from "./session.js";
-export type { Session } from "./session.js";
+export type { Session, SessionCookieDeps } from "./session.js";

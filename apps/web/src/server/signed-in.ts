@@ -1,4 +1,5 @@
 import type { Principal } from "@lilo-moon/auth";
+import type { Access } from "@lilo-moon/auth-tanstack";
 import type { VisibleRows } from "@lilo-moon/views/signed-in-panel";
 import { redirect } from "@tanstack/react-router";
 
@@ -22,7 +23,7 @@ export interface SignedInView {
 }
 
 export interface SignedInDeps {
-  readonly principal: () => Promise<Principal | null>;
+  readonly access: () => Promise<Access>;
   /** Null when DATABASE_URL is unset. Narrower than a Database on purpose: this page counts rows. */
   readonly runScoped: ScopedRunner | null;
 }
@@ -30,27 +31,22 @@ export interface SignedInDeps {
 function liveDeps(): SignedInDeps {
   const database = getDatabase();
   return {
-    principal: () => auth.principal(),
+    access: () => auth.access(),
     // Bound rather than wrapped in an arrow: the arrow would be a function only a live database
     // could ever run, and therefore one no test could reach.
     runScoped: database === null ? null : database.withPrincipal.bind(database),
   };
 }
 
-/** Builds the signed-in view, or reports that there is no session. */
-export async function loadSignedView(
-  deps: SignedInDeps = liveDeps(),
-): Promise<SignedInView | null> {
-  const principal = await deps.principal();
-  if (principal === null) return null;
-  if (deps.runScoped === null) return { principal, rows: null, databaseError: null };
+/** Builds the view for a caller who is already known. Exported so a test reaches it directly. */
+export async function buildSignedView(
+  principal: Principal,
+  runScoped: ScopedRunner | null,
+): Promise<SignedInView> {
+  if (runScoped === null) return { principal, rows: null, databaseError: null };
 
   try {
-    return {
-      principal,
-      rows: await countVisibleRows(deps.runScoped, principal),
-      databaseError: null,
-    };
+    return { principal, rows: await countVisibleRows(runScoped, principal), databaseError: null };
   } catch (error) {
     return {
       principal,
@@ -61,13 +57,31 @@ export async function loadSignedView(
 }
 
 /**
- * The loader the signed-in route runs.
+ * The loader the signed-in route runs, and the one place the four access states become screens.
  *
- * No session is not an error, it is a person who has not signed in yet, so it redirects rather than
- * raising. A token that fails verification is different and is left to propagate.
+ * None of them is an exception. Not being signed in is a person who has not signed in yet; a token
+ * that stopped verifying is a session that ended; a token whose shape we cannot read is our
+ * outage. Letting any of them propagate would hand the framework an exception to serialise, which
+ * is how a failed sign-in once reached a browser as `{"status":400,"message":"HTTPError"}`.
+ *
+ * The destinations differ on one axis: whether signing in again can possibly help. For `broken` it
+ * cannot, so that screen is the only one without a sign-in button.
  */
 export async function loadSignedOrRedirect(deps: SignedInDeps = liveDeps()): Promise<SignedInView> {
-  const view = await loadSignedView(deps);
-  if (view === null) throw redirect({ to: "/" });
-  return view;
+  const access = await deps.access();
+  switch (access.status) {
+    case "signed-in":
+      return await buildSignedView(access.principal, deps.runScoped);
+    case "anonymous":
+      throw redirect({ to: "/" });
+    case "ended":
+      throw redirect({ to: "/", search: { ended: true } });
+    case "broken":
+      throw redirect({ to: "/session-error" });
+    default: {
+      // A fifth access state stops compiling here rather than silently becoming a blank page.
+      const exhaustive: never = access;
+      return exhaustive;
+    }
+  }
 }

@@ -2,16 +2,23 @@ import { SignInPanel } from "@lilo-moon/views/sign-in";
 import { createFileRoute } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/")({
+  // The signed-in loader sends a token that stopped verifying here with ?ended=true. The validated
+  // value has to round-trip to what the URL parses to, or the router loops on normalising it
+  // instead of rendering, so the key is omitted rather than false when absent.
+  validateSearch: (search: Record<string, unknown>): { readonly ended?: true } =>
+    search["ended"] === true ? { ended: true } : {},
   component: SignIn,
 });
 
 function SignIn() {
+  const { ended } = Route.useSearch();
   return (
     <SignInPanel
       title="Task board"
       description="Sign in to see the tasks your workspace can see."
       oauthStartPath="/api/auth/start"
       emailStartPath="/api/auth/email/start"
+      sessionEnded={ended === true}
     />
   );
 }

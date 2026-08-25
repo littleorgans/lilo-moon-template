@@ -1,3 +1,4 @@
+import type { AuthFailure } from "@lilo-moon/auth";
 import { WorkOSAuthError } from "@lilo-moon/auth-workos";
 import type { WorkOSAuthFailure } from "@lilo-moon/auth-workos";
 
@@ -16,10 +17,30 @@ export type CallbackDisposition = "retry" | "unsupported" | "misconfigured";
 
 /** The failure and the error behind it, for whoever is reading the logs. */
 export interface CallbackFailure {
+  readonly kind: "callback";
   readonly reason: WorkOSAuthFailure;
   readonly disposition: CallbackDisposition;
   readonly error: unknown;
 }
+
+/**
+ * A token that failed verification, for the same reader.
+ *
+ * Every reason is reported, not only the one that earns a screen. A signature that does not check
+ * out may be somebody probing with a token they minted, and that is precisely the line an operator
+ * wants to find later. What differs between the reasons is what the person is told, not whether
+ * anyone is told.
+ */
+export interface TokenFailure {
+  readonly kind: "token";
+  readonly reason: AuthFailure;
+  /** What the person sees: `ended` sends them to sign in again, `broken` says this one is ours. */
+  readonly status: "ended" | "broken";
+  readonly error: unknown;
+}
+
+/** Everything an application's log sink is handed. One sink, so one place to point at a collector. */
+export type AuthFailureReport = CallbackFailure | TokenFailure;
 
 const MESSAGES: Readonly<Record<CallbackDisposition, string>> = {
   // Nothing is wrong with the account or the configuration. Waiting is the whole remedy.

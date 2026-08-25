@@ -1,31 +1,46 @@
 import type { Principal } from "@lilo-moon/auth";
+import type { Access } from "@lilo-moon/auth-tanstack";
+import { isRedirect } from "@tanstack/react-router";
 import { describe, expect, it } from "vitest";
 
 import { countVisibleRows } from "../src/server/rows.js";
-import { loadSignedOrRedirect, loadSignedView } from "../src/server/signed-in.js";
+import { buildSignedView, loadSignedOrRedirect } from "../src/server/signed-in.js";
+import type { SignedInDeps } from "../src/server/signed-in.js";
 
 const principal: Principal = {
   userId: "user_01HBEQ",
   orgId: "org_01M0",
-  roles: ["owner"],
-  permissions: ["billing:manage"],
+  roles: ["member"],
+  permissions: [],
   entitlements: [],
 };
 
 // Sessions, cookies and token verification are `@lilo-moon/auth-session`'s to prove. What is left
-// here is what this product does once it knows who is calling.
-const signedIn = { principal: () => Promise.resolve(principal), runScoped: null };
-const signedOut = { principal: () => Promise.resolve(null), runScoped: null };
+// here is what this product does once it knows who is calling, and where each state lands.
+const accessOf = (access: Access) => ({ access: () => Promise.resolve(access), runScoped: null });
+const signedIn = accessOf({ status: "signed-in", principal });
 
-describe("loadSignedView", () => {
-  it("returns null when nobody is signed in", async () => {
-    expect(await loadSignedView(signedOut)).toBeNull();
-  });
+/**
+ * Where a loader sent the browser.
+ *
+ * TanStack's redirect is a Response rather than an Error, so a thrown one is caught rather than
+ * awaited, and its destination lives in `options` rather than in a `location` header: the router
+ * resolves it into one later. `isRedirect` narrows it, which is what keeps this read cast-free.
+ */
+async function redirectedBy(deps: SignedInDeps): Promise<{ to?: string; search?: unknown }> {
+  const thrown: unknown = await loadSignedOrRedirect(deps).then(
+    () => null,
+    (error: unknown) => error,
+  );
+  if (!isRedirect(thrown)) throw new Error(`Expected a redirect, got ${String(thrown)}`);
+  return thrown.options;
+}
 
+describe("buildSignedView", () => {
   // Sign-in has to work before Postgres exists, or the template cannot be run at all until
   // somebody provisions a database.
   it("treats an absent database as a runnable state, not an error", async () => {
-    expect(await loadSignedView(signedIn)).toStrictEqual({
+    expect(await buildSignedView(principal, null)).toStrictEqual({
       principal,
       rows: null,
       databaseError: null,
@@ -35,33 +50,21 @@ describe("loadSignedView", () => {
   // A database that is down must not hide the Principal. Seeing the claims is exactly what makes
   // the failure diagnosable.
   it("reports a database failure while still showing the verified Principal", async () => {
-    const view = await loadSignedView({
-      ...signedIn,
-      runScoped: () => Promise.reject(new Error("connection refused")),
-    });
-    expect(view?.principal).toStrictEqual(principal);
-    expect(view?.databaseError).toContain("connection refused");
+    const view = await buildSignedView(principal, () =>
+      Promise.reject(new Error("connection refused")),
+    );
+    expect(view.principal).toStrictEqual(principal);
+    expect(view.databaseError).toContain("connection refused");
   });
 
   it("counts rows through the scoped runner, never outside it", async () => {
     let scopedTo: Principal | null = null;
-    const view = await loadSignedView({
-      ...signedIn,
-      runScoped: async (given, body) => {
-        scopedTo = given;
-        return await body({ execute: () => Promise.resolve({ rows: [{ count: 1 }] }) });
-      },
+    const view = await buildSignedView(principal, async (given, body) => {
+      scopedTo = given;
+      return await body({ execute: () => Promise.resolve({ rows: [{ count: 1 }] }) });
     });
     expect(scopedTo).toStrictEqual(principal);
-    expect(view?.rows).toStrictEqual({ accounts: 1, profiles: 1 });
-  });
-
-  // A rejected token is not "no session". It has to reach the caller so an expired token and a
-  // forged one do not take the same quiet path.
-  it("lets a verification failure escape rather than rendering a page", async () => {
-    await expect(
-      loadSignedView({ ...signedIn, principal: () => Promise.reject(new Error("expired")) }),
-    ).rejects.toThrow("expired");
+    expect(view.rows).toStrictEqual({ accounts: 1, profiles: 1 });
   });
 });
 
@@ -74,14 +77,26 @@ describe("loadSignedOrRedirect", () => {
     });
   });
 
-  // Not signed in is a person, not a fault. TanStack's redirect is a Response rather than an Error,
-  // which is why this is not a rejects.toThrow.
-  it("redirects rather than failing when nobody is signed in", async () => {
-    const thrown: unknown = await loadSignedOrRedirect(signedOut).then(
-      () => null,
-      (error: unknown) => error,
-    );
-    expect(thrown).toBeInstanceOf(Response);
+  // Not signed in is a person, not a fault, so it redirects rather than raising.
+  it("sends somebody with no session to the sign-in page, quietly", async () => {
+    expect(await redirectedBy(accessOf({ status: "anonymous" }))).toMatchObject({ to: "/" });
+    expect(await redirectedBy(accessOf({ status: "anonymous" }))).not.toHaveProperty("search");
+  });
+
+  // The three states that are not a signed-in person must reach three different screens.
+  // Collapsing any two is how somebody whose token cannot be read ends up pressing a sign-in
+  // button that cannot possibly help them.
+  it("marks an ended session so the sign-in page can say so", async () => {
+    expect(await redirectedBy(accessOf({ status: "ended" }))).toMatchObject({
+      to: "/",
+      search: { ended: true },
+    });
+  });
+
+  it("sends a token we cannot read to its own screen, which has no sign-in button", async () => {
+    expect(await redirectedBy(accessOf({ status: "broken" }))).toMatchObject({
+      to: "/session-error",
+    });
   });
 });
 

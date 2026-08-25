@@ -58,7 +58,7 @@ export async function startEmailSignIn(
   } catch (error) {
     const reason = reasonFor(error);
     const disposition = dispositionFor(reason);
-    deps.log({ reason, disposition, error });
+    deps.log({ kind: "callback", reason, disposition, error });
     return failurePage(messageFor(disposition));
   }
 
@@ -123,7 +123,7 @@ export async function completeEmailSignIn(
   } catch (error) {
     const reason = reasonFor(error);
     const disposition = dispositionFor(reason);
-    deps.log({ reason, disposition, error });
+    deps.log({ kind: "callback", reason, disposition, error });
     if (reason === "code-rejected") return retry;
     return failurePage(messageFor(disposition));
   }

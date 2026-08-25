@@ -1,5 +1,7 @@
 import { createCipheriv, createDecipheriv, randomBytes, timingSafeEqual } from "node:crypto";
 
+import type { CookieJar } from "./cookies.js";
+
 /**
  * What the session cookie holds, and deliberately all it holds.
  *
@@ -71,6 +73,31 @@ export function readSession(key: Buffer, sealed: string | undefined): Session | 
   const refreshToken = readString(value, "refreshToken");
   if (accessToken === null || refreshToken === null) return null;
   return { accessToken, refreshToken };
+}
+
+export interface SessionCookieDeps {
+  readonly cookieKey: Buffer;
+  readonly secureCookies: boolean;
+}
+
+/** A year. The refresh token inside outlives it; this is how long the browser keeps the envelope. */
+const SESSION_MAX_AGE_SECONDS = 31_536_000;
+
+/**
+ * Seals a session into the cookie.
+ *
+ * Every path that ends holding tokens writes them through here: the OAuth callback, the email code
+ * verification, and a silent refresh mid-request. One writer means one set of cookie attributes,
+ * and the attributes are the security boundary.
+ */
+export function writeSession(jar: CookieJar, deps: SessionCookieDeps, session: Session): void {
+  jar.write(SESSION_COOKIE, seal(deps.cookieKey, session), {
+    httpOnly: true,
+    secure: deps.secureCookies,
+    sameSite: "lax",
+    path: "/",
+    maxAge: SESSION_MAX_AGE_SECONDS,
+  });
 }
 
 /** An unguessable value for the OAuth `state` parameter. */

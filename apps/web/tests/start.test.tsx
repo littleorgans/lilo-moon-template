@@ -59,6 +59,31 @@ describe("TanStack Start", () => {
     expect(renderToStaticMarkup(<RouterProvider router={router} />)).toContain("did not work");
   });
 
+  it("renders the session-ended notice when the signed-in loader sends one here", async () => {
+    const router = getRouter();
+    router.update({ history: createMemoryHistory({ initialEntries: ["/?ended=true"] }) });
+
+    await router.load();
+
+    const html = renderToStaticMarkup(<RouterProvider router={router} />);
+    expect(html).toContain("Your session ended");
+    // Both ways in survive the notice: this failure is the kind signing in again does fix.
+    expect(html).toContain('href="/api/auth/start"');
+  });
+
+  // The screen for a token that verified and then made no sense. Reached through the router so the
+  // route, not just the view, is proven to offer no way back to a sign-in button.
+  it("renders the session-error route with no sign-in control at all", async () => {
+    const router = getRouter();
+    router.update({ history: createMemoryHistory({ initialEntries: ["/session-error"] }) });
+
+    await router.load();
+
+    const html = renderToStaticMarkup(<RouterProvider router={router} />);
+    expect(html).toContain("wrong on our side");
+    expect(html).not.toContain("/api/auth/");
+  });
+
   it("registers the callback and the signed-in route", () => {
     const router = getRouter();
 
