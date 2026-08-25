@@ -3,10 +3,8 @@ import type { Authentication, WorkOSAuth } from "@lilo-moon/auth-workos";
 import type { CookieJar } from "./cookies.js";
 import { dispositionFor, failurePage, messageFor, reasonFor } from "./failure.js";
 import type { CallbackFailure } from "./failure.js";
-import { SESSION_COOKIE, STATE_COOKIE, seal, stateMatches } from "./session.js";
-
-/** A year. The refresh token inside rotates; this is only how long the browser keeps the envelope. */
-const SESSION_MAX_AGE_SECONDS = 31_536_000;
+import type { SessionCookieDeps } from "./session.js";
+import { STATE_COOKIE, stateMatches, writeSession } from "./session.js";
 
 /**
  * Names the organization for someone who has just arrived without one.
@@ -55,9 +53,7 @@ export async function ensureOrganization(
   });
 }
 
-export interface SessionDeps {
-  readonly cookieKey: Buffer;
-  readonly secureCookies: boolean;
+export interface SessionDeps extends SessionCookieDeps {
   /** Where a completed sign-in lands. The application's choice, not this package's. */
   readonly signedInPath: string;
 }
@@ -73,20 +69,10 @@ export function establishSession(
   deps: SessionDeps,
   authentication: Authentication,
 ): Response {
-  jar.write(
-    SESSION_COOKIE,
-    seal(deps.cookieKey, {
-      accessToken: authentication.accessToken,
-      refreshToken: authentication.refreshToken,
-    }),
-    {
-      httpOnly: true,
-      secure: deps.secureCookies,
-      sameSite: "lax",
-      path: "/",
-      maxAge: SESSION_MAX_AGE_SECONDS,
-    },
-  );
+  writeSession(jar, deps, {
+    accessToken: authentication.accessToken,
+    refreshToken: authentication.refreshToken,
+  });
 
   return new Response(null, { status: 302, headers: { location: deps.signedInPath } });
 }
@@ -150,7 +136,7 @@ export async function handleCallback(
     // "message":"HTTPError"}` on screen.
     const reason = reasonFor(error);
     const disposition = dispositionFor(reason);
-    deps.log({ reason, disposition, error });
+    deps.log({ kind: "callback", reason, disposition, error });
     return failurePage(messageFor(disposition));
   }
 

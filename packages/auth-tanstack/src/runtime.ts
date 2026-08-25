@@ -1,15 +1,20 @@
-import type { Principal } from "@lilo-moon/auth";
 import {
   completeEmailSignIn,
   createAuthServices,
   handleCallback,
   loadAuthConfig,
-  readPrincipal,
+  readAccess,
   signOut,
   startAuthorization,
   startEmailSignIn,
 } from "@lilo-moon/auth-session";
-import type { AuthConfig, AuthServices, CallbackFailure, CookieJar } from "@lilo-moon/auth-session";
+import type {
+  Access,
+  AuthConfig,
+  AuthFailureReport,
+  AuthServices,
+  CookieJar,
+} from "@lilo-moon/auth-session";
 import type { AuthorizationProvider } from "@lilo-moon/auth-workos";
 
 import { requestCookies } from "./cookies.js";
@@ -27,13 +32,14 @@ export interface AuthRuntimeOptions {
   /** Overridable so a test never needs a live request context. */
   readonly cookies?: CookieJar;
   /**
-   * Told about every sign-in the provider refuses. Defaults to a JSON line on stderr.
+   * Told about every sign-in the provider refuses and every token that fails a check. Defaults to
+   * a JSON line on stderr.
    *
    * A default exists because this is the wiring layer, where picking a sensible one is the job. It
    * is overridable because the moment an application has real logging, a line this package prints
    * is a line that misses the aggregator.
    */
-  readonly log?: (failure: CallbackFailure) => void;
+  readonly log?: (failure: AuthFailureReport) => void;
 }
 
 /**
@@ -51,8 +57,8 @@ export interface AuthRuntime {
   readonly sendEmailCode: (context: { readonly request: Request }) => Promise<Response>;
   readonly verifyEmailCode: (context: { readonly request: Request }) => Promise<Response>;
   readonly endSession: (context: unknown) => Response;
-  /** The verified caller, or null when there is no session. Raises if a token fails a check. */
-  readonly principal: () => Promise<Principal | null>;
+  /** Who is calling: signed in, nobody, or a token this application will not act on. */
+  readonly access: () => Promise<Access>;
 }
 
 /**
@@ -131,9 +137,15 @@ export function createAuthRuntime(options: AuthRuntimeOptions): AuthRuntime {
       return signOut(context, jar);
     },
 
-    principal: async () => {
-      const { config, verify } = services();
-      return await readPrincipal(jar, { cookieKey: config.cookieKey, verify });
+    access: async () => {
+      const { auth, config, verify } = services();
+      return await readAccess(jar, {
+        auth,
+        verify,
+        cookieKey: config.cookieKey,
+        secureCookies: config.secureCookies,
+        log: options.log ?? reportAuthFailure,
+      });
     },
   };
 }

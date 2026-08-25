@@ -198,6 +198,42 @@ is the worst available response, and a failure nobody is told about is one that 
 Nothing in the repo pages anyone today, so "log it" currently means a structured log line and
 nothing more. That is enough to make the failure findable and is not enough to make it noticed.
 
+**Built 2026-08-25.** `readAccess` in `@lilo-moon/auth-session` turns the session cookie into one
+of four states, and `apps/web`'s signed-in loader is the single place they become screens:
+
+| State       | Reached by                                     | Where the browser goes         |
+| ----------- | ---------------------------------------------- | ------------------------------ |
+| `anonymous` | no cookie, or one that will not open           | `/`, saying nothing            |
+| `signed-in` | a token that verifies, or one refreshed here   | the page that was asked for    |
+| `ended`     | `signature`, `issuer`, `audience`, `malformed` | `/?ended=true`, cookie cleared |
+| `broken`    | `claims`                                       | `/session-error`, cookie kept  |
+
+Three things about that table are decisions rather than mechanics.
+
+**Every reason is logged, not only the one with a screen.** A signature that does not check out may
+be somebody probing with a token they minted, and that is exactly the line an operator wants to
+find later. What differs between reasons is what the person is told.
+
+**An ended session loses its cookie; a broken one keeps it.** A cookie that cannot be verified is
+not a session, so it does not survive the request that discovered that. A `claims` failure is ours:
+the person really is signed in, and clearing their session would punish them for our bug.
+
+**`/session-error` has no sign-in control at all.** Every other failure is fixed by signing in
+again. This one is not, because the next token will have the shape the last one had.
+
+### Expiry is not a failure
+
+`expired` never reaches the table above. An access token lives 300 seconds, measured against the
+live provider, so a person reading a page for six minutes reaches it in the ordinary course of
+using the application. `readAccess` spends one refresh, verifies the replacement like any other
+token rather than trusting it for having arrived over TLS, and reseals the cookie. The person sees
+nothing, which is what the row promised.
+
+Two provider behaviours this depends on, both measured on 2026-08-25 rather than assumed:
+refreshing **without** an `organizationId` preserves the one already in the token, so a silent
+refresh cannot quietly drop somebody's tenant; and the refresh token that comes back is **the same
+token**, not a rotated one, so the envelope in the cookie stays valid for its full year.
+
 ## Failure at the callback
 
 The table above covers a token that fails verification. A sign-in can also be refused by the
@@ -236,12 +272,15 @@ Settled by this page: the screen list, automatic organization creation and its t
 failure mapping, and that free-tier policy is out of scope for the template. The callback turned
 out not to need a screen on the success path, for the reason recorded above.
 
-**Built so far:** the signed-out page, the callback, the two-step email-code path, and a styled
-signed-in page that prints the Principal. The state check, the code exchange, organization
+**Built so far:** the signed-out page, the callback, the two-step email-code path, the screens for
+a token that fails verification, and a styled signed-in page that prints the Principal. The state check, the code exchange, organization
 creation, the refresh, and just in time row creation all run, **proven by a real Google sign-in on
 2026-08-24 and a real email-code sign-in on 2026-08-25**, and the callback renders the failure
-above for anything the provider refuses. What is not built: the screens for a token that fails
-verification, and every steady-state surface.
+above for anything the provider refuses. The four access states were **proven against a live
+staging session on 2026-08-25**: a valid token renders the page, a tampered signature lands on the
+sign-in page with the notice and a cleared cookie and one `auth.token.failed` line, and an expired
+token is refreshed without the person seeing anything. What is not built: every steady-state
+surface.
 
 Decided 2026-08-24: free plan limits are defined per product, never by the template. The token
 carries tier names, not quantities, so each product maps its own tiers to its own limits in its own

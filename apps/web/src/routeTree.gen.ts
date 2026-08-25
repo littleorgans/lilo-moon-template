@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AppRouteImport } from './routes/app'
 import { Route as CallbackRouteImport } from './routes/callback'
+import { Route as SessionErrorRouteImport } from './routes/session-error'
 import { Route as VerifyEmailRouteImport } from './routes/verify-email'
 import { Route as ApiProbeRouteImport } from './routes/api.probe'
 import { Route as ApiAuthSignoutRouteImport } from './routes/api.auth.signout'
@@ -32,6 +33,11 @@ const AppRoute = AppRouteImport.update({
 const CallbackRoute = CallbackRouteImport.update({
   id: '/callback',
   path: '/callback',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SessionErrorRoute = SessionErrorRouteImport.update({
+  id: '/session-error',
+  path: '/session-error',
   getParentRoute: () => rootRouteImport,
 } as any)
 const VerifyEmailRoute = VerifyEmailRouteImport.update({
@@ -69,6 +75,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/app': typeof AppRoute
   '/callback': typeof CallbackRoute
+  '/session-error': typeof SessionErrorRoute
   '/verify-email': typeof VerifyEmailRoute
   '/api/probe': typeof ApiProbeRoute
   '/api/auth/signout': typeof ApiAuthSignoutRoute
@@ -80,6 +87,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/app': typeof AppRoute
   '/callback': typeof CallbackRoute
+  '/session-error': typeof SessionErrorRoute
   '/verify-email': typeof VerifyEmailRoute
   '/api/probe': typeof ApiProbeRoute
   '/api/auth/signout': typeof ApiAuthSignoutRoute
@@ -92,6 +100,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/app': typeof AppRoute
   '/callback': typeof CallbackRoute
+  '/session-error': typeof SessionErrorRoute
   '/verify-email': typeof VerifyEmailRoute
   '/api/probe': typeof ApiProbeRoute
   '/api/auth/signout': typeof ApiAuthSignoutRoute
@@ -105,6 +114,7 @@ export interface FileRouteTypes {
     | '/'
     | '/app'
     | '/callback'
+    | '/session-error'
     | '/verify-email'
     | '/api/probe'
     | '/api/auth/signout'
@@ -116,6 +126,7 @@ export interface FileRouteTypes {
     | '/'
     | '/app'
     | '/callback'
+    | '/session-error'
     | '/verify-email'
     | '/api/probe'
     | '/api/auth/signout'
@@ -127,6 +138,7 @@ export interface FileRouteTypes {
     | '/'
     | '/app'
     | '/callback'
+    | '/session-error'
     | '/verify-email'
     | '/api/probe'
     | '/api/auth/signout'
@@ -139,6 +151,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AppRoute: typeof AppRoute
   CallbackRoute: typeof CallbackRoute
+  SessionErrorRoute: typeof SessionErrorRoute
   VerifyEmailRoute: typeof VerifyEmailRoute
   ApiProbeRoute: typeof ApiProbeRoute
   ApiAuthSignoutRoute: typeof ApiAuthSignoutRoute
@@ -168,6 +181,13 @@ declare module '@tanstack/react-router' {
       path: '/callback'
       fullPath: '/callback'
       preLoaderRoute: typeof CallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/session-error': {
+      id: '/session-error'
+      path: '/session-error'
+      fullPath: '/session-error'
+      preLoaderRoute: typeof SessionErrorRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/verify-email': {
@@ -219,6 +239,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AppRoute: AppRoute,
   CallbackRoute: CallbackRoute,
+  SessionErrorRoute: SessionErrorRoute,
   VerifyEmailRoute: VerifyEmailRoute,
   ApiProbeRoute: ApiProbeRoute,
   ApiAuthSignoutRoute: ApiAuthSignoutRoute,

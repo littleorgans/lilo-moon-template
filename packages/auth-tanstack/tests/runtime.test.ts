@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 
-import type { CookieJar, CookieOptions } from "@lilo-moon/auth-session";
+import type { AuthFailureReport, CookieJar, CookieOptions } from "@lilo-moon/auth-session";
 import { SESSION_COOKIE, STATE_COOKIE, seal } from "@lilo-moon/auth-session";
 import { describe, expect, it } from "vitest";
 
@@ -158,17 +158,43 @@ describe("endSession", () => {
   });
 });
 
-describe("principal", () => {
-  it("is null when there is no session", async () => {
-    expect(await runtimeWith(jarWith().jar).principal()).toBeNull();
+describe("access", () => {
+  it("is anonymous when there is no session", async () => {
+    expect(await runtimeWith(jarWith().jar).access()).toStrictEqual({ status: "anonymous" });
   });
 
   // The runtime must hand the verifier the key derived from this configuration. A cookie sealed
-  // with any other key is not a session.
-  it("is null for a cookie sealed with another key", async () => {
+  // with any other key does not open, so it is not a session rather than a rejected one.
+  it("is anonymous for a cookie sealed with another key", async () => {
     const { jar } = jarWith({
       [SESSION_COOKIE]: seal(randomBytes(32), { accessToken: "a", refreshToken: "r" }),
     });
-    expect(await runtimeWith(jar).principal()).toBeNull();
+    expect(await runtimeWith(jar).access()).toStrictEqual({ status: "anonymous" });
+  });
+
+  // Reached through the runtime rather than the reader, so this proves the runtime supplies the
+  // verifier, the key and the log sink. "not.a.jwt" cannot be parsed, let alone verified.
+  it("ends a session whose token is not a token, and clears the cookie", async () => {
+    const reports: AuthFailureReport[] = [];
+    const present: Record<string, string> = {};
+    const { jar, cleared } = jarWith(present);
+    const runtime = createAuthRuntime({
+      provider: "GoogleOAuth",
+      signedInPath: "/app",
+      codeEntryPath: "/verify-email",
+      env,
+      cookies: jar,
+      log: (failure) => reports.push(failure),
+    });
+    // Sealed with the runtime's own derived key, so the cookie opens and the token inside is what
+    // fails. Sealing with any other key would prove nothing but that the key is wrong.
+    present[SESSION_COOKIE] = seal(runtime.services().config.cookieKey, {
+      accessToken: "not.a.jwt",
+      refreshToken: "r",
+    });
+
+    expect(await runtime.access()).toStrictEqual({ status: "ended" });
+    expect(cleared).toStrictEqual([SESSION_COOKIE]);
+    expect(reports.map((report) => report.reason)).toStrictEqual(["malformed"]);
   });
 });
