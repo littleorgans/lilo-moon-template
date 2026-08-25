@@ -4,13 +4,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@lilo-moon/ui/componen
 import { Row, Stack } from "@lilo-moon/ui/components/layout";
 import { Text } from "@lilo-moon/ui/components/text";
 
-export const TASKS = [
-  { id: "scout", status: "done", title: "Scout baseline" },
-  { id: "library", status: "done", title: "Library exemplar" },
-  { id: "app", status: "todo", title: "Application exemplar" },
-] as const;
+import { TASKS } from "../tasks.js";
 
-export function App() {
+/** The demo product itself, rendered inside the signed-in panel. */
+export function TaskBoard() {
   const byStatus = groupBy(TASKS, (task) => task.status);
 
   return (
