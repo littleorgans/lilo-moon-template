@@ -104,6 +104,14 @@ export function translateWorkOSError(error: unknown): WorkOSAuthError {
   if (error instanceof ApiKeyRequiredException || error instanceof NoApiKeyProvidedException) {
     return mapped(error, "configuration");
   }
+  if (error instanceof GenericServerException && error.code === "external_id_already_used") {
+    // A taken `external_id` arrives as a GenericServerException with status 400 rather than the
+    // ConflictException the name suggests, measured against the live API. Untranslated it becomes
+    // `provider`, the reason meaning "we do not know", which would hide the one collision this
+    // codebase provokes on purpose: `provisionOrganization` retried after a crash or a double
+    // callback, where the collision is the answer rather than the failure.
+    return mapped(error, "conflict", error.requestID);
+  }
   if (error instanceof GenericServerException && (error.code ?? "").includes("one_time_code")) {
     // The magic auth endpoint reports a wrong, superseded, expired or reused code as a
     // GenericServerException whose code names the one-time code, measured against the live API:

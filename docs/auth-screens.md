@@ -114,9 +114,28 @@ with an `@example.com` address was routed to SAML because a seeded organization 
 A personal org claiming `alphab.io` would pull the next colleague into it. A personal org claiming
 `gmail.com` would be far worse.
 
-**Key creation on the WorkOS user id.** `provisionOrganization` takes an `idempotencyKey`. A
-callback that fires twice, or two tabs finishing at once, otherwise gives one person two
-organizations and no way to tell which is real.
+**Key creation on the WorkOS user id, through `externalId`.** `provisionOrganization` sets
+`externalId` to `signup:<user id>`. A callback that fires twice, or two tabs finishing at once,
+otherwise gives one person two organizations and no way to tell which is real.
+
+**This said `idempotencyKey` until 2026-08-26, and that protected nothing.** The SDK accepts an
+`Idempotency-Key` request option and puts it on the wire. `/organizations` ignores it. Two POSTs
+carrying one key were measured returning 201 twice and two different organization ids, so the
+duplicate this page claimed to prevent was reachable the whole time. `external_id` is the
+constraint the API actually enforces: a second organization claiming one is refused with a 400
+carrying `external_id_already_used`, and `getOrganizationByExternalId` returns the organization
+holding it. Unlike an idempotency key, which expires after 24 hours, it never stops applying.
+
+**Provisioning is two calls, so it is written to survive stopping between them.** A crash after
+`createOrganization` leaves an organization nobody belongs to, and the person has no workspace.
+`provisionOrganization` answers a collision by adopting the organization already holding the
+external id and creating the membership against that, so the next sign-in finishes the signup the
+first attempt started rather than starting a second one. Creating a membership that already exists
+returns the existing one rather than a second, so the completed path is equally safe to repeat.
+
+Both were proved against the live API on 2026-08-26. Provisioning twice for one user: one
+organization, one membership. Provisioning after an orphaned organization was created by hand:
+the orphan adopted, one membership added, no second organization.
 
 After the refresh the token carries `org_id`, and the `accounts` and `profiles` rows are inserted
 by `runScoped` in the first request that follows.

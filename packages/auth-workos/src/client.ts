@@ -94,13 +94,16 @@ export interface WorkOSClient {
     }): Promise<ProviderMfaVerification>;
   };
   readonly organizations: {
-    createOrganization(
-      options: {
-        readonly name: string;
-        readonly externalId?: string | null;
-        readonly metadata?: Record<string, string>;
-      },
-      requestOptions: { readonly idempotencyKey: string },
-    ): Promise<{ readonly id: string }>;
+    // No `Idempotency-Key` request option. The SDK accepts one and puts it on the wire, and
+    // `/organizations` ignores it: two POSTs carrying the same key were measured returning 201 and
+    // two different organization ids. Accepting an argument the API discards is how the previous
+    // shape of this interface promised a guarantee nothing delivered. `externalId` is the real
+    // constraint and it is enforced by the API.
+    createOrganization(options: {
+      readonly name: string;
+      readonly externalId?: string | null;
+      readonly metadata?: Record<string, string>;
+    }): Promise<{ readonly id: string }>;
+    getOrganizationByExternalId(externalId: string): Promise<{ readonly id: string }>;
   };
 }

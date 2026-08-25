@@ -90,6 +90,17 @@ describe("translateWorkOSError", () => {
         "request_used",
       ),
     ],
+    // Provisioning provokes this one on purpose, so it has to arrive as something other than the
+    // reason meaning "we do not know". A 400 despite the name.
+    [
+      "conflict",
+      new GenericServerException(
+        400,
+        "The external_id provided has already been assigned to another organization.",
+        { code: "external_id_already_used" },
+        "request_external_id",
+      ),
+    ],
     ["provider", new GenericServerException(418, "teapot", {}, "request_teapot")],
     ["provider", new Error("socket closed")],
     ["provider", "non-error rejection"],
