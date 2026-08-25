@@ -133,8 +133,15 @@ export interface RefreshTokensOptions extends RequestContext {
 export interface ProvisionOrganizationOptions {
   readonly name: string;
   readonly userId: string;
-  readonly idempotencyKey: string;
-  readonly externalId?: string | null;
+  /**
+   * The caller's own identifier for this organization, unique across the environment.
+   *
+   * Required, because it is what makes provisioning safe to repeat. A second call carrying an
+   * `externalId` that already exists is refused by the API, and `provisionOrganization` answers
+   * that refusal by adopting the organization already holding it. Without one, a callback that
+   * fires twice leaves one person owning two organizations.
+   */
+  readonly externalId: string;
   readonly metadata?: Readonly<Record<string, string>>;
   readonly roleSlugs?: readonly string[];
 }

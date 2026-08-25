@@ -68,7 +68,10 @@ function recorder(codeFailure?: unknown): { client: WorkOSClient; calls: Call[] 
         createOrganizationMembership: notUnderTest,
       },
       multiFactorAuth: { challengeFactor: notUnderTest, verifyChallenge: notUnderTest },
-      organizations: { createOrganization: notUnderTest },
+      organizations: {
+        createOrganization: notUnderTest,
+        getOrganizationByExternalId: notUnderTest,
+      },
     },
   };
 }

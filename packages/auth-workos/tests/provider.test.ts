@@ -1,4 +1,4 @@
-import { UnauthorizedException } from "@workos-inc/node";
+import { GenericServerException, UnauthorizedException } from "@workos-inc/node";
 import { describe, expect, it } from "vitest";
 
 import type { WorkOSClient, WorkOSAuthError } from "../src/index.js";
@@ -37,7 +37,10 @@ type Call =
   | {
       readonly method: "createOrganization";
       readonly options: Parameters<Organizations["createOrganization"]>[0];
-      readonly requestOptions: Parameters<Organizations["createOrganization"]>[1];
+    }
+  | {
+      readonly method: "getOrganizationByExternalId";
+      readonly externalId: Parameters<Organizations["getOrganizationByExternalId"]>[0];
     }
   | {
       readonly method: "createOrganizationMembership";
@@ -59,7 +62,20 @@ const authentication = {
   refreshToken: "refresh-token",
 } satisfies Awaited<ReturnType<UserManagement["authenticateWithPassword"]>>;
 
-function recorder(passwordFailure?: unknown): { client: WorkOSClient; calls: Call[] } {
+// How the live API refuses a second organization claiming an external id already in use: a 400
+// carrying `external_id_already_used`, not the ConflictException the name would suggest.
+const externalIdTaken = () =>
+  new GenericServerException(
+    400,
+    "The external_id provided has already been assigned to another organization.",
+    { code: "external_id_already_used" },
+    "request_external_id",
+  );
+
+function recorder(
+  passwordFailure?: unknown,
+  createFailure?: unknown,
+): { client: WorkOSClient; calls: Call[] } {
   const calls: Call[] = [];
   return {
     calls,
@@ -117,9 +133,14 @@ function recorder(passwordFailure?: unknown): { client: WorkOSClient; calls: Cal
         },
       },
       organizations: {
-        createOrganization(options, requestOptions) {
-          calls.push({ method: "createOrganization", options, requestOptions });
+        createOrganization(options) {
+          calls.push({ method: "createOrganization", options });
+          if (createFailure !== undefined) return Promise.reject(createFailure);
           return Promise.resolve({ id: "org_01M0" });
+        },
+        getOrganizationByExternalId(externalId) {
+          calls.push({ method: "getOrganizationByExternalId", externalId });
+          return Promise.resolve({ id: "org_01ADOPTED" });
         },
       },
     },
@@ -276,8 +297,7 @@ describe("createWorkOSAuth", () => {
     const result = await provider(client).provisionOrganization({
       name: "Owner Example",
       userId: "user_01HBEQ",
-      idempotencyKey: "signup:user_01HBEQ",
-      externalId: "account_01",
+      externalId: "signup:user_01HBEQ",
       metadata: { source: "signup" },
       roleSlugs: ["owner"],
     });
@@ -287,10 +307,9 @@ describe("createWorkOSAuth", () => {
         method: "createOrganization",
         options: {
           name: "Owner Example",
-          externalId: "account_01",
+          externalId: "signup:user_01HBEQ",
           metadata: { source: "signup" },
         },
-        requestOptions: { idempotencyKey: "signup:user_01HBEQ" },
       },
       {
         method: "createOrganizationMembership",
@@ -309,20 +328,60 @@ describe("createWorkOSAuth", () => {
     await provider(client).provisionOrganization({
       name: "Owner Example",
       userId: "user_01HBEQ",
-      idempotencyKey: "signup:user_01HBEQ",
+      externalId: "signup:user_01HBEQ",
     });
 
     expect(calls).toStrictEqual([
       {
         method: "createOrganization",
-        options: { name: "Owner Example" },
-        requestOptions: { idempotencyKey: "signup:user_01HBEQ" },
+        options: { name: "Owner Example", externalId: "signup:user_01HBEQ" },
       },
       {
         method: "createOrganizationMembership",
         options: { organizationId: "org_01M0", userId: "user_01HBEQ" },
       },
     ]);
+  });
+
+  // The retry after an interrupted signup. Whether the first attempt died between the two calls or
+  // ran to completion in another tab, the second one arrives here, and the only correct answer is
+  // the organization the first attempt already made.
+  it("adopts the organization already holding the external id", async () => {
+    const { client, calls } = recorder(undefined, externalIdTaken());
+    const result = await provider(client).provisionOrganization({
+      name: "Owner Example",
+      userId: "user_01HBEQ",
+      externalId: "signup:user_01HBEQ",
+    });
+
+    expect(calls).toStrictEqual([
+      {
+        method: "createOrganization",
+        options: { name: "Owner Example", externalId: "signup:user_01HBEQ" },
+      },
+      { method: "getOrganizationByExternalId", externalId: "signup:user_01HBEQ" },
+      {
+        method: "createOrganizationMembership",
+        options: { organizationId: "org_01ADOPTED", userId: "user_01HBEQ" },
+      },
+    ]);
+    expect(result).toStrictEqual({ organizationId: "org_01ADOPTED", membershipId: "om_01" });
+  });
+
+  // Only a collision means "somebody got here first". Every other refusal is a refusal, and
+  // adopting on one of those would attach the person to whatever organization the lookup returned.
+  it("does not go looking when the create failed for any other reason", async () => {
+    const { client, calls } = recorder(undefined, new UnauthorizedException("request_01"));
+
+    await expect(
+      provider(client).provisionOrganization({
+        name: "Owner Example",
+        userId: "user_01HBEQ",
+        externalId: "signup:user_01HBEQ",
+      }),
+    ).rejects.toMatchObject({ name: "WorkOSAuthError", reason: "unauthorized" });
+
+    expect(calls.map((call) => call.method)).toStrictEqual(["createOrganization"]);
   });
 
   it("translates SDK failures before they leave the package", async () => {

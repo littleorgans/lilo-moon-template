@@ -137,7 +137,7 @@ no separate ClaimMapper in this package. This is the package `services/ping` wil
 calls. Exports `createWorkOSAuth` and `WorkOSAuthError`.
 Uses the WorkOS SDK freely, because this is the module you rewrite when you swap vendors. Nothing
 outside this package imports `@workos-inc/*`, verified rather than assumed. `provisionOrganization`
-takes an `idempotencyKey`, which is what the callback keys on the WorkOS user id; see
+takes an `externalId`, which is what makes signing up repeatable after an interruption; see
 [The auth screens](auth-screens.md).
 
 `getAuthorizationUrl` and `authenticateWithCode` are the redirect half, added once social login was

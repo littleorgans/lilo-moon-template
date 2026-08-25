@@ -29,8 +29,14 @@ export function organizationNameFor(user: Authentication["user"]): string {
  * claiming a company domain would silently pull in colleagues. On a consumer domain it would be
  * far worse.
  *
- * The idempotency key is the user id, so a callback delivered twice, or two tabs finishing at once,
- * cannot leave one person holding two organizations with no way to tell which is real.
+ * The external id is derived from the user id, which is what makes signing up repeatable. It is
+ * unique across the environment, so a callback delivered twice, or two tabs finishing at once,
+ * cannot leave one person holding two organizations with no way to tell which is real: the second
+ * attempt collides and adopts the organization the first one made. The same collision finishes a
+ * signup that crashed midway, on the person's next sign-in.
+ *
+ * `signup:` prefixes it rather than the bare id, because the external id namespace belongs to the
+ * application and this package is only one of the things that will want to write into it.
  *
  * The token is refreshed afterwards because membership does not retroactively appear in a token
  * that was already minted. Without the refresh, `org_id` stays absent until the token expires.
@@ -44,7 +50,7 @@ export async function ensureOrganization(
   const organization = await auth.provisionOrganization({
     name: organizationNameFor(authentication.user),
     userId: authentication.user.id,
-    idempotencyKey: `signup:${authentication.user.id}`,
+    externalId: `signup:${authentication.user.id}`,
   });
 
   return await auth.refreshTokens({

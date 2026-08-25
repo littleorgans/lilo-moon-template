@@ -113,11 +113,12 @@ describe("ensureOrganization", () => {
   });
 
   // Two tabs finishing at once, or one delivery retried, must not leave a person holding two
-  // organizations with no way to tell which is real.
+  // organizations with no way to tell which is real. The external id is what the provider refuses
+  // to issue twice; provisionOrganization turns that refusal into adopting the first organization.
   it("keys creation on the user so a repeated callback cannot make a second organization", async () => {
     const { auth, calls } = authDouble();
     await ensureOrganization(auth, arrival);
-    expect(calls[0]?.options).toMatchObject({ idempotencyKey: "signup:user_01HBEQ" });
+    expect(calls[0]?.options).toMatchObject({ externalId: "signup:user_01HBEQ" });
   });
 
   it("attaches no domains, so the organization cannot capture a colleague", async () => {
