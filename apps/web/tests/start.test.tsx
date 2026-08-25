@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import { getRouter } from "../src/router.js";
-import { createProbeResponse } from "../src/routes/api.probe.js";
+import { createProbeResponse } from "../src/server/probe.js";
 
 describe("TanStack Start", () => {
   it("constructs the generated route tree", () => {

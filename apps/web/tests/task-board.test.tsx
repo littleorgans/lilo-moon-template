@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import { App } from "../src/app.js";
+import { TaskBoard } from "../src/components/task-board.js";
 
 // Cards render in status order as siblings, so the chunk between one data-status marker and the
 // next is that status's card.
@@ -14,9 +14,9 @@ function statusCard(html: string, status: string): string {
   return chunk;
 }
 
-describe("App", () => {
+describe("TaskBoard", () => {
   it("groups tasks by status using collections", () => {
-    const html = renderToStaticMarkup(<App />);
+    const html = renderToStaticMarkup(<TaskBoard />);
     const done = statusCard(html, "done");
     const todo = statusCard(html, "todo");
 
@@ -29,7 +29,7 @@ describe("App", () => {
   });
 
   it("badges distinguish done from todo", () => {
-    const html = renderToStaticMarkup(<App />);
+    const html = renderToStaticMarkup(<TaskBoard />);
     expect(statusCard(html, "done")).toContain("bg-secondary");
     expect(statusCard(html, "todo")).toContain("border-border");
   });
