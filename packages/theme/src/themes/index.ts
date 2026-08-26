@@ -10,5 +10,13 @@ export const themes = { editor, canvas } satisfies Record<string, ProductTheme>;
 
 export type ThemeName = keyof typeof themes;
 
+/**
+ * The names as a list, for anything that renders one control per theme. Derived with a guard
+ * rather than asserted, so it cannot silently disagree with the record it walks.
+ */
+export const THEME_NAMES: readonly ThemeName[] = Object.keys(themes).filter(
+  (name): name is ThemeName => Object.hasOwn(themes, name),
+);
+
 export { canvas } from "./canvas.js";
 export { editor } from "./editor.js";

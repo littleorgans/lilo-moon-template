@@ -2,6 +2,7 @@ language: "typescript"
 layer: "library"
 dependsOn:
   - "auth"
+  - "theme"
   - "ui"
 tags:
   - "ts-library"

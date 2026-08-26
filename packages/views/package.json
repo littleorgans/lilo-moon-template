@@ -28,6 +28,7 @@
   },
   "dependencies": {
     "@lilo-moon/auth": "workspace:*",
+    "@lilo-moon/theme": "workspace:*",
     "@lilo-moon/ui": "workspace:*"
   },
   "devDependencies": {

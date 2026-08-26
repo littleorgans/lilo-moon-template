@@ -8,6 +8,7 @@
     "@lilo-moon/auth-tanstack": "workspace:*",
     "@lilo-moon/collections": "workspace:*",
     "@lilo-moon/db": "workspace:*",
+    "@lilo-moon/theme": "workspace:*",
     "@lilo-moon/ui": "workspace:*",
     "@lilo-moon/views": "workspace:*",
     "@tanstack/react-router": "catalog:",

@@ -14,7 +14,7 @@
 @source "../../../apps";
 
 /* Mode is a class, not a media query, so the account screen's light/dark/system choice can win. */
-@custom-variant dark (&:is(.dark *));
+@custom-variant dark (&:is([data-mode="dark"] *));
 
 /* Base element styling lives here because the `className` ban means an application cannot put
    utility classes on its own <html> or <body>. */
