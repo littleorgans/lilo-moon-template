@@ -8,11 +8,23 @@
 
 -- The role every request runs as. Named to match the role Supabase already provisions, so this
 -- migration applies unchanged on both a bare Postgres and a Supabase project.
+--
+-- Created by attempting it, not by checking first. A role is cluster-wide while a database is not,
+-- and root:rls-verify and root:drizzle-check each apply this migration to their own throwaway
+-- database inside one shared cluster, concurrently. `IF NOT EXISTS (SELECT ... FROM pg_roles)` is
+-- a check followed by an act: against a cold cluster both tasks find the role absent, both create
+-- it, and the loser fails the whole migration with `duplicate key value violates unique constraint
+-- "pg_authid_rolname_index"`. Measured on CI 2026-08-26. It never reproduced locally, because a
+-- development cluster has held the role since the first run and the check short-circuits.
+--
+-- Both conditions are caught because the two ways of losing raise different codes:
+-- `duplicate_object` (42710) when the role already existed before this statement, and
+-- `unique_violation` (23505) when another session created it during this statement.
 DO $$
 BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
-    CREATE ROLE authenticated NOLOGIN;
-  END IF;
+  CREATE ROLE authenticated NOLOGIN;
+EXCEPTION
+  WHEN duplicate_object OR unique_violation THEN NULL;
 END
 $$;
 
