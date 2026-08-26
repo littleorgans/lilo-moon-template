@@ -51,3 +51,6 @@ runtime, the services, the access loader. `src/components/` holds shell componen
 features. Everything a single feature owns, its components and its server logic together, lives in
 `src/features/<name>/`, so the files that change together sit together and a dead feature is one
 directory to delete. `apps/web` keeps its task board in `src/features/tasks/` as the exemplar.
+A test that proves one module takes that module's filename, and `tests/` mirrors the `src/` paths
+once it outgrows a flat listing; suite-level tests stay at the `tests/` root. `src/server/services.ts`
+is the composition root, one lazy getter per external service and nothing else.

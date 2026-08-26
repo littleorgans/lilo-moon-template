@@ -33,6 +33,12 @@ shared `components/` is a pile in which nothing says what falls together. `apps/
 board in `features/tasks/` as the exemplar, and anything two applications want moves to
 `packages/`, not to a shared directory inside either.
 
+Tests follow the same seam. A test that proves one module takes that module's filename, and once
+`tests/` outgrows a flat listing it mirrors the `src/` paths, so the mapping from test to module
+never needs a search. Suite-level tests that cross modules, the wiring and route-tree proofs, stay
+at the `tests/` root. `server/services.ts` states its own rule in place: it is the composition
+root, one lazy getter per external service and nothing else.
+
 The generator's `.raw` files are byte-copies of `apps/web`, and `root:template-check` fails CI when
 they drift. The deliberate differences are allowlisted in `scripts/template-drift.mjs`, each with
 its reason, so a new difference has to be argued into that file rather than accumulating silently.
