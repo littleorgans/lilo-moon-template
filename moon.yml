@@ -178,6 +178,21 @@ tasks:
       cache: false
       runInCI: false
 
+  # The generator's .raw files are byte-copies of apps/web that nothing else keeps in sync; drift
+  # surfaces as a broken first `just ci` in the next generated application. The deliberate
+  # differences are allowlisted in the script, each with its reason.
+  template-check:
+    description: "Verify the application template's raw files match apps/web"
+    type: "test"
+    command: "node scripts/template-drift.mjs"
+    inputs:
+      - ".moon/templates/application/**/*"
+      - "apps/web/src/**/*"
+      - "apps/web/tests/**/*"
+      - "scripts/template-drift.mjs"
+    options:
+      runInCI: "always"
+
   theme-check:
     description: "Verify the theme CSS artifact matches the typed tokens"
     type: "test"

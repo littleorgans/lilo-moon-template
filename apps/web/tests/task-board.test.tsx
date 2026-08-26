@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import { TaskBoard } from "../src/components/task-board.js";
+import { TaskBoard } from "../src/features/tasks/task-board.js";
 
 // Cards render in status order as siblings, so the chunk between one data-status marker and the
 // next is that status's card.

@@ -44,3 +44,10 @@ counts, which is a runnable state rather than a broken one.
 `src/components/signed-in-route.tsx`; the panel puts it under its own heading. `apps/web` passes a
 task board. Building blocks live in `@lilo-moon/ui`, composed views in `@lilo-moon/views`, and a
 view that more than one application would want belongs in the latter rather than here.
+
+The layout has one seam, and every directory sits on a side of it. `src/routes/` wires, one file
+per URL, flat dot notation only. `src/server/` composes what every page shares: the identity
+runtime, the services, the access loader. `src/components/` holds shell components shared across
+features. Everything a single feature owns, its components and its server logic together, lives in
+`src/features/<name>/`, so the files that change together sit together and a dead feature is one
+directory to delete. `apps/web` keeps its task board in `src/features/tasks/` as the exemplar.
