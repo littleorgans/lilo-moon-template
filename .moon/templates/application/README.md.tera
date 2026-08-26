@@ -1,0 +1,46 @@
+# {{ name | replace(from="-", to=" ") | title }}
+
+A TanStack Start application on Nitro, with signing in already wired.
+
+```bash
+moon run {{ name | kebab_case }}:dev      # http://localhost:{{ port }}
+moon run {{ name | kebab_case }}:build
+moon run {{ name | kebab_case }}:preview  # the Nitro server, same port
+```
+
+## What is already here
+
+Every route below is wiring. The behaviour lives in `@lilo-moon/auth-tanstack` and the packages
+under it, so there is nothing to reimplement and nothing to keep in sync.
+
+| Route                    | What it does                                                |
+| ------------------------ | ----------------------------------------------------------- |
+| `/`                      | Signed out. Google and the email-code path, both ways in.   |
+| `/api/auth/start`        | Sets the state cookie, hands the browser to the provider.   |
+| `/callback`              | Checks state, exchanges the code, creates the organization. |
+| `/api/auth/email/start`  | Emails a six digit code.                                    |
+| `/api/auth/email/verify` | Checks it, or returns to `/verify-email?retry=true`.        |
+| `/verify-email`          | Where the code is typed.                                    |
+| `/app`                   | Signed in. Behind the four access states.                   |
+| `/session-error`         | A token that verified and made no sense. No sign-in button. |
+| `/api/auth/signout`      | Clears the session.                                         |
+
+`src/server/auth.ts` holds the only three decisions an application makes about signing in: the
+redirect identity path, where a completed sign-in lands, and where the code is typed.
+
+## Before it can sign anybody in
+
+**Register `http://localhost:{{ port }}/callback` with the AuthKit application, and set
+`WORKOS_REDIRECT_URI` to it in `.env.local`.** That variable is a single value shared by every
+application in this repo, so two applications cannot both hold a correct one at the same time. Run
+one at a time locally, or give each its own WorkOS application.
+
+`DATABASE_URL` is optional. Without it the signed-in page shows the verified claims and no row
+counts, which is a runnable state rather than a broken one.
+
+## Where your product goes
+
+`SignedInPanel` takes children. Render your surface there, in
+`src/components/signed-in-route.tsx`; the panel puts it under its own heading. `apps/web` passes a
+task board. Building blocks live in `@lilo-moon/ui`, composed views in `@lilo-moon/views`, and a
+view that more than one application would want belongs in the latter rather than here.

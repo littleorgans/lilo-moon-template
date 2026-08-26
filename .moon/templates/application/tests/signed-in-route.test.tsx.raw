@@ -1,0 +1,39 @@
+import type { Principal } from "@lilo-moon/auth";
+import type * as ReactRouter from "@tanstack/react-router";
+import { renderToStaticMarkup } from "react-dom/server";
+import { describe, expect, it, vi } from "vitest";
+
+import type { SignedInView } from "../src/server/signed-in.js";
+
+const view: SignedInView = {
+  principal: {
+    userId: "user_01HBEQ",
+    orgId: "org_01M0",
+    // What a live sign-in actually returns: the environment's default role, and no permissions.
+    // See docs/auth-screens.md. A fixture claiming `owner` would describe a role that does not
+    // exist in the environment this template signs in against.
+    roles: ["member"],
+    permissions: [],
+    entitlements: [],
+  } satisfies Principal,
+  rows: { accounts: 1, profiles: 1 },
+  databaseError: null,
+};
+
+// getRouteApi is mocked rather than a router being stood up: the component's own job is to hand the
+// loader's data to the panel, and that is what this asserts. The panel itself is tested in
+// @lilo-moon/views, with no mocking at all.
+vi.mock("@tanstack/react-router", async (importOriginal) => ({
+  ...(await importOriginal<typeof ReactRouter>()),
+  getRouteApi: () => ({ useLoaderData: () => view }),
+}));
+
+const { SignedInRoute } = await import("../src/components/signed-in-route.js");
+
+describe("SignedInRoute", () => {
+  it("renders the panel from the loader's data", () => {
+    const html = renderToStaticMarkup(<SignedInRoute />);
+
+    expect(html).toContain("user_01HBEQ");
+  });
+});

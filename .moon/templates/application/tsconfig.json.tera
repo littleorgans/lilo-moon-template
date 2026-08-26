@@ -4,6 +4,27 @@
   "compilerOptions": {
     "lib": ["ES2024", "DOM", "DOM.Iterable"],
     "jsx": "react-jsx",
+    "verbatimModuleSyntax": false,
     "outDir": "../../.moon/cache/types/apps/{{ name | kebab_case }}"
-  }
+  },
+  "references": [
+    {
+      "path": "../../packages/auth"
+    },
+    {
+      "path": "../../packages/auth-tanstack"
+    },
+    {
+      "path": "../../packages/db"
+    },
+    {
+      "path": "../../packages/ui"
+    },
+    {
+      "path": "../../packages/views"
+    },
+    {
+      "path": "../../packages/vite-config"
+    }
+  ]
 }

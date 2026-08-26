@@ -20,8 +20,8 @@ setup:
 new-package name:
     moon generate library -- --name "{{name}}"
 
-new-app name:
-    moon generate application -- --name "{{name}}"
+new-app name port="5200":
+    moon generate application -- --name "{{name}}" --port "{{port}}"
 
 rename $org $scope $slug:
     bash scripts/rename-template.sh "$org" "$scope" "$slug"
