@@ -9,6 +9,11 @@ import type { Database } from "@lilo-moon/db";
  * deciding which.
  *
  * Built lazily so importing a route in a test does not demand a `DATABASE_URL`.
+ *
+ * This file is the composition root, and its rule is one lazy getter per external service and
+ * nothing else. A second service copies this getter's shape; logic that uses a service lives with
+ * its feature or in `packages/`, never here, or this file becomes the pile every layer directory
+ * becomes.
  */
 let database: Database | null | undefined;
 
