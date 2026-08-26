@@ -1,6 +1,6 @@
 {
   "name": "@lilo-moon/views",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Reusable product views: composed from the ui building blocks, aware of the product's types.",
   "license": "MIT",
   "repository": {

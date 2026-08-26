@@ -1,6 +1,6 @@
 {
   "name": "@lilo-moon/auth-tanstack",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "description": "TanStack Start adapter for the auth session: cookies, runtime, and route options.",
   "license": "MIT",
   "repository": {

@@ -1,6 +1,6 @@
 {
   "name": "@lilo-moon/theme",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Typed design token contract, product themes, and the CSS generated from them.",
   "license": "MIT",
   "repository": {
