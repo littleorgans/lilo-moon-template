@@ -21,6 +21,22 @@ oxfmt, secretlint, and audit live in `devDependencies` in the root `package.json
 `justfile` holds aliases only. Task commands, inputs, outputs, and deps live in moon. Two command
 paths drift. CI runs `moon ci`.
 
+## An application's inside has one seam
+
+Every application lays out `src/` the same way, and the layout has one seam: shell against product.
+`routes/` wires, one file per URL, flat dot notation only. `server/` composes what every page
+shares: the identity runtime, the services, the access loader. `components/` holds shell components
+shared across features. Everything a single feature owns, components and server logic together,
+lives in `features/<name>/`, so the files that change together sit together and a dead feature is
+one directory to delete. Layer directories are where growing codebases rot: at five features a
+shared `components/` is a pile in which nothing says what falls together. `apps/web` keeps its task
+board in `features/tasks/` as the exemplar, and anything two applications want moves to
+`packages/`, not to a shared directory inside either.
+
+The generator's `.raw` files are byte-copies of `apps/web`, and `root:template-check` fails CI when
+they drift. The deliberate differences are allowlisted in `scripts/template-drift.mjs`, each with
+its reason, so a new difference has to be argued into that file rather than accumulating silently.
+
 ## One linter, one formatter
 
 oxlint and oxfmt are the gates. The Oxc editor extension is the same engine, so format on save

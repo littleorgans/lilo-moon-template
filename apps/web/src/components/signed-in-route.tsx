@@ -1,7 +1,7 @@
 import { SignedInPanel } from "@lilo-moon/views/signed-in-panel";
 import { getRouteApi } from "@tanstack/react-router";
 
-import { TaskBoard } from "./task-board.js";
+import { TaskBoard } from "../features/tasks/task-board.js";
 
 // Resolved once at module scope: a hook selected off a fresh object on every render is a different
 // function each time, which is exactly what the rules of hooks forbid.
