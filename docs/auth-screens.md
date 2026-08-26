@@ -291,15 +291,15 @@ Settled by this page: the screen list, automatic organization creation and its t
 failure mapping, and that free-tier policy is out of scope for the template. The callback turned
 out not to need a screen on the success path, for the reason recorded above.
 
-**Built so far:** the signed-out page, the callback, the two-step email-code path, the screens for
-a token that fails verification, and a styled signed-in page that prints the Principal. The state check, the code exchange, organization
-creation, the refresh, and just in time row creation all run, **proven by a real Google sign-in on
-2026-08-24 and a real email-code sign-in on 2026-08-25**, and the callback renders the failure
-above for anything the provider refuses. The four access states were **proven against a live
-staging session on 2026-08-25**: a valid token renders the page, a tampered signature lands on the
-sign-in page with the notice and a cleared cookie and one `auth.token.failed` line, and an expired
-token is refreshed without the person seeing anything. What is not built: every steady-state
-surface.
+**Built so far:** the signed-out page, the callback, the two-step email-code path, the screens for a
+token that fails verification, and a styled signed-in page that prints the Principal. The state
+check, the code exchange, organization creation, the refresh, and just in time row creation all run,
+**proven by a real Google sign-in on 2026-08-24 and a real email-code sign-in on 2026-08-25**, and
+the callback renders the failure above for anything the provider refuses. The four access states
+were **proven against a live staging session on 2026-08-25**: a valid token renders the page, a
+tampered signature lands on the sign-in page with the notice and a cleared cookie and one
+`auth.token.failed` line, and an expired token is refreshed without the person seeing anything. What
+is not built: every steady-state surface.
 
 Decided 2026-08-24: free plan limits are defined per product, never by the template. The token
 carries tier names, not quantities, so each product maps its own tiers to its own limits in its own
@@ -307,8 +307,31 @@ code, and the template ships only the entitlement check and the upgrade prompt. 
 `claims` failure is delivered nowhere beyond its log line for now. The screen informs the person,
 the line makes the failure findable, and paging arrives when there is something to page.
 
-Not settled: which feature the entitlement gate protects in a real product, which arrives with the
-first product; **whether the person who creates a workspace should hold an `owner` role in it**,
-raised by the live sign-in above and answerable only by deciding what an owner may do that a member
-may not; and whether a second app in the template renders these screens differently, which is open
-question 4 in [the auth proposal](auth-proposal.md).
+Decided 2026-08-26: **whether a workspace creator holds `owner` is a per-product decision, and the
+template does not take it.** Same shape as the plan limits above. A role is a product's authority
+model written down, and a template that shipped one would be shipping an opinion about a product
+that does not exist yet.
+
+The environment was read on 2026-08-26 to see what the decision is actually between, and the answer
+is narrower than the question implied: **there is no `owner` role to hold.** The environment defines
+two roles and neither is one.
+
+| Slug     | Description             | Permissions                                          |
+| -------- | ----------------------- | ---------------------------------------------------- |
+| `member` | "The default user role" | none                                                 |
+| `admin`  |                         | `widgets:users-table:manage`, `widgets:dsync:manage` |
+
+Two things follow. `member` is what a creator gets because it is the environment's default and
+`ensureOrganization` passes no `roleSlugs`, which is the correct baseline: it defers to
+configuration rather than hard-coding a choice. And `admin` is a trap. It reads like the answer to
+"the creator should have more", and its permissions are WorkOS's own admin-portal widgets rather
+than any authority over the product. Granting it would give somebody a users table and no more say
+over billing than they had before.
+
+So the lever for a product is: define the roles the product needs in its WorkOS environment, then
+pass `roleSlugs` from `ensureOrganization`. `provisionOrganization` already accepts them, so this
+is one argument rather than a change to the flow.
+
+Still not settled: which feature the entitlement gate protects in a real product, which arrives with
+the first product; and whether a second app in the template renders these screens differently, which
+is open question 4 in [the auth proposal](auth-proposal.md).
