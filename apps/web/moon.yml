@@ -2,6 +2,7 @@ language: "typescript"
 layer: "application"
 dependsOn:
   - "auth"
+  - "theme"
   - "ui"
   - "views"
   - "auth-tanstack"

@@ -53,9 +53,11 @@ function themeInline(): string {
 
 /**
  * Renders every theme into one stylesheet: the default theme at `:root` and `.dark`, and every
- * theme (the default included) under `[data-theme="name"]`, with dark handled whether the mode
- * class sits on the same element or an ancestor. Mode is a viewer preference and theme a product
- * identity, so the two selectors compose instead of multiplying into named combinations.
+ * theme (the default included) under `[data-theme="name"]`, with dark handled whether the
+ * `data-mode="dark"` attribute sits on the same element or an ancestor. Mode is a viewer
+ * preference and theme a product identity, so the two attributes compose instead of multiplying
+ * into named combinations. Both are attributes so an application can stamp them on `<html>`
+ * without holding a class or style prop, which the lint config forbids applications.
  */
 export function renderThemesCss(
   themes: Readonly<Record<string, ProductTheme>>,
@@ -72,7 +74,7 @@ export function renderThemesCss(
       declarations(options.defaultTheme, "light", defaultTheme.light, defaultTheme.radius),
     ),
     block(
-      ".dark",
+      '[data-mode="dark"]',
       declarations(options.defaultTheme, "dark", defaultTheme.dark, defaultTheme.radius),
     ),
   ];
@@ -84,7 +86,7 @@ export function renderThemesCss(
     blocks.push(
       block(`[data-theme="${name}"]`, declarations(name, "light", theme.light, theme.radius)),
       block(
-        `.dark[data-theme="${name}"],\n.dark [data-theme="${name}"]`,
+        `[data-mode="dark"][data-theme="${name}"],\n[data-mode="dark"] [data-theme="${name}"]`,
         declarations(name, "dark", theme.dark, theme.radius),
       ),
     );

@@ -11,6 +11,9 @@
       "path": "../auth"
     },
     {
+      "path": "../theme"
+    },
+    {
       "path": "../ui"
     }
   ]

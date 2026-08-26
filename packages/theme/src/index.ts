@@ -7,5 +7,15 @@ export { applyTheme, clearTheme } from "./apply.js";
 export type { ThemeMode, ThemeTarget } from "./apply.js";
 export { validateTheme } from "./validate.js";
 export type { ThemeIssue, ThemeValidation } from "./validate.js";
-export { canvas, editor, themes } from "./themes/index.js";
+export { THEME_NAMES, canvas, editor, themes } from "./themes/index.js";
 export type { ThemeName } from "./themes/index.js";
+export {
+  DEFAULT_PREFERENCE,
+  DEFAULT_THEME_NAME,
+  THEME_COOKIE,
+  cookieValue,
+  nextPreference,
+  parseThemePreference,
+  serializeThemePreference,
+} from "./preference.js";
+export type { ThemePreference } from "./preference.js";

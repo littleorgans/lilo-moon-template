@@ -24,6 +24,8 @@ under it, so there is nothing to reimplement and nothing to keep in sync.
 | `/app`                   | Signed in. Behind the four access states.                   |
 | `/session-error`         | A token that verified and made no sense. No sign-in button. |
 | `/api/auth/signout`      | Clears the session.                                         |
+| `/theme`                 | The theme lab: every component and token, live switcher.    |
+| `/api/theme`             | Sets the preference cookie, redirects back.                 |
 
 `src/server/auth.ts` holds the only three decisions an application makes about signing in: the
 redirect identity path, where a completed sign-in lands, and where the code is typed.

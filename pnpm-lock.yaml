@@ -152,6 +152,9 @@ importers:
       '@lilo-moon/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@lilo-moon/theme':
+        specifier: workspace:*
+        version: link:../../packages/theme
       '@lilo-moon/ui':
         specifier: workspace:*
         version: link:../../packages/ui
@@ -316,6 +319,9 @@ importers:
       '@lilo-moon/auth':
         specifier: workspace:*
         version: link:../auth
+      '@lilo-moon/theme':
+        specifier: workspace:*
+        version: link:../theme
       '@lilo-moon/ui':
         specifier: workspace:*
         version: link:../ui

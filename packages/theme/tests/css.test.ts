@@ -9,12 +9,14 @@ const css = renderThemesCss(themes, { defaultTheme: "editor" });
 describe("renderThemesCss", () => {
   it("paints the default theme at :root and .dark", () => {
     expect(css).toContain(`:root {\n  --background: ${editor.light.background};`);
-    expect(css).toContain(`.dark {\n  --background: ${editor.dark.background};`);
+    expect(css).toContain(`[data-mode="dark"] {\n  --background: ${editor.dark.background};`);
   });
 
   it("addresses every theme by data-theme, dark on the element or an ancestor", () => {
     expect(css).toContain(`[data-theme="canvas"] {\n  --background: ${canvas.light.background};`);
-    expect(css).toContain('.dark[data-theme="canvas"],\n.dark [data-theme="canvas"]');
+    expect(css).toContain(
+      '[data-mode="dark"][data-theme="canvas"],\n[data-mode="dark"] [data-theme="canvas"]',
+    );
     expect(css).toContain(`[data-theme="editor"] {`);
   });
 
