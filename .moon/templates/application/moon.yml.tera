@@ -1,0 +1,16 @@
+language: "typescript"
+layer: "application"
+dependsOn:
+  - "auth"
+  - "ui"
+  - "views"
+  - "auth-tanstack"
+  - "db"
+
+tasks:
+  preview:
+    # The inherited task pins the port apps/web uses. A Nitro server takes its port from the
+    # environment and reads no Vite config, so this is the only place a second application can
+    # move it, and it has to agree with `server.port` in vite.config.ts.
+    env:
+      PORT: "{{ port }}"

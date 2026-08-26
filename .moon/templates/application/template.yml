@@ -1,6 +1,8 @@
-title: "Vite React application"
+title: "TanStack Start application with auth wired"
 description: |
-  Creates a Vite React application with source, tests, and production build configuration.
+  Creates a TanStack Start application on Nitro, with the WorkOS sign-in paths already wired:
+  the redirect callback, the two-step email-code path, the signed-in route behind the four
+  access states, and the screens for a session that ended or a token that cannot be read.
 destination: "/apps/[name | kebab_case]"
 variables:
   name:
@@ -8,3 +10,11 @@ variables:
     default: "hello-app"
     required: true
     prompt: "Application name?"
+  port:
+    type: "number"
+    default: 5200
+    required: true
+    # Not 5173, and not another app's port. The dev server and the Nitro preview both bind this,
+    # and it has to match the redirect URI registered with the identity provider, so a port that
+    # silently moves breaks sign-in rather than just the address bar. apps/web holds 5199.
+    prompt: "Dev server port? (must be free, and match the app's registered redirect URI)"

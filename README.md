@@ -85,10 +85,15 @@ pnpm install
 moon sync
 ```
 
-`new-package` runs `moon generate library`. `new-app` runs `moon generate application`. Both write a
-member that already typechecks, tests, lints, formats, and builds. `moon sync` adds new
-`references` in the root `tsconfig.json`. After you delete a member, prune the missing path. That
-command does not drop a path whose project is gone. `moon.yml` `tasks.project-refs` then fails
+`new-package` runs `moon generate library`. `new-app` runs `moon generate application`, which writes
+a TanStack Start application on Nitro with signing in already wired: the redirect callback, the
+email-code path, the signed-in route behind the four access states, and the screens for a session
+that ended or a token that cannot be read. It takes a port, defaulting to 5200, because `apps/web`
+holds 5199 and a dev server that finds its port taken moves rather than failing. The generated
+`README.md` names what has to be registered with the identity provider before it can sign anybody
+in. Both write a member that already typechecks, tests, lints, formats, and builds. `moon sync` adds
+new `references` in the root `tsconfig.json`. After you delete a member, prune the missing path.
+That command does not drop a path whose project is gone. `moon.yml` `tasks.project-refs` then fails
 `just ci` with TS6053. The instantiation guide covers the prune.
 
 Inspect the result with `moon project billing` and `moon project console`. Then prove the gates can
