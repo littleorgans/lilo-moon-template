@@ -3,13 +3,12 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import { getRouter } from "../src/router.js";
-import { createProbeResponse } from "../src/server/probe.js";
 
 describe("TanStack Start", () => {
   it("constructs the generated route tree", () => {
     const router = getRouter();
 
-    expect(router.routesByPath["/api/probe"]).toBeDefined();
+    expect(router.routesByPath["/"]).toBeDefined();
   });
 
   it("renders the signed-out route through the router", async () => {
@@ -89,16 +88,5 @@ describe("TanStack Start", () => {
 
     expect(router.routesByPath["/callback"]).toBeDefined();
     expect(router.routesByPath["/app"]).toBeDefined();
-  });
-
-  it("computes the probe response in the server process", async () => {
-    const response = createProbeResponse();
-    const body: unknown = await response.json();
-
-    expect(body).toEqual({
-      computedAt: expect.any(String),
-      doneCount: 2,
-      processId: process.pid,
-    });
   });
 });

@@ -4,7 +4,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@lilo-moon/ui/componen
 import { Row, Stack } from "@lilo-moon/ui/components/layout";
 import { Text } from "@lilo-moon/ui/components/text";
 
-import { TASKS } from "../tasks.js";
+/** The demo product's data. The board is its only reader, so it lives beside the board. */
+const TASKS = [
+  { id: "scout", status: "done", title: "Scout baseline" },
+  { id: "library", status: "done", title: "Library exemplar" },
+  { id: "app", status: "todo", title: "Application exemplar" },
+] as const;
 
 /** The demo product itself, rendered inside the signed-in panel. */
 export function TaskBoard() {
