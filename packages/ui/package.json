@@ -22,6 +22,12 @@
       "import": "./dist/components/*.js",
       "default": "./dist/components/*.js"
     },
+    "./hooks/*": {
+      "types": "./dist/hooks/*.d.ts",
+      "@lilo-moon/source": "./src/hooks/*.ts",
+      "import": "./dist/hooks/*.js",
+      "default": "./dist/hooks/*.js"
+    },
     "./lib/*": {
       "types": "./dist/lib/*.d.ts",
       "@lilo-moon/source": "./src/lib/*.ts",
