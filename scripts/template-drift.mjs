@@ -21,6 +21,8 @@ const deliberateDifferences = new Map([
   ["tests/signed-in-route.test.tsx", "the template omits the demo product"],
   // Template-only: apps/web is never deployed, so it serves no robots.txt.
   ["public/robots.txt", "template-only, apps/web serves none"],
+  // Template-only: keeps features/ present in a generated app; apps/web's is not empty.
+  ["src/features/.gitkeep", "template-only, apps/web's features/ has content"],
 ]);
 
 function rawFiles(directory) {
