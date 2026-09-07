@@ -1,4 +1,4 @@
-import { hkdfSync } from "node:crypto";
+import { createHash, hkdfSync } from "node:crypto";
 
 /**
  * Everything the identity half needs, read from the environment exactly once.
@@ -10,6 +10,7 @@ import { hkdfSync } from "node:crypto";
  */
 export interface AuthConfig {
   readonly clientId: string;
+  readonly cookieNamespace: string;
   readonly apiKey: string;
   readonly redirectUri: string;
   /** Derived from the cookie password, never the password itself. */
@@ -79,15 +80,29 @@ export function loadAuthConfig(env: NodeJS.ProcessEnv = process.env): AuthConfig
 
   const clientId = values.WORKOS_CLIENT_ID;
   const redirectUri = values.WORKOS_REDIRECT_URI;
+  const redirect = new URL(redirectUri);
+  if (
+    redirect.protocol !== "https:" &&
+    !(
+      redirect.protocol === "http:" &&
+      ["localhost", "127.0.0.1", "[::1]"].includes(redirect.hostname)
+    )
+  ) {
+    throw new Error("WORKOS_REDIRECT_URI must use HTTPS except on localhost.");
+  }
 
   return {
     clientId,
+    cookieNamespace: createHash("sha256")
+      .update(`${clientId}:${redirect.href}`)
+      .digest("hex")
+      .slice(0, 16),
     apiKey: values.WORKOS_API_KEY,
     redirectUri,
     cookieKey: cookieKeyFrom(values.WORKOS_COOKIE_PASSWORD),
     issuer: `https://api.workos.com/user_management/${clientId}`,
     jwksUri: `https://api.workos.com/sso/jwks/${clientId}`,
     // A Secure cookie is silently dropped over plain http, which localhost is.
-    secureCookies: !redirectUri.startsWith("http://"),
+    secureCookies: redirect.protocol === "https:",
   };
 }

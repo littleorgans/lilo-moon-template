@@ -12,12 +12,13 @@ const headingClasses = {
 
 interface HeadingProps extends React.ComponentProps<"h1"> {
   readonly level?: keyof typeof headingTags;
+  readonly size?: keyof typeof headingClasses;
 }
 
-/** Semantic level and visual size travel together; a page that needs them apart is misstructured. */
-export function Heading({ level = 1, className, ...props }: HeadingProps) {
+/** Heading level describes document structure; visual size can vary independently. */
+export function Heading({ level = 1, size = level, className, ...props }: HeadingProps) {
   const Tag = headingTags[level];
-  return <Tag data-slot="heading" className={cn(headingClasses[level], className)} {...props} />;
+  return <Tag data-slot="heading" className={cn(headingClasses[size], className)} {...props} />;
 }
 
 const toneClasses = {

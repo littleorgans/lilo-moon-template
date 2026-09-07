@@ -1,13 +1,5 @@
 language: "typescript"
 layer: "application"
-dependsOn:
-  - "auth"
-  - "theme"
-  - "ui"
-  - "views"
-  - "auth-tanstack"
-  - "db"
-
 tasks:
   preview:
     # The inherited task pins the port apps/web uses. A Nitro server takes its port from the

@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 
 import type { AuthFailureReport, CookieJar, CookieOptions } from "@lilo-moon/auth-session";
-import { SESSION_COOKIE, STATE_COOKIE, seal } from "@lilo-moon/auth-session";
+import { EMAIL_COOKIE, SESSION_COOKIE, STATE_COOKIE, seal } from "@lilo-moon/auth-session";
 import { describe, expect, it } from "vitest";
 
 import { createAuthRuntime } from "../src/runtime.js";
@@ -41,10 +41,16 @@ function jarWith(present: Readonly<Record<string, string>> = {}): {
   };
 }
 
+const origin = "http://localhost:5199";
+const signout = {
+  request: new Request(`${origin}/api/auth/signout`, { method: "POST", headers: { origin } }),
+};
+
 const runtimeWith = (jar: CookieJar, provider: "GoogleOAuth" | "authkit" = "GoogleOAuth") =>
   createAuthRuntime({
     provider,
     signedInPath: "/app",
+    organizationPolicy: "personal",
     codeEntryPath: "/verify-email",
     env,
     cookies: jar,
@@ -58,6 +64,7 @@ describe("createAuthRuntime", () => {
       createAuthRuntime({
         provider: "GoogleOAuth",
         signedInPath: "/app",
+        organizationPolicy: "personal",
         codeEntryPath: "/verify-email",
         env: {},
       }),
@@ -68,6 +75,7 @@ describe("createAuthRuntime", () => {
     const runtime = createAuthRuntime({
       provider: "GoogleOAuth",
       signedInPath: "/app",
+      organizationPolicy: "personal",
       codeEntryPath: "/verify-email",
       env: {},
     });
@@ -89,7 +97,7 @@ describe("startSignIn", () => {
     const url = new URL(response.headers.get("location") ?? "");
     expect(url.host).toBe("api.workos.com");
     expect(url.searchParams.get("state")).toBe(written[0]?.value);
-    expect(written[0]?.name).toBe(STATE_COOKIE);
+    expect(written[0]?.name).toMatch(new RegExp(`^[a-f0-9]{16}_${STATE_COOKIE}$`));
   });
 
   // The provider is the application's choice. Hardcoding it would mean a product that wants the
@@ -113,8 +121,14 @@ describe("completeSignIn", () => {
   // Reached through the runtime rather than the handler, so this proves the runtime supplies the
   // jar and the key. A forged state must stop here, before any provider call.
   it("refuses a forged state", async () => {
-    const { jar } = jarWith({ [STATE_COOKIE]: "issued" });
-    const response = await runtimeWith(jar).completeSignIn({
+    const present: Record<string, string> = {};
+    const { jar, written } = jarWith(present);
+    const runtime = runtimeWith(jar);
+    runtime.startSignIn(null);
+    const state = written[0];
+    if (state === undefined) throw new Error("No state cookie was written");
+    present[state.name] = state.value;
+    const response = await runtime.completeSignIn({
       request: new Request("http://localhost:5199/callback?code=c&state=forged"),
     });
     expect(response.status).toBe(400);
@@ -151,10 +165,14 @@ describe("the email handlers through the runtime", () => {
 describe("endSession", () => {
   it("clears the session and returns to the sign-in page", () => {
     const { jar, cleared } = jarWith();
-    const response = runtimeWith(jar).endSession(null);
+    const response = runtimeWith(jar).endSession(signout);
 
-    expect(cleared).toStrictEqual([SESSION_COOKIE]);
-    expect(response.headers.get("location")).toBe("/");
+    expect(cleared.map((name) => name.slice(17))).toStrictEqual([
+      SESSION_COOKIE,
+      STATE_COOKIE,
+      EMAIL_COOKIE,
+    ]);
+    expect(response.headers.get("location")).toBe(`${origin}/`);
   });
 });
 
@@ -181,6 +199,7 @@ describe("access", () => {
     const runtime = createAuthRuntime({
       provider: "GoogleOAuth",
       signedInPath: "/app",
+      organizationPolicy: "personal",
       codeEntryPath: "/verify-email",
       env,
       cookies: jar,
@@ -188,13 +207,18 @@ describe("access", () => {
     });
     // Sealed with the runtime's own derived key, so the cookie opens and the token inside is what
     // fails. Sealing with any other key would prove nothing but that the key is wrong.
-    present[SESSION_COOKIE] = seal(runtime.services().config.cookieKey, {
-      accessToken: "not.a.jwt",
-      refreshToken: "r",
-    });
+    present[`${runtime.services().config.cookieNamespace}_${SESSION_COOKIE}`] = seal(
+      runtime.services().config.cookieKey,
+      {
+        accessToken: "not.a.jwt",
+        refreshToken: "r",
+      },
+    );
 
     expect(await runtime.access()).toStrictEqual({ status: "ended" });
-    expect(cleared).toStrictEqual([SESSION_COOKIE]);
+    expect(cleared).toStrictEqual([
+      `${runtime.services().config.cookieNamespace}_${SESSION_COOKIE}`,
+    ]);
     expect(reports.map((report) => report.reason)).toStrictEqual(["malformed"]);
   });
 });

@@ -90,3 +90,14 @@ describe("TanStack Start", () => {
     expect(router.routesByPath["/app"]).toBeDefined();
   });
 });
+
+it("renders a retry page for a temporary auth outage", async () => {
+  const router = getRouter();
+  router.update({
+    history: createMemoryHistory({ initialEntries: ["/session-error?retry=true"] }),
+  });
+  await router.load();
+  const html = renderToStaticMarkup(<RouterProvider router={router} />);
+  expect(html).toContain("Your session has been kept");
+  expect(html).toContain('href="/app"');
+});

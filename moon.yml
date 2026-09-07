@@ -42,6 +42,59 @@ fileGroups:
   tests: []
 
 tasks:
+  rename:
+    type: "run"
+    command: "bash scripts/rename-template.sh"
+    options:
+      cache: false
+      runInCI: false
+
+  rename-verify:
+    type: "run"
+    command: "bash scripts/rename-template.sh --verify"
+    options:
+      cache: false
+      runInCI: false
+
+  prune-references:
+    description: "Prune generated root references after removing workspace members"
+    type: "run"
+    command: "node scripts/prune-references.mjs"
+    options:
+      cache: false
+      runInCI: false
+
+  clean:
+    type: "run"
+    script: "node scripts/clean.mjs && moon clean"
+    options:
+      cache: false
+      runInCI: false
+
+  consumer-check:
+    description: "Generate, customize and run a consumer, then repeat with packed libraries"
+    type: "test"
+    command: "node scripts/consumer-check.mjs"
+    inputs:
+      - "@globs(sources)"
+      - "scripts/**/*"
+      - "pnpm-lock.yaml"
+    options:
+      cache: false
+      runInCI: "always"
+
+  scripts-test:
+    type: "test"
+    command: "node --test scripts/tests/*.test.mjs"
+    inputs:
+      - "scripts/**/*"
+      - ".moon/**/*"
+      - "renovate.json"
+      - ".github/workflows/**/*"
+      - ".prototools"
+    options:
+      runInCI: "always"
+
   lint:
     type: "test"
     command: "oxlint --type-aware --deny-warnings --no-error-on-unmatched-pattern"
@@ -168,41 +221,27 @@ tasks:
       cache: false
       runInCI: "always"
 
-  theme-generate:
-    description: "Regenerate the theme CSS artifact from the typed tokens"
+  # The generator's .raw files are byte-copies of apps/web that nothing else keeps in sync; drift
+  # surfaces as a broken first `just ci` in the next generated application. The deliberate
+  # differences are allowlisted in the script, each with its reason.
+  template-update:
+    description: "Copy reference changes into raw application template files"
     type: "run"
-    command: "node scripts/theme-css.mjs generate"
-    deps:
-      - "theme:build"
+    command: "node scripts/template-drift.mjs --write"
     options:
       cache: false
       runInCI: false
 
-  # The generator's .raw files are byte-copies of apps/web that nothing else keeps in sync; drift
-  # surfaces as a broken first `just ci` in the next generated application. The deliberate
-  # differences are allowlisted in the script, each with its reason.
   template-check:
     description: "Verify the application template's raw files match apps/web"
     type: "test"
     command: "node scripts/template-drift.mjs"
     inputs:
+      - ".moon/template-reference.json"
       - ".moon/templates/application/**/*"
       - "apps/web/src/**/*"
       - "apps/web/tests/**/*"
       - "scripts/template-drift.mjs"
-    options:
-      runInCI: "always"
-
-  theme-check:
-    description: "Verify the theme CSS artifact matches the typed tokens"
-    type: "test"
-    command: "node scripts/theme-css.mjs check"
-    deps:
-      - "theme:build"
-    inputs:
-      - "packages/theme/src/**/*"
-      - "packages/theme/css/**/*"
-      - "scripts/theme-css.mjs"
     options:
       runInCI: "always"
 

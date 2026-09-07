@@ -9,6 +9,7 @@ export interface ThemeSwitcherProps {
   readonly preference: ThemePreference;
   /** Where the form posts. The application's theme route sets the cookie and redirects back. */
   readonly setPath: string;
+  readonly themeNames?: readonly string[];
 }
 
 const MODES: readonly ThemeMode[] = ["light", "dark"];
@@ -19,7 +20,11 @@ const MODES: readonly ThemeMode[] = ["light", "dark"];
  * viewer back to the page they were on wearing the new preference. A round-trip per click is the
  * price of a switcher that renders correctly on the first byte and works with JavaScript off.
  */
-export function ThemeSwitcher({ preference, setPath }: ThemeSwitcherProps) {
+export function ThemeSwitcher({
+  preference,
+  setPath,
+  themeNames = THEME_NAMES,
+}: ThemeSwitcherProps) {
   return (
     <form method="post" action={setPath} data-slot="theme-switcher">
       <Stack gap="sm">
@@ -41,7 +46,7 @@ export function ThemeSwitcher({ preference, setPath }: ThemeSwitcherProps) {
         </Row>
         <Row gap="sm">
           <Text tone="muted">Theme</Text>
-          {THEME_NAMES.map((name) => (
+          {themeNames.map((name) => (
             <Button
               key={name}
               type="submit"

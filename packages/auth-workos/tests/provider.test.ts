@@ -81,6 +81,7 @@ function recorder(
     calls,
     client: {
       userManagement: {
+        getLogoutUrl: notUnderTest,
         getAuthorizationUrl: notUnderTest,
         authenticateWithCode: notUnderTest,
         authenticateWithPassword(options) {

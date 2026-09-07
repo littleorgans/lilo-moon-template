@@ -3,6 +3,7 @@
 // once.
 
 import { execFileSync, spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -50,21 +51,25 @@ function waitForPostgres(container) {
   throw new Error("Postgres did not accept TCP connections within 15 seconds.");
 }
 
-// One persistent container, not one per task run. Random per-run containers leaked on every
-// interrupted run: a killed task never reaches its cleanup, `--rm` does not stop a running
-// container, and 31 orphans were once found holding random ports. A single named container on one
-// pinned host port inverts that: tasks share the server and isolate through throwaway databases,
-// a leak self-heals on the next run, and reclaiming everything is `just clean`. Same philosophy
-// as the Vite 5199 pin: the port and the name belong to this project, on purpose.
-//
-// The default port is this project's committed identity; an instantiated template picks a fresh
-// one (docs/how-to-instantiate.md), and `just rename` re-prefixes the container name. LILO_PG_PORT
-// overrides the port from the shell environment for the machine where two projects still collide.
-// It is deliberately not in .env.example: moon loads .env.local for the dev and preview tasks
-// only, so a value there would silently not apply here.
-const CONTAINER = "lilo-postgres";
+// Each checkout owns a container. The path digest also isolates same-named clones and worktrees.
+export function postgresIdentity(root) {
+  const digest = createHash("sha256").update(resolve(root)).digest("hex");
+  return {
+    container: `baseline-postgres-${digest.slice(0, 12)}`,
+    port: 20000 + (Number.parseInt(digest.slice(0, 6), 16) % 30000),
+  };
+}
+const identity = postgresIdentity(repositoryRoot);
+const CONTAINER = identity.container;
 const IMAGE = "postgres:17-alpine";
-const DEFAULT_PORT = 54390;
+
+export function cleanPostgres() {
+  const result = spawnSync("docker", ["rm", "--force", CONTAINER], { encoding: "utf8" });
+  if (result.error && result.error.code !== "ENOENT") throw result.error;
+  if (result.status !== 0 && !result.error && !/No such container/.test(result.stderr)) {
+    throw new Error(result.stderr);
+  }
+}
 
 // One throwaway database per task invocation, so moon can run the tasks in parallel against one
 // server, twice over if two checkouts run at once. The allowlist keeps the base a safe SQL
@@ -79,7 +84,7 @@ const TASK_DATABASES = {
 
 function port() {
   const raw = process.env.LILO_PG_PORT;
-  const value = raw === undefined || raw === "" ? DEFAULT_PORT : Number(raw);
+  const value = raw === undefined || raw === "" ? identity.port : Number(raw);
   if (!Number.isInteger(value) || value < 1024 || value > 65000) {
     throw new Error(`LILO_PG_PORT must be a port between 1024 and 65000, got ${raw}.`);
   }
@@ -90,12 +95,17 @@ function port() {
 function inspectContainer() {
   const result = spawnSync(
     "docker",
-    ["inspect", "--format", "{{.State.Running}} {{.Config.Image}}", CONTAINER],
+    [
+      "inspect",
+      "--format",
+      '{{.State.Running}} {{.Config.Image}} {{(index (index .HostConfig.PortBindings "5432/tcp") 0).HostPort}}',
+      CONTAINER,
+    ],
     { encoding: "utf8" },
   );
   if (result.status !== 0) return null;
-  const [running, image] = result.stdout.trim().split(" ");
-  return { running: running === "true", image };
+  const [running, image, hostPort] = result.stdout.trim().split(" ");
+  return { running: running === "true", image, port: Number(hostPort) };
 }
 
 function psql(sql, capture = false) {
@@ -127,6 +137,11 @@ function psql(sql, capture = false) {
 // run`, which CI showed can lose the race twice. `waitForPostgres` is the gate either way.
 function ensurePostgres() {
   const existing = inspectContainer();
+  if (existing !== null && existing.port !== port()) {
+    throw new Error(
+      `Postgres container ${CONTAINER} uses port ${existing.port}, requested ${port()}. Run just clean before changing LILO_PG_PORT.`,
+    );
+  }
   if (existing !== null && existing.image !== IMAGE) {
     spawnSync("docker", ["rm", "--force", CONTAINER], { stdio: "ignore" });
   }

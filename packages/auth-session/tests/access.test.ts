@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 
 import { AuthError } from "@lilo-moon/auth";
 import type { Principal, Verifier } from "@lilo-moon/auth";
+import { WorkOSAuthError } from "@lilo-moon/auth-workos";
 import type { Authentication, WorkOSAuth } from "@lilo-moon/auth-workos";
 import { describe, expect, it } from "vitest";
 
@@ -52,6 +53,9 @@ function authDouble(refresh: () => Promise<Authentication> = () => Promise.resol
       refreshTokens(options) {
         calls.push(options);
         return refresh();
+      },
+      getLogoutUrl: () => {
+        throw new Error("unexpected logout");
       },
       getAuthorizationUrl: unavailable,
       authenticateWithCode: unavailable,
@@ -147,7 +151,15 @@ describe("an expired token", () => {
 
   it("ends the session when the refresh itself is refused", async () => {
     const { jar, written, cleared } = jarWith({ [SESSION_COOKIE]: sealed("access-1") });
-    const { auth } = authDouble(() => Promise.reject(new Error("refresh token revoked")));
+    const { auth } = authDouble(() =>
+      Promise.reject(
+        new WorkOSAuthError({
+          reason: "unauthorized",
+          message: "refresh token revoked",
+          cause: undefined,
+        }),
+      ),
+    );
     const { deps, logged } = depsWith(rejects("expired"), auth);
 
     expect(await readAccess(jar, deps)).toStrictEqual({ status: "ended" });
@@ -160,12 +172,18 @@ describe("an expired token", () => {
   // must not be trusted for having arrived over TLS.
   it("does not reseal a refreshed token that fails verification", async () => {
     const { jar, written, cleared } = jarWith({ [SESSION_COOKIE]: sealed("access-1") });
-    const { deps, logged } = depsWith(rejects("signature"), authDouble().auth);
+    const { auth, calls } = authDouble();
+    const { deps, logged } = depsWith(
+      (token) =>
+        Promise.reject(new AuthError(token === "access-1" ? "expired" : "signature", "rejected")),
+      auth,
+    );
 
     expect(await readAccess(jar, deps)).toStrictEqual({ status: "ended" });
     expect(written).toHaveLength(0);
     expect(cleared).toStrictEqual([SESSION_COOKIE]);
     expect(logged.map((failure) => failure.reason)).toStrictEqual(["signature"]);
+    expect(calls).toHaveLength(1);
   });
 });
 
@@ -202,14 +220,47 @@ describe("a token that will not verify", () => {
 
   // A throw that is not an AuthError never came from the verifier's own classification, so it gets
   // the most conservative reading available rather than being reported as something it is not.
-  it("treats an unrecognised throw as malformed", async () => {
+  it("preserves the session on an unclassified infrastructure failure", async () => {
     const { jar } = jarWith({ [SESSION_COOKIE]: sealed("access-1") });
     const { deps, logged } = depsWith(
       () => Promise.reject(new Error("socket closed")),
       authDouble().auth,
     );
 
-    expect(await readAccess(jar, deps)).toStrictEqual({ status: "ended" });
-    expect(logged.map((failure) => failure.reason)).toStrictEqual(["malformed"]);
+    expect(await readAccess(jar, deps)).toStrictEqual({ status: "unavailable" });
+    expect(logged.map((failure) => failure.reason)).toStrictEqual(["unavailable"]);
+  });
+});
+
+describe("temporary provider failures", () => {
+  it.each(["rate-limited", "unavailable"] as const)(
+    "preserves the session on %s",
+    async (reason) => {
+      const { jar, cleared } = jarWith({ [SESSION_COOKIE]: sealed("access-1") });
+      const { auth } = authDouble(() =>
+        Promise.reject(new WorkOSAuthError({ reason, message: "try later", cause: undefined })),
+      );
+      const { deps, logged } = depsWith(rejects("expired"), auth);
+      expect(await readAccess(jar, deps)).toEqual({ status: "unavailable" });
+      expect(cleared).toEqual([]);
+      expect(logged[0]?.reason).toBe(reason);
+    },
+  );
+});
+
+it("keeps rotated refresh credentials when verification is temporarily unavailable", async () => {
+  const { jar, written, cleared } = jarWith({ [SESSION_COOKIE]: sealed("access-1") });
+  const { deps } = depsWith(
+    (token) =>
+      Promise.reject(
+        new AuthError(token === "access-1" ? "expired" : "unavailable", "keys unavailable"),
+      ),
+    authDouble().auth,
+  );
+  expect(await readAccess(jar, deps)).toEqual({ status: "unavailable" });
+  expect(cleared).toEqual([]);
+  expect(readSession(cookieKey, written[0]?.value)).toEqual({
+    accessToken: "access-2",
+    refreshToken: "refresh-2",
   });
 });

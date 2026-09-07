@@ -30,6 +30,19 @@
       "packageNameTemplate": "moonrepo/{{{depName}}}",
       "datasourceTemplate": "github-releases",
       "extractVersionTemplate": "^v(?<version>\\S+)"
+    },
+    {
+      "customType": "regex",
+      "description": "Keep the Moon workspace constraint and release installer aligned with .prototools.",
+      "managerFilePatterns": [
+        "/^\\.moon/workspace\\.yml$/",
+        "/^\\.github/workflows/release\\.yml$/"
+      ],
+      "matchStrings": ["(?:versionConstraint: \"=|moon-version: \")(?<currentValue>[^\"\\n]+)\""],
+      "depNameTemplate": "moon",
+      "packageNameTemplate": "moonrepo/moon",
+      "datasourceTemplate": "github-releases",
+      "extractVersionTemplate": "^v(?<version>\\S+)"
     }
   ],
   "packageRules": [
@@ -47,6 +60,10 @@
       "description": "pnpm pins in Moon, packageManager, and engines must stay the same version.",
       "groupName": "pnpm",
       "matchDepNames": ["pnpm"]
+    },
+    {
+      "groupName": "moon",
+      "matchDepNames": ["moon"]
     }
   ]
 }

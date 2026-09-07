@@ -24,11 +24,10 @@ new-app name port="5200":
     moon generate application -- --name "{{name}}" --port "{{port}}"
 
 rename $org $scope $slug:
-    bash scripts/rename-template.sh "$org" "$scope" "$slug"
+    moon run root:rename -- "$org" "$scope" "$slug"
 
 rename-verify:
-    bash scripts/rename-template.sh --verify
+    moon run root:rename-verify
 
 clean:
-    moon clean
-    docker rm --force lilo-postgres 2>/dev/null || true
+    moon run root:clean

@@ -1,9 +1,20 @@
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { pathToFileURL } from "node:url";
+
 import { describe, expect, it } from "vitest";
 
 import { workspaceSourceConfig } from "../src/index.js";
 
-const serve = workspaceSourceConfig({ command: "serve", mode: "development" });
-const build = workspaceSourceConfig({ command: "build", mode: "production" });
+const serve = workspaceSourceConfig(
+  { command: "serve", mode: "development" },
+  new URL("../../../", import.meta.url),
+);
+const build = workspaceSourceConfig(
+  { command: "build", mode: "production" },
+  new URL("../../../", import.meta.url),
+);
 
 describe("workspaceSourceConfig", () => {
   // Serving from source is a development affordance. A build that kept the condition would resolve
@@ -36,4 +47,26 @@ describe("workspaceSourceConfig", () => {
     expect(serve.optimizeDeps?.exclude).toEqual(expect.arrayContaining(["@lilo-moon/auth"]));
     expect(serve.optimizeDeps?.exclude).toEqual(expect.arrayContaining(["@lilo-moon/vite-config"]));
   });
+});
+
+it("discovers a consumer with unrelated directory and package names", () => {
+  const root = mkdtempSync(join(tmpdir(), "baseline-consumer-"));
+  try {
+    mkdirSync(join(root, "packages", "arbitrary"), { recursive: true });
+    writeFileSync(
+      join(root, "packages", "arbitrary", "package.json"),
+      JSON.stringify({ name: "@another/actual-name" }),
+    );
+    const config = workspaceSourceConfig(
+      { command: "serve", mode: "development" },
+      pathToFileURL(root),
+    );
+    expect(config.optimizeDeps?.exclude).toEqual(["@another/actual-name"]);
+    writeFileSync(join(root, "packages", "arbitrary", "package.json"), "{}");
+    expect(() =>
+      workspaceSourceConfig({ command: "serve", mode: "development" }, pathToFileURL(root)),
+    ).toThrow("Missing package name");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });

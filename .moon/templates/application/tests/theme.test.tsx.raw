@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import { getRouter } from "../src/router.js";
 import { rootLoader } from "../src/routes/__root.js";
-import { setThemeResponse } from "../src/server/theme.js";
+import { setThemeResponse, themeCookieName } from "../src/server/theme.js";
 
 function themePost(fields: Record<string, string>, headers: Record<string, string> = {}): Request {
   const body = new URLSearchParams(fields);
@@ -22,23 +22,29 @@ function setCookieOf(response: Response): string {
 describe("setThemeResponse", () => {
   it("applies the submitted half and keeps the other from the cookie", async () => {
     const response = await setThemeResponse({
-      request: themePost({ mode: "dark" }, { cookie: "theme=light:canvas" }),
+      request: themePost(
+        { mode: "dark" },
+        { cookie: "theme_https%3A%2F%2Fexample.test=light:canvas" },
+      ),
     });
     expect(response.status).toBe(303);
-    expect(setCookieOf(response)).toContain("theme=dark:canvas");
+    expect(setCookieOf(response)).toContain("theme_https%3A%2F%2Fexample.test=dark:canvas");
   });
 
   it("starts from the default when there is no cookie", async () => {
     const response = await setThemeResponse({ request: themePost({ theme: "canvas" }) });
-    expect(setCookieOf(response)).toContain("theme=light:canvas");
+    expect(setCookieOf(response)).toContain("theme_https%3A%2F%2Fexample.test=light:canvas");
   });
 
   // Form fields are attacker-controlled; nothing invalid may become the cookie.
   it("ignores values that validate against nothing", async () => {
     const response = await setThemeResponse({
-      request: themePost({ mode: "sepia", theme: "nope" }, { cookie: "theme=dark:canvas" }),
+      request: themePost(
+        { mode: "sepia", theme: "nope" },
+        { cookie: "theme_https%3A%2F%2Fexample.test=dark:canvas" },
+      ),
     });
-    expect(setCookieOf(response)).toContain("theme=dark:canvas");
+    expect(setCookieOf(response)).toContain("theme_https%3A%2F%2Fexample.test=dark:canvas");
   });
 
   it("redirects back to a same-origin referer, path and query intact", async () => {
@@ -110,4 +116,18 @@ describe("the theme lab route", () => {
 
     expect(router.routesByPath["/api/theme"]).toBeDefined();
   });
+});
+
+it("stores different preference cookies for local apps on different ports", async () => {
+  const names = await Promise.all(
+    [5199, 5200].map(async (port) => {
+      const url = `http://localhost:${port}/api/theme`;
+      const response = await setThemeResponse({
+        request: new Request(url, { method: "POST", body: new URLSearchParams({ mode: "dark" }) }),
+      });
+      expect(response.headers.get("set-cookie")).toContain(`${themeCookieName(url)}=dark:editor`);
+      return response.headers.get("set-cookie");
+    }),
+  );
+  expect(names[0]).not.toBe(names[1]);
 });

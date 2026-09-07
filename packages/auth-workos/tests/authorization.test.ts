@@ -52,6 +52,7 @@ function recorder(codeFailure?: unknown): { client: WorkOSClient; calls: Call[] 
     calls,
     client: {
       userManagement: {
+        getLogoutUrl: notUnderTest,
         getAuthorizationUrl(options) {
           calls.push({ method: "getAuthorizationUrl", options });
           return authorizeUrl(options);

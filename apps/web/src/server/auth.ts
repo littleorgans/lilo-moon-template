@@ -15,5 +15,6 @@ import { createAuthRuntime } from "@lilo-moon/auth-tanstack";
 export const auth = createAuthRuntime({
   provider: "GoogleOAuth",
   signedInPath: "/app",
+  organizationPolicy: "personal",
   codeEntryPath: "/verify-email",
 });

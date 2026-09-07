@@ -71,3 +71,19 @@ describe("loadConfig", () => {
     ).toBe(true);
   });
 });
+
+it("isolates cookie names between apps sharing a localhost host", () => {
+  const one = loadAuthConfig(complete);
+  const two = loadAuthConfig({
+    ...complete,
+    WORKOS_REDIRECT_URI: "http://localhost:5200/callback",
+  });
+  expect(one.cookieNamespace).not.toBe(two.cookieNamespace);
+  expect(loadAuthConfig(complete).cookieNamespace).toBe(one.cookieNamespace);
+});
+
+it("refuses plaintext callbacks outside loopback", () => {
+  expect(() =>
+    loadAuthConfig({ ...complete, WORKOS_REDIRECT_URI: "http://production.example/callback" }),
+  ).toThrow("HTTPS");
+});

@@ -35,8 +35,18 @@ export async function countVisibleRows(
   run: ScopedRunner,
   principal: Principal,
 ): Promise<VisibleRows> {
-  return await run(principal, async (tx) => ({
-    accounts: firstCount(await tx.execute(sql`SELECT count(*)::int AS count FROM accounts`)),
-    profiles: firstCount(await tx.execute(sql`SELECT count(*)::int AS count FROM profiles`)),
-  }));
+  return await run(principal, async (tx) => {
+    if (principal.orgId !== null) {
+      await tx.execute(
+        sql`INSERT INTO accounts (workos_org_id) VALUES (${principal.orgId}) ON CONFLICT (workos_org_id) DO NOTHING`,
+      );
+    }
+    await tx.execute(
+      sql`INSERT INTO profiles (workos_user_id) VALUES (${principal.userId}) ON CONFLICT (workos_user_id) DO NOTHING`,
+    );
+    return {
+      accounts: firstCount(await tx.execute(sql`SELECT count(*)::int AS count FROM accounts`)),
+      profiles: firstCount(await tx.execute(sql`SELECT count(*)::int AS count FROM profiles`)),
+    };
+  });
 }

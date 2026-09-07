@@ -1,121 +1,97 @@
 # lilo-moon-template
 
 A language agnostic monorepo baseline. Moon owns the task graph for every language.
-pnpm is the JavaScript package manager only.
+pnpm manages JavaScript packages.
 
-Use this repository to start a new project. The working contract once you are inside it is
-[AGENTS.md](AGENTS.md). How to copy it and rename it is
-[Start a project from this template](docs/how-to-instantiate.md). Why the tools are these tools is
-[Why this baseline is shaped this way](docs/decisions.md).
+Start with [the instantiation guide](docs/how-to-instantiate.md). Follow [AGENTS.md](AGENTS.md)
+while working in the repository. [The decision record](docs/decisions.md) explains the tool choices.
 
-## What is here
+## Implemented capabilities
 
-Pinned on main:
+| Area        | Implementation                                                                                            |
+| ----------- | --------------------------------------------------------------------------------------------------------- |
+| Workspace   | Moon tasks and generators, pinned toolchains, pnpm catalogs, a Rust example                               |
+| Identity    | WorkOS Google OAuth and email codes, encrypted cookies, token verification, TanStack Start adapter        |
+| Persistence | Postgres, Drizzle queries, Atlas SQL migrations, transaction scoped identity and real RLS verification    |
+| UI          | React, Tailwind 4, shadcn/Radix components, layout and typography components                              |
+| Themes      | Typed tokens, generated CSS, runtime validation, light and dark modes, preference cookies and a theme lab |
+| Delivery    | CI, formatting, type aware lint, coverage, dependency audit, secret scanning and Changesets               |
 
-- moon `2.5.1`, from `versionConstraint` in `.moon/workspace.yml` and `moon` in `.prototools`. CI
-  runs `moonrepo/setup-toolchain` with `auto-install: true` and reads that pin
-- Node `24.19.0` and pnpm `11.22.0`, from `.moon/toolchains.yml`
-- TypeScript `~7.0.2` in the default `catalog` of `pnpm-workspace.yaml`
-- oxlint `1.79.0`, oxfmt `0.64.0`, and `oxlint-tsgolint` `7.0.2001` in the root `package.json`
-- lefthook `2.1.10` and commitlint, from the root `package.json` and `lefthook.yml`
-- Changesets, from `changelog` in `.changeset/config.json`
-- Vite, React, and Vitest pins in that same catalog
-- Rust `1.95` with clippy, from `rust` in `.moon/toolchains.yml`
-- Atlas `1.3.0`, from `atlas` in `.prototools`, with `tasks.atlas-*` in the root `moon.yml`
-- Drizzle ORM `0.45.2` and Kit `0.31.10`, from the catalog in `pnpm-workspace.yaml`, with
-  `tasks.drizzle-generate` and `tasks.drizzle-check` in the root `moon.yml`
+Payments, CRM, Zustand persistence, Convex, system theme mode and saved user theme editing are
+not implemented. Billing design notes describe proposed workflows, not working payment integration.
 
-Workspace members:
+## Package ownership
 
-- `packages/collections`, a publishable TypeScript library
-- `apps/web`, a Vite React application that consumes it
-- `services/ping`, a Rust library
+- `auth` verifies tokens and maps claims to a `Principal`.
+- `auth-workos` wraps the WorkOS SDK. `auth-session` handles WorkOS browser sessions.
+- `auth-tanstack` binds sessions to TanStack Start requests.
+- `db` runs Postgres transactions under a principal. Applications own tables and provisioning.
+- `theme` owns token contracts, validation and CSS generation. Consumers can supply theme preferences.
+- `ui` owns shared components. `views` composes them into reference screens.
+- `vite-config` discovers packages from an explicitly supplied consumer workspace root.
+- `collections` and `services/ping` demonstrate TypeScript and Rust members.
 
-`just new-package` and `just new-app` generate further members of the first two shapes. Other
-languages and other application stacks are added by hand. Follow
-[Add a workspace member](AGENTS.md#add-a-workspace-member) in AGENTS.md.
+Application code lives under `apps/<name>/src`: routes wire URLs, server modules compose services,
+shell components span features, and `features/<name>/` owns each product feature. Product components
+may use styles and shared tokens without moving into a shared package.
 
-Quality gates live in `moon.yml` at the root and in `.moon/tasks/`. Root tasks include lint, format,
-`project-refs`, `secrets`, `audit`, Atlas migrations, and the generated Drizzle schema check. How to
-run them is
-[Run the gates](AGENTS.md#run-the-gates) in AGENTS.md.
+## Start locally
 
-GitHub Actions CI is `.github/workflows/ci.yml`. The job runner is the repository variable
-`CI_RUNNER`, which defaults to `ubuntu-latest` when unset.
-
-Vitest coverage thresholds in `vitest.config.ts` are statements 80, branches 75, functions 80, and
-lines 80, applied per project and per file. They are a floor for untested code. A test is still
-unproven until a wrong implementation fails it. That rule is [Write tests](AGENTS.md#write-tests)
-in AGENTS.md.
-
-## Clone to green
-
-Install just, moon `2.5.1`, and proto first. Commands are in
-[Start a project from this template](docs/how-to-instantiate.md). Moon `2.5.1` must be on `PATH`.
-The workspace `versionConstraint` rejects every other release.
+Install just, proto and the Moon version in `.prototools`, then run:
 
 ```bash
-git clone https://github.com/littleorgans/lilo-moon-template.git
-cd lilo-moon-template
 just setup
 pnpm install
+just check
 just ci
 ```
 
-`just setup` is `moon setup`. It installs the Node and pnpm versions from `.moon/toolchains.yml`.
-It does not install just, moon, or proto. The last command is the delivery proof in
-[Run the gates](AGENTS.md#run-the-gates).
+For signing in, copy `.env.example` to `.env.local` and configure the WorkOS values. The redirect URI
+must match the running app. `DATABASE_URL` is optional. An app without it can still sign in.
 
-A green run on a clone of main means the committed tree already satisfies the gates. A gate you
-have not seen fail is still unproven. That rule, and how to prove it, is in AGENTS.md under
-[Prove every gate](AGENTS.md#prove-every-gate).
+```bash
+moon run web:dev
+```
 
-## Add a JavaScript member
+The reference app runs on port 5199. `/theme` displays the component and theme examples.
+The signed-in page contains diagnostic examples that a product should replace.
+
+## Generate members
 
 ```bash
 just new-package billing
-just new-app console
-```
-
-Add `"@your-scope/billing": "workspace:*"` to `apps/console/package.json` `dependencies`, using your
-scope and names. `moon sync` does not write that entry from an import. Then:
-
-```bash
+just new-app console 5200
 pnpm install
 moon sync
 ```
 
-`new-package` runs `moon generate library`. `new-app` runs `moon generate application`, which writes
-a TanStack Start application on Nitro with signing in already wired: the redirect callback, the
-email-code path, the signed-in route behind the four access states, and the screens for a session
-that ended or a token that cannot be read. It takes a port, defaulting to 5200, because `apps/web`
-holds 5199 and a dev server that finds its port taken moves rather than failing. The generated
-`README.md` names what has to be registered with the identity provider before it can sign anybody
-in. Both write a member that already typechecks, tests, lints, formats, and builds. `moon sync` adds
-new `references` in the root `tsconfig.json`. After you delete a member, prune the missing path.
-That command does not drop a path whose project is gone. `moon.yml` `tasks.project-refs` then fails
-`just ci` with TS6053. The instantiation guide covers the prune.
+Each application selects `organizationPolicy` in `src/server/auth.ts`: `personal` provisions a
+personal workspace, while `existing` leaves organization membership unchanged.
 
-Inspect the result with `moon project billing` and `moon project console`. Then prove the gates can
-fail, as AGENTS.md requires, before trusting `just ci`.
+Each application imports the UI stylesheet and the views source registration in `src/styles.css`,
+and registers its own source directory. Published packages do not scan neighboring repositories.
 
-A Rust-only tree still `pnpm install`s the root oxlint, oxfmt, secretlint, and audit gates. Those
-tools live in `devDependencies` in the root `package.json`.
+## Verification
 
-`moon.yml` `tasks.atlas-diff` and `tasks.atlas-lint` need Docker only when `db/schema.sql` exists.
-Without Docker, `just check` skips Atlas lint and the Drizzle schema check locally with clear
-messages. CI still runs both when a schema exists.
+`just check` repairs formatting and lint issues, then verifies the graph. `just ci` is read only.
+CI runs the coverage task once per JavaScript project; `test` remains available for focused local runs.
+Docker enables the real Postgres checks. CI requires those checks when a schema exists.
 
-## Not in this repository yet
+The template producer also runs `root:consumer-check`. It generates and renames an application,
+removes the examples, builds it and verifies its HTTP and CSS behavior. It repeats the check with
+packed libraries installed outside their source workspace. It neither publishes packages nor
+contacts an identity provider.
 
-Filed, unbuilt. Do not treat any of these as present:
+`just rename` removes `.moon/template-reference.json`. Consumer repositories retain the member
+generators but do not compare their product code against `apps/web`. When developing this template,
+run `moon run root:template-update` after changing a raw reference file, then verify `root:template-check`.
 
-- WorkOS AuthKit in the application exemplar: #16
-- The auth adapter seam: #23
+Postgres containers and their default ports are derived from the checkout path. `just clean`
+removes only that checkout's container and Moon cache. Change `LILO_PG_PORT` if a port is occupied.
 
-The Supabase host boundary is recorded in
-[Supabase as a Postgres host](docs/supabase-boundary.md).
+## Distribution
 
-App stack, license, package scope, and registry are choices for the consuming repo. The decision
-record lists what is already settled so those choices stay in the consuming repo and out of this
-one.
+This repository supports both copied workspace libraries and packed package consumption. Copying
+and renaming libraries creates independent implementations. Published package consumers can instead
+receive fixes through dependency upgrades. Registry publishing is separately enabled in the release
+workflow and is not required to start a project.

@@ -133,6 +133,9 @@ while IFS= read -r -d '' file; do
   fi
 done < <(git ls-files -z)
 
+# Reference comparisons belong to template development, not to a generated product.
+rm -f .moon/template-reference.json
+
 printf 'Updated %d tracked files. Refreshing the pnpm lockfile.\n' "$replaced_files"
 pnpm install
 verify_absent

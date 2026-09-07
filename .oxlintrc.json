@@ -19,15 +19,31 @@
         "caughtErrors": "none"
       }
     ],
-    "typescript/consistent-type-imports": ["error", { "prefer": "type-imports" }],
+    "typescript/consistent-type-imports": [
+      "error",
+      {
+        "prefer": "type-imports"
+      }
+    ],
     "typescript/no-floating-promises": "error",
     "typescript/no-misused-promises": "error",
     "typescript/await-thenable": "error",
     "typescript/no-explicit-any": "error",
     "promise/prefer-await-to-then": "error",
     "react/react-in-jsx-scope": "off",
-    "no-console": ["error", { "allow": ["warn", "error"] }],
-    "eqeqeq": ["error", "always", { "null": "ignore" }]
+    "no-console": [
+      "error",
+      {
+        "allow": ["warn", "error"]
+      }
+    ],
+    "eqeqeq": [
+      "error",
+      "always",
+      {
+        "null": "ignore"
+      }
+    ]
   },
   "ignorePatterns": [
     "**/dist/**",
@@ -37,14 +53,5 @@
     "**/node_modules/**",
     "**/*.gen.*",
     "**/_generated/**"
-  ],
-  "overrides": [
-    {
-      "files": ["apps/**/*.tsx"],
-      "rules": {
-        "react/forbid-dom-props": ["error", { "forbid": ["className", "style"] }],
-        "react/forbid-component-props": ["error", { "forbid": ["className", "style"] }]
-      }
-    }
   ]
 }

@@ -20,6 +20,7 @@ export interface ThemeLabProps {
   readonly preference: ThemePreference;
   /** Where the switcher posts. See `ThemeSwitcher`. */
   readonly setPath: string;
+  readonly themeNames?: readonly string[];
 }
 
 const BUTTON_VARIANTS = [
@@ -34,11 +35,11 @@ const BADGE_VARIANTS = ["default", "secondary", "outline", "ghost", "destructive
 
 /**
  * Every component and every color token on one page, wearing the live preference. This is where a
- * theme is judged and iterated: change a palette, `just theme-generate`, reload, and the whole
+ * theme is judged and iterated: change a palette, `moon run theme:generate-css`, reload, and the whole
  * surface answers at once. The swatches read the CSS variables at render, so what they show is
  * what the stylesheet actually resolved, not what the source claims.
  */
-export function ThemeLab({ preference, setPath }: ThemeLabProps) {
+export function ThemeLab({ preference, setPath, themeNames }: ThemeLabProps) {
   return (
     <main>
       <Container>
@@ -59,7 +60,11 @@ export function ThemeLab({ preference, setPath }: ThemeLabProps) {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <ThemeSwitcher preference={preference} setPath={setPath} />
+              <ThemeSwitcher
+                preference={preference}
+                setPath={setPath}
+                {...(themeNames === undefined ? {} : { themeNames })}
+              />
             </CardContent>
           </Card>
 

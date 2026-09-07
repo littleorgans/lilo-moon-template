@@ -44,8 +44,9 @@ export function organizationNameFor(user: Authentication["user"]): string {
 export async function ensureOrganization(
   auth: WorkOSAuth,
   authentication: Authentication,
+  policy: "personal" | "existing" = "personal",
 ): Promise<Authentication> {
-  if (authentication.organizationId !== null) return authentication;
+  if (policy === "existing" || authentication.organizationId !== null) return authentication;
 
   const organization = await auth.provisionOrganization({
     name: organizationNameFor(authentication.user),
@@ -60,6 +61,7 @@ export async function ensureOrganization(
 }
 
 export interface SessionDeps extends SessionCookieDeps {
+  readonly organizationPolicy: "personal" | "existing";
   /** Where a completed sign-in lands. The application's choice, not this package's. */
   readonly signedInPath: string;
 }
@@ -134,6 +136,7 @@ export async function handleCallback(
         code,
         ...(userAgent === null ? {} : { userAgent }),
       }),
+      deps.organizationPolicy,
     );
   } catch (error) {
     // Everything from here to the session cookie is a call to the vendor, and every one of them can

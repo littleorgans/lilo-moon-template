@@ -9,6 +9,7 @@ import type {
   MfaChallenge,
   MfaVerification,
   ProvisionedOrganization,
+  ProvisionOrganizationOptions,
   RequestContext,
   WorkOSAuth,
   WorkOSAuthOptions,
@@ -115,11 +116,45 @@ function clientFrom(options: WorkOSAuthOptions): WorkOSClient {
   return new WorkOS({ apiKey: options.apiKey, clientId: options.clientId });
 }
 
+/** Creates or adopts the personal organization and membership after an interrupted signup. */
+async function provisionOrganization(
+  client: WorkOSClient,
+  input: ProvisionOrganizationOptions,
+): Promise<ProvisionedOrganization> {
+  const organization = await providerCall(async () => {
+    try {
+      return await client.organizations.createOrganization({
+        name: input.name,
+        externalId: input.externalId,
+        ...(input.metadata === undefined ? {} : { metadata: { ...input.metadata } }),
+      });
+    } catch (error) {
+      // Translated only to read the reason. The raw error is rethrown so `providerCall` stays
+      // the single place that converts one, rather than two paths producing the same type.
+      if (translateWorkOSError(error).reason !== "conflict") throw error;
+      // The lookup can fail in its own right, and it is left to translate normally: an
+      // organization holding this id existed a moment ago, so a failure to read it back is a
+      // real failure and not a state to paper over.
+      return await client.organizations.getOrganizationByExternalId(input.externalId);
+    }
+  });
+  const membership = await providerCall(
+    async () =>
+      await client.userManagement.createOrganizationMembership({
+        organizationId: organization.id,
+        userId: input.userId,
+        ...(input.roleSlugs === undefined ? {} : { roleSlugs: [...input.roleSlugs] }),
+      }),
+  );
+  return { organizationId: organization.id, membershipId: membership.id };
+}
+
 export function createWorkOSAuth(options: WorkOSAuthOptions): WorkOSAuth {
   const client = clientFrom(options);
   const { clientId } = options;
 
   return {
+    getLogoutUrl: (input) => providerCallSync(() => client.userManagement.getLogoutUrl(input)),
     getAuthorizationUrl(input): string {
       assertAuthorizable(input);
       return providerCallSync(() =>
@@ -222,49 +257,6 @@ export function createWorkOSAuth(options: WorkOSAuthOptions): WorkOSAuth {
       return authenticationFrom(response);
     },
 
-    /**
-     * Creates the organization and the membership, and is safe to call again after either one.
-     *
-     * Two calls, so there are two ways to be interrupted, and both were reachable: a crash between
-     * them left an organization nobody belonged to, and a callback delivered twice ran the pair
-     * twice and gave one person two workspaces. Neither is repaired by retrying a plain create.
-     *
-     * `externalId` closes both. The API refuses a second organization claiming one, so the retry
-     * that would have created a duplicate collides instead, and the collision names the
-     * organization to adopt. Membership is then created against whichever organization this call
-     * ended up holding, and repeating that is already free: creating a membership that exists
-     * returns the existing one rather than a second, measured against the live API.
-     *
-     * So the interrupted signup finishes on the person's next sign-in rather than leaving them to
-     * discover the damage, and it finishes in the organization the first attempt created.
-     */
-    async provisionOrganization(input): Promise<ProvisionedOrganization> {
-      const organization = await providerCall(async () => {
-        try {
-          return await client.organizations.createOrganization({
-            name: input.name,
-            externalId: input.externalId,
-            ...(input.metadata === undefined ? {} : { metadata: { ...input.metadata } }),
-          });
-        } catch (error) {
-          // Translated only to read the reason. The raw error is rethrown so `providerCall` stays
-          // the single place that converts one, rather than two paths producing the same type.
-          if (translateWorkOSError(error).reason !== "conflict") throw error;
-          // The lookup can fail in its own right, and it is left to translate normally: an
-          // organization holding this id existed a moment ago, so a failure to read it back is a
-          // real failure and not a state to paper over.
-          return await client.organizations.getOrganizationByExternalId(input.externalId);
-        }
-      });
-      const membership = await providerCall(
-        async () =>
-          await client.userManagement.createOrganizationMembership({
-            organizationId: organization.id,
-            userId: input.userId,
-            ...(input.roleSlugs === undefined ? {} : { roleSlugs: [...input.roleSlugs] }),
-          }),
-      );
-      return { organizationId: organization.id, membershipId: membership.id };
-    },
+    provisionOrganization: (input) => provisionOrganization(client, input),
   };
 }

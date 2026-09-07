@@ -54,7 +54,8 @@ describe("buildSignedView", () => {
       Promise.reject(new Error("connection refused")),
     );
     expect(view.principal).toStrictEqual(principal);
-    expect(view.databaseError).toContain("connection refused");
+    expect(view.databaseError).toContain("temporarily unavailable");
+    expect(view.databaseError).not.toContain("connection refused");
   });
 
   it("counts rows through the scoped runner, never outside it", async () => {
@@ -123,6 +124,31 @@ describe("countVisibleRows", () => {
         }),
       principal,
     );
-    expect(rows).toStrictEqual({ accounts: 1, profiles: 2 });
+    expect(rows).toStrictEqual({ accounts: 3, profiles: 4 });
+    expect(seen[0]).toContain("INSERT INTO accounts");
+    expect(seen[1]).toContain("INSERT INTO profiles");
   });
+});
+
+it("returns a retryable unavailable response for auth outages", async () => {
+  expect(await redirectedBy(accessOf({ status: "unavailable" }))).toMatchObject({
+    to: "/session-error",
+    search: { retry: true },
+  });
+});
+
+it("does not provision an account when the user has no organization", async () => {
+  const seen: string[] = [];
+  await countVisibleRows(
+    async (_principal, body) =>
+      await body({
+        execute: (query) => {
+          seen.push(JSON.stringify(query.queryChunks));
+          return Promise.resolve({ rows: [] });
+        },
+      }),
+    { ...principal, orgId: null },
+  );
+  expect(seen.join(" ")).not.toContain("INSERT INTO accounts");
+  expect(seen.join(" ")).toContain("INSERT INTO profiles");
 });

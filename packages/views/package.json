@@ -14,8 +14,11 @@
     "!src/**/*.test.*"
   ],
   "type": "module",
-  "sideEffects": false,
+  "sideEffects": [
+    "**/*.css"
+  ],
   "exports": {
+    "./sources.css": "./src/sources.css",
     "./*": {
       "types": "./dist/*/index.d.ts",
       "@lilo-moon/source": "./src/*/index.ts",

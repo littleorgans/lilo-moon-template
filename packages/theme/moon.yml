@@ -2,3 +2,19 @@ language: "typescript"
 layer: "library"
 tags:
   - "ts-library"
+
+tasks:
+  generate-css:
+    type: "run"
+    command: "node scripts/theme-css.mjs generate"
+    deps: ["theme:build"]
+    options:
+      cache: false
+      runInCI: false
+  check-css:
+    type: "test"
+    command: "node scripts/theme-css.mjs check"
+    deps: ["theme:build"]
+    inputs: ["src/**/*", "css/**/*", "scripts/**/*"]
+    options:
+      runInCI: "always"

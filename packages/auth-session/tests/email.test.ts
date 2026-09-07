@@ -66,6 +66,9 @@ function authDouble(verify: () => Promise<Authentication> = () => Promise.resolv
           refreshToken: "refresh-2",
         });
       },
+      getLogoutUrl: () => {
+        throw new Error("unexpected logout");
+      },
       getAuthorizationUrl: unavailable,
       authenticateWithCode: unavailable,
       signInWithPassword: unavailable,
@@ -101,6 +104,7 @@ const verifyDeps = (auth: WorkOSAuth, log: (failure: CallbackFailure) => void) =
   auth,
   cookieKey: randomBytes(32),
   secureCookies: false,
+  organizationPolicy: "personal" as const,
   signedInPath: "/app",
   codeEntryPath: "/verify-email",
   log,

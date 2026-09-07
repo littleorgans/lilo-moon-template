@@ -63,3 +63,12 @@ describe("SignedInPanel", () => {
     expect(withProduct).toContain("the board");
   });
 });
+
+it("posts signout through a form instead of a navigation link", () => {
+  const html = renderToStaticMarkup(
+    <SignedInPanel principal={principal} rows={null} databaseError={null} />,
+  );
+  expect(html).toMatch(/<form[^>]*action="\/api\/auth\/signout"[^>]*method="post"/);
+  expect(html).toContain('type="submit"');
+  expect(html).not.toContain('href="/api/auth/signout"');
+});

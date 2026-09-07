@@ -118,6 +118,7 @@ export async function completeEmailSignIn(
         code,
         ...(userAgent === null ? {} : { userAgent }),
       }),
+      deps.organizationPolicy,
     );
     response = establishSession(jar, deps, authentication);
   } catch (error) {

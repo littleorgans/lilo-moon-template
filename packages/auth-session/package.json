@@ -28,7 +28,8 @@
   },
   "dependencies": {
     "@lilo-moon/auth": "workspace:*",
-    "@lilo-moon/auth-workos": "workspace:*"
+    "@lilo-moon/auth-workos": "workspace:*",
+    "jose": "catalog:"
   },
   "devDependencies": {
     "@types/node": "catalog:"

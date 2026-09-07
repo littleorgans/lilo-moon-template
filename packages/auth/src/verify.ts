@@ -53,8 +53,10 @@ function translate(error: unknown): AuthError {
     case "ERR_JWS_SIGNATURE_VERIFICATION_FAILED":
     case "ERR_JWKS_NO_MATCHING_KEY":
     case "ERR_JWKS_MULTIPLE_MATCHING_KEYS":
-    case "ERR_JWKS_TIMEOUT":
       return new AuthError("signature", message, { cause: error });
+    case "ERR_JWKS_TIMEOUT":
+    case "ERR_JOSE_GENERIC":
+      return new AuthError("unavailable", message, { cause: error });
     case "ERR_JWT_CLAIM_VALIDATION_FAILED": {
       const claim = stringProperty(error, "claim");
       if (claim === "iss") return new AuthError("issuer", message, { cause: error });
@@ -62,7 +64,9 @@ function translate(error: unknown): AuthError {
       return new AuthError("claims", message, { cause: error });
     }
     default:
-      return new AuthError("malformed", message, { cause: error });
+      return new AuthError(error instanceof TypeError ? "unavailable" : "malformed", message, {
+        cause: error,
+      });
   }
 }
 
@@ -88,6 +92,7 @@ export function createVerifier(options: VerifierOptions): Verifier {
   // absent audience from one explicitly set to undefined, and jose accepts only the former.
   const verifyOptions: JWTVerifyOptions = {
     issuer: options.issuer,
+    requiredClaims: ["exp", "sub"],
     clockTolerance: options.clockToleranceSeconds ?? 5,
     ...(options.audience === undefined ? {} : { audience: options.audience }),
   };

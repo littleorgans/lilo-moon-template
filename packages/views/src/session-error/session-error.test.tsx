@@ -36,3 +36,10 @@ describe("SessionErrorPanel", () => {
     );
   });
 });
+
+it("offers a retry without asking the person to sign in again during an outage", () => {
+  const html = renderToStaticMarkup(<SessionErrorPanel retryPath="/app" />);
+  expect(html).toContain("Your session has been kept");
+  expect(html).toContain('href="/app"');
+  expect(html).not.toContain("Signing in again will not help");
+});

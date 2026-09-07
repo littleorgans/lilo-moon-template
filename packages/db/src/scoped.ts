@@ -47,8 +47,7 @@ export function claimsJson(principal: Principal): string {
  * request's identity leaking to the next borrower of a pooled connection, and it is the reason
  * this must never be split into autocommit statements.
  *
- * The rows are created here rather than by a signup webhook: the transaction that already proved
- * who the caller is is the cheapest safe place to make sure they exist.
+ * Product tables and provisioning belong to the caller. This boundary only scopes the transaction.
  */
 export async function runScoped<T>(
   client: ScopedClient,
@@ -63,18 +62,6 @@ export async function runScoped<T>(
     await client.query("SELECT set_config('request.jwt.claims', $1, true)", [
       claimsJson(principal),
     ]);
-    // A user with no organization yet is a normal state at first sign-in, not an error. There is
-    // simply no tenant row to create until they have one.
-    if (principal.orgId !== null) {
-      await client.query(
-        "INSERT INTO accounts (workos_org_id) VALUES ($1) ON CONFLICT (workos_org_id) DO NOTHING",
-        [principal.orgId],
-      );
-    }
-    await client.query(
-      "INSERT INTO profiles (workos_user_id) VALUES ($1) ON CONFLICT (workos_user_id) DO NOTHING",
-      [principal.userId],
-    );
     const result = await body();
     await client.query("COMMIT");
     return result;

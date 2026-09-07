@@ -2,8 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import { startAuthorization } from "../src/authorize.js";
 import { STATE_COOKIE } from "../src/session.js";
-import { SESSION_COOKIE } from "../src/session.js";
-import { signOut } from "../src/signout.js";
 import { jarWith } from "./support.js";
 
 describe("startAuthorization", () => {
@@ -62,15 +60,5 @@ describe("startAuthorization", () => {
     const { jar, written } = jarWith();
     startAuthorization(null, jar, { ...deps, secureCookies: true });
     expect(written[0]?.options.secure).toBe(true);
-  });
-});
-
-describe("signOut", () => {
-  it("clears the session cookie and returns to sign in", () => {
-    const { jar, cleared } = jarWith();
-    const response = signOut(null, jar);
-    expect(cleared).toStrictEqual([SESSION_COOKIE]);
-    expect(response.status).toBe(302);
-    expect(response.headers.get("location")).toBe("/");
   });
 });

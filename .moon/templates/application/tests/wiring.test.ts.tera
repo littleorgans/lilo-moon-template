@@ -66,12 +66,14 @@ describe("route wiring", () => {
   });
 
   it("the signout route clears the session", async () => {
-    cookies.set("lilo_session", "sealed");
     const { auth } = await import("../src/server/auth.js");
-    const response = auth.endSession(null);
+    const cookieName = `${auth.services().config.cookieNamespace}_lilo_session`;
+    cookies.set(cookieName, "sealed");
+    const origin = new URL(env.WORKOS_REDIRECT_URI).origin;
+    const response = auth.endSession({ request: new Request(`${origin}/api/auth/signout`, { method: "POST", headers: { origin } }) });
 
-    expect(response.status).toBe(302);
-    expect(cookies.has("lilo_session")).toBe(false);
+    expect(response.status).toBe(303);
+    expect(cookies.has(cookieName)).toBe(false);
   });
 
   // Reaching the state check through the real wiring proves the callback is connected and that it

@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { join, relative } from "node:path";
 
 /**
@@ -13,7 +13,14 @@ import { join, relative } from "node:path";
  * be argued into this file rather than accumulating silently.
  */
 const templateRoot = ".moon/templates/application";
-const applicationRoot = "apps/web";
+const referencePath = ".moon/template-reference.json";
+if (!existsSync(referencePath)) {
+  process.stdout.write("Consumer workspace: template reference comparison is not applicable.\n");
+  process.exit(0);
+}
+const { application: applicationRoot } = JSON.parse(readFileSync(referencePath, "utf8"));
+if (typeof applicationRoot !== "string" || applicationRoot.length === 0)
+  throw new Error("Invalid template reference application.");
 
 const deliberateDifferences = new Map([
   // The template generates no product, apps/web renders its task board here.
@@ -45,7 +52,9 @@ for (const templatePath of rawFiles(templateRoot)) {
     continue;
   }
   if (!readFileSync(templatePath).equals(readFileSync(applicationPath))) {
-    failures.push(`${templatePath} differs from ${applicationPath}`);
+    if (process.argv.includes("--write"))
+      writeFileSync(templatePath, readFileSync(applicationPath));
+    else failures.push(`${templatePath} differs from ${applicationPath}`);
   }
 }
 

@@ -34,15 +34,13 @@ const principal: Principal = {
 const texts = (statements: readonly Statement[]) => statements.map((statement) => statement.text);
 
 describe("runScoped", () => {
-  it("opens a transaction, scopes it, seeds the rows, then commits, in that order", async () => {
+  it("opens a transaction, scopes it without product tables, then commits, in that order", async () => {
     const { client, statements } = recorder();
     await runScoped(client, principal, "authenticated", () => Promise.resolve("done"));
     expect(texts(statements)).toStrictEqual([
       "BEGIN",
       "SET LOCAL ROLE authenticated",
       "SELECT set_config('request.jwt.claims', $1, true)",
-      "INSERT INTO accounts (workos_org_id) VALUES ($1) ON CONFLICT (workos_org_id) DO NOTHING",
-      "INSERT INTO profiles (workos_user_id) VALUES ($1) ON CONFLICT (workos_user_id) DO NOTHING",
       "COMMIT",
     ]);
   });
@@ -79,13 +77,13 @@ describe("runScoped", () => {
 
   // First sign-in through a social provider arrives with no organization. That is a normal state,
   // so there is simply no tenant row to create yet.
-  it("creates no account row for a principal with no organization", async () => {
+  it("scopes a principal without an organization without creating product rows", async () => {
     const { client, statements } = recorder();
     await runScoped(client, { ...principal, orgId: null }, "authenticated", () =>
       Promise.resolve(null),
     );
     expect(texts(statements).some((text) => text.includes("INTO accounts"))).toBe(false);
-    expect(texts(statements).some((text) => text.includes("INTO profiles"))).toBe(true);
+    expect(texts(statements).some((text) => text.includes("INSERT"))).toBe(false);
   });
 
   it("rolls back and rethrows when the body fails", async () => {
@@ -98,8 +96,8 @@ describe("runScoped", () => {
     expect(texts(statements)).not.toContain("COMMIT");
   });
 
-  it("rolls back when seeding itself fails", async () => {
-    const { client, statements } = recorder(/INTO accounts/u);
+  it("rolls back when setting claims fails", async () => {
+    const { client, statements } = recorder(/set_config/u);
     await expect(
       runScoped(client, principal, "authenticated", () => Promise.resolve(null)),
     ).rejects.toThrow("database rejected");
@@ -108,10 +106,10 @@ describe("runScoped", () => {
 
   // If ROLLBACK throws too, the caller must still see what actually went wrong.
   it("reports the original failure even when the rollback also fails", async () => {
-    const { client } = recorder(/INTO profiles|ROLLBACK/u);
+    const { client } = recorder(/set_config|ROLLBACK/u);
     await expect(
       runScoped(client, principal, "authenticated", () => Promise.resolve(null)),
-    ).rejects.toThrow("INSERT INTO profiles");
+    ).rejects.toThrow("set_config");
   });
 });
 

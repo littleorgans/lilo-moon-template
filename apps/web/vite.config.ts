@@ -18,5 +18,5 @@ export default defineConfig((env) => ({
   server: { port: 5199, strictPort: true },
   // Resolve, prebundling and the SSR environment's own condition list. Three settings that have to
   // agree, and disagree quietly when they do not, so they live in one place for every application.
-  ...workspaceSourceConfig(env),
+  ...workspaceSourceConfig(env, new URL("../../", import.meta.url)),
 }));

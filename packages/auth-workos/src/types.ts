@@ -152,6 +152,7 @@ export interface ProvisionedOrganization {
 }
 
 export interface WorkOSAuth {
+  getLogoutUrl(options: { readonly sessionId: string; readonly returnTo: string }): string;
   /** Builds the URL that starts a redirect sign-in. Local, so it cannot fail over the network. */
   getAuthorizationUrl(options: AuthorizationUrlOptions): string;
   /** Exchanges the code the callback received. Verify `state` before calling this. */

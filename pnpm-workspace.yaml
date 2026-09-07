@@ -90,3 +90,8 @@ trustLockfile: false
 # missing, invalid, duplicate, or expired policy comments.
 audit:
   level: high
+
+# drizzle-kit's deprecated loader pins a vulnerable esbuild. Keep this override scoped to that
+# loader until upstream removes it. The Drizzle introspection gate exercises the replacement.
+overrides:
+  "@esbuild-kit/core-utils>esbuild": "0.25.12"

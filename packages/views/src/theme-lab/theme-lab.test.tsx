@@ -34,3 +34,15 @@ describe("ThemeLab", () => {
     expect(html).toContain("Destructive text");
   });
 });
+
+it("uses the consumer's theme names in the lab switcher", () => {
+  const custom = renderToStaticMarkup(
+    <ThemeLab
+      preference={{ mode: "light", theme: "brand" }}
+      setPath="/theme"
+      themeNames={["brand"]}
+    />,
+  );
+  expect(custom).toContain('value="brand"');
+  expect(custom).not.toContain('value="editor"');
+});

@@ -6,7 +6,7 @@ import type { CookieJar } from "./cookies.js";
  * What the session cookie holds, and deliberately all it holds.
  *
  * No Principal, no email, no organization name. Those are derived by verifying the access token on
- * every request, so a cookie minted before a role changed cannot outlive the change. Copying them
+ * every request. Role changes take effect when the access token is renewed. Copying them
  * in here would recreate, in the browser, the same staleness the schema refuses to store.
  */
 export interface Session {
@@ -91,13 +91,17 @@ const SESSION_MAX_AGE_SECONDS = 31_536_000;
  * and the attributes are the security boundary.
  */
 export function writeSession(jar: CookieJar, deps: SessionCookieDeps, session: Session): void {
-  jar.write(SESSION_COOKIE, seal(deps.cookieKey, session), {
-    httpOnly: true,
-    secure: deps.secureCookies,
-    sameSite: "lax",
-    path: "/",
-    maxAge: SESSION_MAX_AGE_SECONDS,
-  });
+  jar.write(
+    SESSION_COOKIE,
+    seal(deps.cookieKey, { accessToken: session.accessToken, refreshToken: session.refreshToken }),
+    {
+      httpOnly: true,
+      secure: deps.secureCookies,
+      sameSite: "lax",
+      path: "/",
+      maxAge: SESSION_MAX_AGE_SECONDS,
+    },
+  );
 }
 
 /** An unguessable value for the OAuth `state` parameter. */

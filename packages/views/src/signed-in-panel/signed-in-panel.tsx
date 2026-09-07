@@ -36,9 +36,11 @@ export function SignedInPanel({ principal, rows, databaseError, children }: Sign
         <Stack gap="lg">
           <Row justify="between">
             <Heading>Signed in</Heading>
-            <Button asChild variant="outline" size="sm">
-              <a href="/api/auth/signout">Sign out</a>
-            </Button>
+            <form action="/api/auth/signout" method="post">
+              <Button type="submit" variant="outline" size="sm">
+                Sign out
+              </Button>
+            </form>
           </Row>
 
           <Card>
