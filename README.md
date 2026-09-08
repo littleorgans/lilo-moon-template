@@ -10,7 +10,7 @@ while working in the repository. [The decision record](docs/decisions.md) explai
 
 | Area        | Implementation                                                                                            |
 | ----------- | --------------------------------------------------------------------------------------------------------- |
-| Workspace   | Moon tasks and generators, pinned toolchains, pnpm catalogs, a Rust example                               |
+| Workspace   | Moon tasks and project creation, pinned toolchains, pnpm catalogs, a Rust example                         |
 | Identity    | WorkOS Google OAuth and email codes, encrypted cookies, token verification, TanStack Start adapter        |
 | Persistence | Postgres, Drizzle queries, Atlas SQL migrations, transaction scoped identity and real RLS verification    |
 | UI          | React, Tailwind 4, shadcn/Radix components, layout and typography components                              |
@@ -61,22 +61,18 @@ The signed-in page contains diagnostic examples that a product should replace.
 ```bash
 just new-project atlas --dest ../projects --org your-org
 just projects
-just project-impact
 ```
 
-The creator records the exact template revision and inherited file signatures in the descendant.
-This template keeps one tracked record per project; local checkout paths remain ignored. See
-[project creation and impact reporting](docs/project-lineage.md) for options, registration and the
-limits of dependency analysis.
+The creator preserves Git history, sets the new project's `origin` and this template as `upstream`,
+then commits naming and setup changes on top of the selected template revision. This template keeps
+one tracked consumer record per project; local checkout paths remain ignored. Use the list to inspect
+real projects for improvements worth bringing back into the baseline. See
+[project creation and consumer tracking](docs/project-lineage.md).
 
-## Generate members
+## Develop your project
 
-```bash
-just new-package billing
-just new-app console 5200
-pnpm install
-moon sync
-```
+Adapt `apps/web` directly. Downstream projects may replace or delete the examples. For additional
+members, follow [Add a workspace member](AGENTS.md#add-a-workspace-member).
 
 Each application selects `organizationPolicy` in `src/server/auth.ts`: `personal` provisions a
 personal workspace, while `existing` leaves organization membership unchanged.
@@ -90,14 +86,10 @@ and registers its own source directory. Published packages do not scan neighbori
 CI runs the coverage task once per JavaScript project; `test` remains available for focused local runs.
 Docker enables the real Postgres checks. CI requires those checks when a schema exists.
 
-The template producer also runs `root:consumer-check`. It generates and renames an application,
-removes the examples, builds it and verifies its HTTP and CSS behavior. It repeats the check with
-packed libraries installed outside their source workspace. It neither publishes packages nor
-contacts an identity provider.
-
-`just rename` removes `.moon/template-reference.json`. Consumer repositories retain the member
-generators but do not compare their product code against `apps/web`. When developing this template,
-run `moon run root:template-update` after changing a raw reference file, then verify `root:template-check`.
+The template producer also runs `root:consumer-check`. It creates a repository using the real script,
+builds its application and verifies HTTP and CSS behavior. It repeats the check with packed libraries
+installed outside their source workspace. Git integration tests exercise fetching and rebasing a
+later template update while preserving product changes. Fixtures use disposable repositories.
 
 Postgres containers and their default ports are derived from the checkout path. `just clean`
 removes only that checkout's container and Moon cache. Change `LILO_PG_PORT` if a port is occupied.

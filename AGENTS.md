@@ -147,13 +147,15 @@ work; the green run proves the valid state.
 - Use double quotes and a print width of 100. The `singleQuote` and `printWidth` settings in
   `.oxfmtrc.json` define that format.
 
-## Preserve project provenance
+## Create projects and learn from consumers
 
-- Use `just new-project` for whole repositories and Moon generators for members inside them.
-- Keep `.template-origin.json` immutable. Registration validates its fingerprint and birth revision.
-- Commit portable records under `.template/projects/`; keep `.template/local/` ignored.
-- Treat `project-impact` as review evidence. Its manifest dependency list does not cover Moon-only
-  or other language dependencies, and unknown or unavailable projects still need inspection.
+- Run `just new-project` from this upstream template checkout. Preserve shared Git history.
+- Downstream `origin` is the product repository; `upstream` is this template. Pushes default to origin.
+- Keep `.template-origin.json` as the creation record, including the starting template revision.
+- Commit consumer records under `.template/projects/`; keep `.template/local/` ignored.
+- Use `just projects` in this template to locate consumers and inspect their implementations for
+  fixes, reusable features and lessons worth bringing back into the baseline.
+- Downstream projects own their application code and may change or delete the examples.
 
 ## Follow repository conventions
 

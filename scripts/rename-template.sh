@@ -140,9 +140,6 @@ while IFS= read -r -d '' file; do
   fi
 done < <(git ls-files -z -- "${verify_pathspec[@]}")
 
-# Reference comparisons belong to template development, not to a generated product.
-rm -f .moon/template-reference.json
-
 printf 'Updated %d tracked files.\n' "$replaced_files"
 if [[ "${4:-}" != "--no-install" ]]; then pnpm install; fi
 verify_absent

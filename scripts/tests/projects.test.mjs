@@ -2,12 +2,12 @@ import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import {
-  chmodSync,
   cpSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  readlinkSync,
   realpathSync,
   renameSync,
   rmSync,
@@ -20,7 +20,6 @@ import { test } from "node:test";
 
 import { createProject, planProject } from "../lib/create-project.mjs";
 import { git, initializeProject, writeJson } from "../lib/project-files.mjs";
-import { projectImpact } from "../lib/project-impact.mjs";
 import {
   ORIGIN_FILE,
   projectRecords,
@@ -33,7 +32,7 @@ process.env.GIT_AUTHOR_EMAIL = "baseline@example.invalid";
 process.env.GIT_COMMITTER_NAME = process.env.GIT_AUTHOR_NAME;
 process.env.GIT_COMMITTER_EMAIL = process.env.GIT_AUTHOR_EMAIL;
 
-const producer = existsSync(".template/config.json");
+const producer = !existsSync(ORIGIN_FILE);
 const run = (name, fn) => test(name, { skip: !producer }, fn);
 
 function fixture(t) {
@@ -48,7 +47,6 @@ function fixture(t) {
     "lib/create-project.mjs",
     "lib/project-files.mjs",
     "lib/project-registry.mjs",
-    "lib/project-impact.mjs",
   ]) {
     cpSync(join("scripts", file), join(source, "scripts", file));
   }
@@ -65,6 +63,7 @@ function fixture(t) {
   writeFileSync(join(source, ".env.local"), "ignored local configuration");
   writeFileSync(join(source, "packages/auth/src/index.ts"), "export const value = 1;\n");
   initializeProject(source, "test: create template fixture");
+  git(source, ["remote", "add", "origin", source]);
   const options = {
     source,
     name: "sample",
@@ -77,7 +76,7 @@ function fixture(t) {
 }
 
 await run(
-  "creation records exact provenance without ignored files, history or other descendants",
+  "creation preserves history and configures separate project and template remotes",
   (t) => {
     const { source, options } = fixture(t);
     const revision = git(source, ["rev-parse", "HEAD"]);
@@ -90,14 +89,19 @@ await run(
       JSON.parse(readFileSync(join(result.path, "package.json"), "utf8")).name,
       "sample",
     );
-    assert.equal(git(result.path, ["rev-list", "--count", "HEAD"]), "1");
+    assert.equal(git(result.path, ["rev-parse", "HEAD^"]), revision);
+    assert.equal(git(result.path, ["remote", "get-url", "upstream"]), source);
+    assert.equal(
+      git(result.path, ["remote", "get-url", "origin"]),
+      "git@github.com:sample-org/sample.git",
+    );
+    assert.equal(git(result.path, ["config", "branch.main.remote"]), "origin");
     assert.equal(git(result.path, ["status", "--porcelain"]), "");
-    for (const file of [".env.local", "uncommitted.txt", ".template"])
+    for (const file of [".env.local", "uncommitted.txt", ".git/objects/info/alternates"])
       assert.equal(existsSync(join(result.path, file)), false);
     assert.equal(projectRecords(source)[0].id, origin.id);
-    assert.equal(projectRecords(source)[0].repository, null);
-    assert.equal(origin.files[ORIGIN_FILE], undefined);
-    assert.match(origin.files["packages/auth/src/index.ts"], /^[a-f0-9]{64}$/);
+    assert.equal(projectRecords(source)[0].repository, "git@github.com:sample-org/sample.git");
+    assert.equal(origin.files, undefined);
     assert.equal(
       git(source, ["ls-files", "--others", "--exclude-standard", ".template/local"]),
       "",
@@ -106,32 +110,44 @@ await run(
 );
 
 await run(
-  "impact distinguishes customizations, deletions and new files and follows current consumers",
+  "a customized project fetches and rebases a template update, then pushes to its own origin",
   (t) => {
-    const { source, options } = fixture(t);
-    const project = createProject(options);
-    const changed = "packages/auth/src/index.ts";
-    writeFileSync(join(source, changed), "export const value = 2;\n");
-    let report = projectImpact(source).projects[0];
-    assert.deepEqual(report.changes, [{ path: changed, state: "unchanged" }]);
-    assert.deepEqual(report.manifestDependents.map((member) => member.path).toSorted(), [
-      "apps/web",
-      "packages/auth",
+    const { root, source, options } = fixture(t);
+    const remote = join(root, "project.git");
+    git(root, ["init", "--bare", "--initial-branch=main", remote]);
+    const project = createProject({ ...options, remote });
+    rmSync(join(project.path, "apps/web"), { recursive: true });
+    writeFileSync(join(project.path, "product.txt"), "project feature");
+    git(project.path, ["add", "."]);
+    git(project.path, ["-c", "commit.gpgsign=false", "commit", "-m", "feat: customize project"]);
+    writeFileSync(join(source, "packages/auth/src/index.ts"), "export const value = 2;\n");
+    git(source, ["add", "."]);
+    git(source, ["-c", "commit.gpgsign=false", "commit", "-m", "fix: improve shared auth"]);
+    const update = git(source, ["rev-parse", "HEAD"]);
+    git(project.path, ["fetch", "upstream"]);
+    git(project.path, [
+      "-c",
+      "core.hooksPath=/dev/null",
+      "-c",
+      "commit.gpgsign=false",
+      "rebase",
+      "upstream/main",
     ]);
-    writeFileSync(join(project.path, changed), "export const value = 3;\n");
-    assert.equal(projectImpact(source).projects[0].changes[0].state, "modified");
-    rmSync(join(project.path, changed));
-    assert.equal(projectImpact(source).projects[0].changes[0].state, "deleted");
-    writeFileSync(join(source, "new.txt"), "new feature");
-    report = projectImpact(source).projects[0];
-    assert.equal(report.changes.find(({ path }) => path === "new.txt").state, "new-in-template");
-    writeFileSync(join(project.path, "new.txt"), "project already owns it");
+    assert.equal(git(project.path, ["merge-base", "HEAD", "upstream/main"]), update);
     assert.equal(
-      projectImpact(source).projects[0].changes.find(({ path }) => path === "new.txt").state,
-      "project-only",
+      readFileSync(join(project.path, "packages/auth/src/index.ts"), "utf8"),
+      "export const value = 2;\n",
     );
-    assert.equal(projectImpact(source, { to: "HEAD" }).projects[0].changes.length, 0);
-    assert.throws(() => projectImpact(source, { from: "missing-revision" }));
+    assert.equal(existsSync(join(project.path, "apps/web")), false);
+    assert.equal(readFileSync(join(project.path, "product.txt"), "utf8"), "project feature");
+    assert.equal(
+      JSON.parse(readFileSync(join(project.path, "package.json"), "utf8")).name,
+      "sample",
+    );
+    assert.equal(git(project.path, ["status", "--porcelain"]), "");
+    git(project.path, ["push", "-u", "origin", "main"]);
+    assert.equal(git(remote, ["rev-parse", "main"]), git(project.path, ["rev-parse", "HEAD"]));
+    assert.equal(git(source, ["rev-parse", "HEAD"]), update);
   },
 );
 
@@ -142,18 +158,13 @@ await run(
     const project = createProject(options);
     const moved = join(root, "moved");
     renameSync(project.path, moved);
-    assert.equal(projectImpact(source).projects[0].status, "unavailable");
-    git(moved, ["remote", "add", "origin", "https://example.test/sample.git"]);
+    assert.equal(existsSync(projectRecords(source)[0].path), false);
+    git(moved, ["remote", "set-url", "origin", "https://example.test/sample.git"]);
     registerProject(source, moved);
     registerProject(source, moved);
     assert.equal(projectRecords(source).length, 1);
     assert.equal(projectRecords(source)[0].repository, "https://example.test/sample.git");
     assert.equal(projectRecords(source)[0].path, moved);
-    assert.equal(projectImpact(source).projects[0].status, "available");
-    const origin = readOrigin(moved);
-    origin.id = randomUUID();
-    writeJson(join(moved, ORIGIN_FILE), origin);
-    assert.equal(projectImpact(source).projects[0].status, "unknown");
   },
 );
 
@@ -190,17 +201,12 @@ await run(
     const project = createProject(options);
     const original = readOrigin(project.path);
     const altered = structuredClone(original);
-    altered.files["packages/auth/src/index.ts"] = "invalid";
-    writeJson(join(project.path, ORIGIN_FILE), altered);
-    assert.equal(projectImpact(source).projects[0].status, "unknown");
-    assert.throws(() => registerProject(source, project.path), /Invalid inherited file hash/);
-    altered.files = {};
+    altered.template.revision = "invalid";
     writeJson(join(project.path, ORIGIN_FILE), altered);
     assert.throws(() => registerProject(source, project.path), /Invalid project origin/);
     writeFileSync(join(source, "next.txt"), "next");
     git(source, ["add", "."]);
     git(source, ["-c", "commit.gpgsign=false", "commit", "-m", "test: next revision"]);
-    altered.files = original.files;
     altered.template.revision = git(source, ["rev-parse", "HEAD"]);
     writeJson(join(project.path, ORIGIN_FILE), altered);
     assert.throws(() => registerProject(source, project.path), /immutable/);
@@ -208,33 +214,23 @@ await run(
   },
 );
 
-await run(
-  "mode changes are customizations and registration requires the actual repository root",
-  (t) => {
-    const { source, options } = fixture(t);
-    const project = createProject(options);
-    const file = "packages/auth/src/index.ts";
-    writeFileSync(join(source, file), "new template code");
-    chmodSync(join(project.path, file), 0o755);
-    assert.equal(projectImpact(source).projects[0].changes[0].state, "modified");
-    const nested = join(project.path, "nested");
-    mkdirSync(nested);
-    cpSync(join(project.path, ORIGIN_FILE), join(nested, ORIGIN_FILE));
-    assert.throws(() => registerProject(source, nested), /repository root/);
-    git(project.path, [
-      "remote",
-      "add",
-      "origin",
-      "https://user:password@example.test/sample.git?token=secret",
-    ]);
-    assert.equal(
-      registerProject(source, project.path).repository,
-      "https://example.test/sample.git",
-    );
-  },
-);
+await run("registration requires the repository root and omits remote credentials", (t) => {
+  const { source, options } = fixture(t);
+  const project = createProject(options);
+  const nested = join(project.path, "nested");
+  mkdirSync(nested);
+  cpSync(join(project.path, ORIGIN_FILE), join(nested, ORIGIN_FILE));
+  assert.throws(() => registerProject(source, nested), /repository root/);
+  git(project.path, [
+    "remote",
+    "set-url",
+    "origin",
+    "https://user:password@example.test/sample.git?token=secret",
+  ]);
+  assert.equal(registerProject(source, project.path).repository, "https://example.test/sample.git");
+});
 
-await run("CLI dry run and JSON impact preserve a destination containing spaces", (t) => {
+await run("CLI dry run and consumer list preserve a destination containing spaces", (t) => {
   const { root, source } = fixture(t);
   const parent = join(root, "parent with spaces");
   const cli = (args) =>
@@ -248,12 +244,10 @@ await run("CLI dry run and JSON impact preserve a destination containing spaces"
   assert.equal(existsSync(parent), false);
   const created = cli(args);
   assert.equal(created.status, 0, created.stderr);
-  const impact = cli(["impact", "--json"]);
-  assert.equal(impact.status, 0, impact.stderr);
-  const report = JSON.parse(impact.stdout);
-  assert.equal(report.projects.length, 1);
-  assert.equal(report.projects[0].status, "available");
-  assert.equal(report.projects[0].changes.length, 0);
+  const listing = cli(["list"]);
+  assert.equal(listing.status, 0, listing.stderr);
+  assert.match(listing.stdout, /git@github.com:sample-org\/sample.git/);
+  assert.ok(listing.stdout.includes(join(parent, "sample")));
   assert.deepEqual(
     JSON.parse(cli(["list", "--json"]).stdout).map(({ name }) => name),
     ["sample"],
@@ -292,21 +286,57 @@ await run("concurrent creators cannot replace a reserved destination", async (t)
   const results = await Promise.all([create(), create()]);
   assert.deepEqual(new Set(results), new Set([0, 1]));
   assert.equal(projectRecords(source).length, 1);
-  assert.equal(git(join(root, "shared"), ["rev-list", "--count", "HEAD"]), "1");
+  assert.equal(
+    git(join(root, "shared"), ["rev-parse", "HEAD^"]),
+    git(source, ["rev-parse", "HEAD"]),
+  );
   assert.equal(readOrigin(join(root, "shared")).name, "shared");
 });
 
-await run("dangling symlinks retain their provenance and can be compared", (t) => {
+await run("creation preserves dangling symlinks from the committed tree", (t) => {
   const { source, options } = fixture(t);
   symlinkSync("missing-original", join(source, "shortcut"));
   git(source, ["add", "."]);
   git(source, ["-c", "commit.gpgsign=false", "commit", "-m", "test: add inherited symlink"]);
   const project = createProject(options);
-  assert.match(readOrigin(project.path).files.shortcut, /^[a-f0-9]{64}$/);
-  rmSync(join(source, "shortcut"));
-  symlinkSync("missing-next", join(source, "shortcut"));
-  assert.equal(projectImpact(source).projects[0].changes[0].state, "unchanged");
-  rmSync(join(project.path, "shortcut"));
-  symlinkSync("custom-target", join(project.path, "shortcut"));
-  assert.equal(projectImpact(source).projects[0].changes[0].state, "modified");
+  assert.equal(readlinkSync(join(project.path, "shortcut")), "missing-original");
 });
+
+await run(
+  "a selected older revision retains its ancestry independently of the source checkout",
+  (t) => {
+    const { source, options } = fixture(t);
+    const revision = git(source, ["rev-parse", "HEAD"]);
+    writeFileSync(join(source, "later.txt"), "later baseline");
+    git(source, ["add", "."]);
+    git(source, ["-c", "commit.gpgsign=false", "commit", "-m", "feat: later baseline"]);
+    const project = createProject({ ...options, ref: revision });
+    assert.equal(git(project.path, ["rev-parse", "HEAD^"]), revision);
+    assert.equal(existsSync(join(project.path, "later.txt")), false);
+    rmSync(source, { recursive: true });
+    assert.equal(git(project.path, ["rev-parse", "HEAD^"]), revision);
+    assert.equal(
+      git(project.path, ["show", `${revision}:packages/auth/src/index.ts`]),
+      "export const value = 1;",
+    );
+  },
+);
+
+await run(
+  "planning rejects missing upstream, shallow history and a product used as the template",
+  (t) => {
+    const { root, source, options } = fixture(t);
+    assert.throws(() => planProject({ ...options, remote: source }), /distinct/);
+    git(source, ["remote", "remove", "origin"]);
+    assert.throws(() => planProject(options), /origin remote/);
+    git(source, ["remote", "add", "origin", source]);
+    const shallow = join(root, "shallow");
+    git(root, ["clone", "--depth", "1", `file://${source}`, shallow]);
+    assert.throws(() => planProject({ ...options, source: shallow }), /full template history/);
+    const project = createProject(options);
+    assert.throws(
+      () => planProject({ ...options, source: project.path, destination: join(root, "another") }),
+      /upstream template checkout/,
+    );
+  },
+);
