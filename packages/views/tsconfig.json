@@ -8,9 +8,6 @@
   },
   "references": [
     {
-      "path": "../auth"
-    },
-    {
       "path": "../theme"
     },
     {

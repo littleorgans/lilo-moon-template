@@ -16,6 +16,7 @@ function SignIn() {
     <SignInPanel
       title="Task board"
       description="Sign in to see the tasks your workspace can see."
+      oauthLabel="Continue with Google"
       oauthStartPath="/api/auth/start"
       emailStartPath="/api/auth/email/start"
       sessionEnded={ended === true}

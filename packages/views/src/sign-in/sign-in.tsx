@@ -8,6 +8,8 @@ export interface SignInPanelProps {
   readonly description: string;
   /** The server route that starts the redirect sign-in. An anchor, so the route can set cookies. */
   readonly oauthStartPath: string;
+  /** The application names its configured identity provider. */
+  readonly oauthLabel: string;
   /** The server route that emails a one-time code. A form post, for the same reason. */
   readonly emailStartPath: string;
   /** True when the person arrived because their session stopped verifying. */
@@ -30,6 +32,7 @@ export function SignInPanel({
   title,
   description,
   oauthStartPath,
+  oauthLabel,
   emailStartPath,
   sessionEnded = false,
 }: SignInPanelProps) {
@@ -43,7 +46,7 @@ export function SignInPanel({
           ) : null}
           <Text tone="muted">{description}</Text>
           <Button asChild>
-            <a href={oauthStartPath}>Continue with Google</a>
+            <a href={oauthStartPath}>{oauthLabel}</a>
           </Button>
           <Text tone="muted" size="small">
             or

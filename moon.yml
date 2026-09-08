@@ -46,6 +46,7 @@ tasks:
     type: "run"
     command: "node scripts/projects.mjs create"
     options:
+      shell: false
       cache: false
       runInCI: false
 
@@ -53,6 +54,7 @@ tasks:
     type: "run"
     command: "node scripts/projects.mjs list"
     options:
+      shell: false
       cache: false
       runInCI: false
 
@@ -60,6 +62,7 @@ tasks:
     type: "run"
     command: "node scripts/projects.mjs register"
     options:
+      shell: false
       cache: false
       runInCI: false
 
@@ -67,6 +70,7 @@ tasks:
     type: "run"
     command: "bash scripts/rename-template.sh"
     options:
+      shell: false
       cache: false
       runInCI: false
 
@@ -74,6 +78,7 @@ tasks:
     type: "run"
     command: "bash scripts/rename-template.sh --verify"
     options:
+      shell: false
       cache: false
       runInCI: false
 
@@ -82,6 +87,7 @@ tasks:
     type: "run"
     command: "node scripts/prune-references.mjs"
     options:
+      shell: false
       cache: false
       runInCI: false
 
@@ -101,19 +107,35 @@ tasks:
       - "scripts/**/*"
       - "pnpm-lock.yaml"
     options:
+      shell: false
       cache: false
+      runInCI: "always"
+
+  tsgolint-lockstep:
+    description: "Verify repository TypeScript and type aware lint pins agree"
+    type: "test"
+    command: "node scripts/assert-tsgolint-lockstep.mjs"
+    inputs:
+      - "package.json"
+      - "pnpm-workspace.yaml"
+      - "scripts/assert-tsgolint-lockstep.mjs"
+    options:
+      shell: false
       runInCI: "always"
 
   scripts-test:
     type: "test"
-    command: "node --test scripts/tests/*.test.mjs"
+    command: "node"
+    args: ["--test", "scripts/tests/**/*.test.mjs"]
     inputs:
       - "scripts/**/*"
+      - "moon.yml"
       - ".moon/**/*"
       - "renovate.json"
       - ".github/workflows/**/*"
       - ".prototools"
     options:
+      shell: false
       runInCI: "always"
 
   lint:
@@ -131,12 +153,14 @@ tasks:
     deps:
       - "#ts-library:build"
     options:
+      shell: false
       runInCI: "always"
 
   lint-fix:
     type: "run"
     command: "oxlint --type-aware --fix --no-error-on-unmatched-pattern"
     options:
+      shell: false
       cache: false
       runInCI: false
 
@@ -145,13 +169,24 @@ tasks:
     command: "oxfmt --check --no-error-on-unmatched-pattern"
     inputs:
       - "@globs(sources)"
+      # oxfmt also scans documentation and repository configuration outside source projects.
+      - "*"
+      - ".*"
+      - "docs/**/*"
+      - ".github/**/*"
+      - ".vscode/**/*"
+      - ".changeset/**/*"
+      - ".template/**/*"
+      - "!.template/local/**/*"
     options:
+      shell: false
       runInCI: "always"
 
   format:
     type: "run"
     command: "oxfmt --no-error-on-unmatched-pattern"
     options:
+      shell: false
       cache: false
       runInCI: false
 
@@ -180,6 +215,7 @@ tasks:
       - check: "condition"
         script: "test ! -f db/schema.sql"
     options:
+      shell: false
       cache: false
       runInCI: false
 
@@ -193,6 +229,7 @@ tasks:
       - check: "condition"
         script: "test ! -f db/schema.sql"
     options:
+      shell: false
       cache: false
       runInCI: "always"
 
@@ -219,6 +256,7 @@ tasks:
       - check: "condition"
         script: "test ! -f db/schema.sql"
     options:
+      shell: false
       cache: false
       runInCI: false
 
@@ -239,6 +277,7 @@ tasks:
       - check: "condition"
         script: "test ! -f db/schema.sql"
     options:
+      shell: false
       cache: false
       runInCI: "always"
 
@@ -262,6 +301,7 @@ tasks:
       - check: "condition"
         script: "test ! -f db/schema.sql"
     options:
+      shell: false
       cache: false
       runInCI: "always"
 
@@ -272,6 +312,7 @@ tasks:
     inputs:
       - "scripts/rename-template.sh"
     options:
+      shell: false
       cache: false
       runInCI: "always"
 
@@ -286,6 +327,7 @@ tasks:
       - "/.secretlintrc.json"
       - "/.secretlintignore"
     options:
+      shell: false
       cache: false
       runInCI: "always"
 
@@ -297,5 +339,6 @@ tasks:
       - "/pnpm-lock.yaml"
       - "/pnpm-workspace.yaml"
     options:
+      shell: false
       cache: false
       runInCI: "always"

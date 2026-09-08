@@ -9,9 +9,7 @@ import { themeCookieName } from "../server/theme.js";
 
 import stylesUrl from "../styles.css?url";
 
-// Declared here, not beside the cookie logic, for the reason `routes/app.tsx` records: the server
-// function is the boundary the Start plugin compiles against, and it strips the handler with its
-// server-only imports out of the client build.
+// Start compiles this server function out of the browser bundle.
 const readTheme = createServerFn({ method: "GET" }).handler(() =>
   parseThemePreference(getCookie(themeCookieName(getRequest().url))),
 );

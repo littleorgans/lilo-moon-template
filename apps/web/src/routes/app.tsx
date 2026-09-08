@@ -1,30 +1,19 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 
-import { SignedInRoute } from "../components/signed-in-route.js";
-import { loadSignedOrRedirect } from "../server/signed-in.js";
-import type { SignedInView } from "../server/signed-in.js";
+import { loadWorkspaceOrRedirect } from "../features/workspace/server/load-workspace.js";
+import { WorkspacePage } from "../features/workspace/workspace-page.js";
 
-/**
- * A server function, declared here rather than beside the loader it calls.
- *
- * `createServerFn` is the client/server boundary the Start plugin compiles against: it strips the
- * handler out of the client build. Wrapping it in an ordinary function in another module defeats
- * that, and the server-only imports behind it leak into the client graph. The build refuses this,
- * which is how the placement was settled.
- */
-// Called with no arguments so the loader takes its live dependencies. The server function's
-// signature has no room for the test seams, which is what keeps them out of the running server.
-const loadSigned = createServerFn({ method: "GET" }).handler(
-  async () => await loadSignedOrRedirect(),
+// Keep the Start server boundary visible to the compiler; feature code owns the loader behavior.
+const loadWorkspace = createServerFn({ method: "GET" }).handler(
+  async () => await loadWorkspaceOrRedirect(),
 );
 
-/** Exported so the wiring is reachable from a test rather than only from a running server. */
-export async function appLoader(): Promise<SignedInView> {
-  return await loadSigned();
-}
-
 export const Route = createFileRoute("/app")({
-  loader: appLoader,
-  component: SignedInRoute,
+  loader: () => loadWorkspace(),
+  component: WorkspaceRoute,
 });
+
+function WorkspaceRoute() {
+  return <WorkspacePage {...Route.useLoaderData()} />;
+}

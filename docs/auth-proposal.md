@@ -4,14 +4,11 @@ This record includes historical experiments. The current contract is in [AGENTS.
 and the implemented capability inventory is in [README.md](../README.md). The correction pass keeps
 WorkOS explicit, makes organization provisioning a product choice, and tests generated and packed consumers.
 
-**Status: working document for #16, #17 and #23.** `packages/auth` is on main (#57, `53a8bcf`).
-`packages/db` is on main (#59, `4e58cc5`). `packages/auth-workos` is on main (#63, `bba230c`).
-The user entity and `root:rls-verify` are on main (#56, `f03ec78`). Sections marked **Settled** or
-**Decided** were proven by running something; the evidence is quoted inline. Anything under "Open
-questions" is not. Unbuilt: `packages/theme`, `packages/ui`, the Rust
-mirror of verification in `services/ping` for #17, and every screen in
-[The auth screens](auth-screens.md). When the whole page settles, the
-rationale moves to [decisions.md](decisions.md) and the work becomes issues.
+**Historical proposal.** The sections below preserve the reasoning and experiments for #16, #17
+and #23. Status labels, commit references and proposed directory trees describe those experiments,
+not the current implementation. Auth, persistence, theme, UI and the example screens are implemented;
+the proposed Rust auth mirror is not. Use the current inventory and code layout linked above when
+making changes.
 
 Background that this page does not repeat: [Supabase as a Postgres host](supabase-boundary.md),
 [Why this baseline is shaped this way](decisions.md), and [The user entity](user-entity.md), which
@@ -57,7 +54,7 @@ packages/
   theme/                  On main. Typed token contract, product themes, runtime applier, validator.
   ui/                     On main. Shared React components. shadcn + Tailwind. Product styling is allowed.
   views/                  On main. Product views composed from ui blocks. One directory per view.
-  vite-config/            On main. Workspace source resolution for app Vite configs. Never built.
+  vite-config/            Workspace source resolution for app Vite configs. Published from its dist build.
   auth/                   On main. createVerifier, toPrincipal. JWKS + jose. No vendor SDK.
   auth-workos/            On main. Login flows and WorkOS API calls. The quarantined provider module.
   auth-session/           On main. Sealed session cookie, CSRF state, the redirect handlers.

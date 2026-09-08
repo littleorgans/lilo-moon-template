@@ -117,6 +117,29 @@ async function exercise(root) {
       signal: AbortSignal.timeout(5000),
     });
     assert.equal(logout.status, 405, "GET must not sign a person out");
+    await Promise.all(
+      ["/verify-email", "/session-error"].map(async (path) => {
+        const page = await fetch(`${origin}${path}`, { signal: AbortSignal.timeout(5000) });
+        assert.equal(page.status, 200, `grouped page ${path} must retain its URL`);
+      }),
+    );
+    const callback = await fetch(`${origin}/callback?code=invalid&state=forged`, {
+      signal: AbortSignal.timeout(5000),
+      redirect: "manual",
+    });
+    assert.equal(callback.status, 400, "grouped callback must reach state validation");
+    await Promise.all(
+      ["/api/auth/email/start", "/api/auth/email/verify"].map(async (path) => {
+        const refused = await fetch(`${origin}${path}`, {
+          signal: AbortSignal.timeout(5000),
+          method: "POST",
+          redirect: "manual",
+          headers: { origin },
+          body: new URLSearchParams(),
+        });
+        assert.equal(refused.status, 400, `nested endpoint ${path} must reach input validation`);
+      }),
+    );
     const html = await response.text();
     assert.match(html, /Theme lab/);
     const cssPath = html.match(/href="([^"]+\.css)"/)?.[1];
@@ -264,7 +287,7 @@ try {
   // Installed libraries no longer have workspace projects for explicit Moon dependency edges.
   writeFileSync(
     join(packed, "apps/web/moon.yml"),
-    'language: "typescript"\nlayer: "application"\n',
+    'language: "typescript"\nlayer: "application"\ntags: ["web-app"]\n',
   );
   const manifestPath = join(packed, "apps/web/package.json");
   const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));

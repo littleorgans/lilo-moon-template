@@ -11,8 +11,8 @@ import type { Session, SessionCookieDeps } from "./session.js";
 /**
  * Who is calling, as one value covering every state a session cookie can be in.
  *
- * A union rather than a Principal-or-throw, because all four outcomes are ordinary things that
- * happen to a running application and three of them decide what the person sees. An exception
+ * A union rather than a Principal-or-throw, because all five outcomes are ordinary things that
+ * happen to a running application and each determines what the person sees. An exception
  * would leave that decision to whatever catches it, which in a framework is a serialised stack
  * trace: the same failure mode the sign-in callback was already fixed for.
  */
@@ -83,7 +83,7 @@ async function refreshed(jar: CookieJar, deps: AccessDeps, session: Session): Pr
 }
 
 /**
- * Turns the session cookie into one of the four states a caller can act on.
+ * Turns the session cookie into one of the five states a caller can act on.
  *
  * The access token is verified on every request. Nothing is trusted merely because it came out of
  * our own cookie: sealing proves we wrote it, and only the signature proves the provider issued

@@ -32,6 +32,7 @@ Follow this procedure so Moon, pnpm, TypeScript, and CI discover the same projec
    ```yaml
    language: "typescript"
    layer: "library"
+   tags: ["ts-library"]
    ```
 
    Moon detects the JavaScript toolchain from the `package.json` manifest. Confirm detection and
@@ -39,7 +40,9 @@ Follow this procedure so Moon, pnpm, TypeScript, and CI discover the same projec
    project metadata and inherited task filters. `inheritedBy.toolchains` in `.moon/tasks/node.yml`
    gives a JavaScript project `typecheck`, `test`, and `test-watch`. Both
    `inheritedBy.toolchains` and `inheritedBy.layers` in `.moon/tasks/node-library.yml` give a
-   JavaScript library `build`. Keep application build tasks in their own layer scoped task file.
+   JavaScript library `build`. The `ts-library` tag includes it in root lint's declaration builds.
+   Vite/Nitro applications also declare `tags: ["web-app"]` to inherit `.moon/tasks/node-application.yml`.
+   Other application runtimes own their build and serve commands. App ports belong in app configuration.
 
 3. For a JavaScript or TypeScript member, add `package.json` with a unique workspace name. Put
    runtime and development dependencies in that manifest, then reference shared versions with
@@ -78,6 +81,8 @@ Follow this procedure so Moon, pnpm, TypeScript, and CI discover the same projec
   `^typecheck` as a different target and cannot resolve the intended dependency.
 - Use `moon check --all` to check all projects. The `:task` all projects form is a CLI target and is
   invalid inside a task dependency.
+- Set `options.shell: false` for `command` tasks so forwarded paths stay literal, including route
+  groups, spaces and `$` route parameters. Use `script` when shell syntax is required.
 - Set a task `type` to `build`, `run`, or `test`. Use `build` for tasks that produce outputs, such as
   `typecheck`. Classify validation tasks as `test` and mutating fixers as `run`; `moon check` includes
   builds and tests and must leave the working tree unchanged.
@@ -109,8 +114,9 @@ work; the green run proves the valid state.
 
 ## Write tests
 
-- Put focused project tests directly under `tests/`. Put tests that cross a package, process,
-  network, or storage boundary under `tests/integration/`.
+- Put focused tests under `tests/`, mirroring feature directories when the project has them.
+  Put tests that exercise package composition, processes, network or storage under `tests/integration/`.
+  Keep native language conventions, such as Rust integration tests under `tests/`.
 - Name both kinds `*.test.*` or `*.spec.*`. The shared `vitest.config.ts` discovers those names and
   measures every source file under `src/`.
 - The focused `test` task runs locally. CI uses `test-coverage` to avoid executing the same suite twice.
@@ -146,6 +152,22 @@ work; the green run proves the valid state.
   `.oxlintrc.json` contain no `warn` level because warnings let violations accumulate.
 - Use double quotes and a print width of 100. The `singleQuote` and `printWidth` settings in
   `.oxfmtrc.json` define that format.
+
+## Demonstrate patterns that can grow
+
+- Follow [the code layout guide](docs/code-layout.md). Working examples are the primary convention.
+- Group related routes into directories. `(group)` directories organize without adding URL segments;
+  layouts and access checks must be explicit. Keep standalone routes simple.
+- Keep route files focused on URL, search, loader, handler and layout wiring. Keep Start's compiler
+  boundaries visible. Feature code receives data through props instead of importing route modules.
+- Put each feature's model, UI and server behavior under `src/features/<feature>/`. Use subdirectories
+  when the feature has several related files. Do not create empty folders for hypothetical features.
+- Keep application service composition in named `src/server/` modules. Product queries belong to
+  their feature, not a shared services file or a reusable UI package.
+- Promote code to `packages/` when it has a reusable contract. Callers supply product paths, labels
+  and policy; package exports must point at real implementations.
+- Keep shared tooling free of app-specific paths, ports and coverage exceptions. Scope runtime tasks
+  explicitly so adding a different language or application runtime inherits the right checks.
 
 ## Create projects and learn from consumers
 

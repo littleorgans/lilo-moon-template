@@ -1,5 +1,6 @@
 language: "typescript"
 layer: "application"
+tags: ["web-app"]
 dependsOn:
   - "auth"
   - "theme"
@@ -8,3 +9,9 @@ dependsOn:
   - "auth-tanstack"
   - "collections"
   - "db"
+
+tasks:
+  preview:
+    # Match vite.config.ts so dev and preview use the same OAuth callback origin.
+    env:
+      PORT: "5199"

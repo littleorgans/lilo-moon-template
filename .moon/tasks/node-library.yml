@@ -9,6 +9,7 @@ tasks:
   build:
     type: "build"
     script: >-
+      node -e "require('node:fs').rmSync('dist', { recursive: true, force: true })" &&
       tsc --project tsconfig.build.json --declaration false --declarationMap false &&
       tsc --project tsconfig.build.json --emitDeclarationOnly
     inputs:
