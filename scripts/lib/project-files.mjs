@@ -4,13 +4,22 @@ import { lstatSync, readFileSync, readlinkSync, writeFileSync } from "node:fs";
 import { isAbsolute, relative, resolve, sep } from "node:path";
 
 export function projectEnvironment() {
+  // A generated workspace runs its own setup, including development-only Moon tasks.
+  // CI detection uses variable presence, so setting these flags to "false" is insufficient.
   return Object.fromEntries(
     Object.entries(process.env).filter(
       ([key]) =>
         !key.startsWith("MOON_") &&
         !key.startsWith("PROTO_") &&
         !key.startsWith("WORKOS_") &&
-        !["DATABASE_URL", "GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE"].includes(key),
+        ![
+          "CI",
+          "GITHUB_ACTIONS",
+          "DATABASE_URL",
+          "GIT_DIR",
+          "GIT_WORK_TREE",
+          "GIT_INDEX_FILE",
+        ].includes(key),
     ),
   );
 }
