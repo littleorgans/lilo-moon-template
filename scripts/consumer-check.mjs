@@ -15,6 +15,8 @@ import { tmpdir } from "node:os";
 import { dirname, join, relative } from "node:path";
 import { setTimeout } from "node:timers/promises";
 
+import { createProject } from "./lib/create-project.mjs";
+import { initializeProject, projectEnvironment, projectCommand } from "./lib/project-files.mjs";
 import { pruneReferences } from "./lib/typescript-references.mjs";
 
 if (!existsSync(".moon/template-reference.json")) {
@@ -26,23 +28,20 @@ if (!existsSync(".moon/template-reference.json")) {
 
 const source = process.cwd();
 const scratch = mkdtempSync(join(tmpdir(), "baseline-consumer-"));
+const seed = join(scratch, "seed");
 const generated = join(scratch, "generated");
 const packed = join(scratch, "packed");
 const tarballs = join(scratch, "tarballs");
 // A child Moon must discover its own workspace and toolchain rather than inherit its parent's paths.
-const env = Object.fromEntries(
-  Object.entries(process.env).filter(
-    ([key]) =>
-      !key.startsWith("MOON_") &&
-      !key.startsWith("PROTO_") &&
-      !key.startsWith("WORKOS_") &&
-      key !== "DATABASE_URL",
-  ),
-);
+process.env.GIT_AUTHOR_NAME = "Baseline verification";
+process.env.GIT_AUTHOR_EMAIL = "baseline@example.invalid";
+process.env.GIT_COMMITTER_NAME = process.env.GIT_AUTHOR_NAME;
+process.env.GIT_COMMITTER_EMAIL = process.env.GIT_AUTHOR_EMAIL;
+const env = projectEnvironment();
 
 function run(cwd, command, args) {
   process.stdout.write(`consumer-check: ${command} ${args.join(" ")}\n`);
-  return execFileSync(command, args, { cwd, env, stdio: "inherit" });
+  return projectCommand(cwd, command, args);
 }
 
 function rejectViolation(root, file, content, target, failure) {
@@ -159,7 +158,7 @@ async function exercise(root) {
 }
 
 try {
-  mkdirSync(generated);
+  mkdirSync(seed);
   const files = execFileSync(
     "git",
     ["ls-files", "-z", "--cached", "--others", "--exclude-standard"],
@@ -169,30 +168,17 @@ try {
     .filter(Boolean);
   for (const file of new Set(files)) {
     if (!existsSync(join(source, file))) continue;
-    mkdirSync(dirname(join(generated, file)), { recursive: true });
-    cpSync(join(source, file), join(generated, file));
+    mkdirSync(dirname(join(seed, file)), { recursive: true });
+    cpSync(join(source, file), join(seed, file));
   }
-  run(generated, "git", ["init", "--initial-branch=main"]);
-  run(generated, "git", ["add", "."]);
-  run(generated, "git", [
-    "-c",
-    "user.name=Baseline verification",
-    "-c",
-    "user.email=baseline@example.invalid",
-    "-c",
-    "commit.gpgsign=false",
-    "-c",
-    "core.hooksPath=/dev/null",
-    "commit",
-    "-m",
-    "test: initialize consumer",
-  ]);
-  run(generated, "bash", [
-    "scripts/rename-template.sh",
-    "consumer-org",
-    "consumer-scope",
-    "consumer-project",
-  ]);
+  initializeProject(seed, "test: snapshot template for consumer acceptance");
+  createProject({
+    source: seed,
+    name: "consumer-project",
+    destination: generated,
+    org: "consumer-org",
+    scope: "consumer-scope",
+  });
   run(generated, "moon", ["generate", "application", "--", "--name", "console", "--port", "5281"]);
   for (const path of ["apps/web", "packages/collections", "services/ping"])
     rmSync(join(generated, path), { recursive: true, force: true });
@@ -302,21 +288,7 @@ try {
     workspacePath,
     `${readFileSync(workspacePath, "utf8")}\n${[...artifacts].map(([name, file]) => `  "${name}": "file:${file}"`).join("\n")}\n`,
   );
-  run(packed, "git", ["init", "--initial-branch=main"]);
-  run(packed, "git", ["add", "."]);
-  run(packed, "git", [
-    "-c",
-    "user.name=Baseline verification",
-    "-c",
-    "user.email=baseline@example.invalid",
-    "-c",
-    "commit.gpgsign=false",
-    "-c",
-    "core.hooksPath=/dev/null",
-    "commit",
-    "-m",
-    "test: initialize packed consumer",
-  ]);
+  initializeProject(packed, "test: initialize packed consumer");
   run(packed, "pnpm", ["install"]);
   run(packed, "moon", ["sync"]);
   run(packed, "moon", ["run", "console:build", "console:typecheck", "console:test"]);

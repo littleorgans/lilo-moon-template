@@ -42,6 +42,34 @@ fileGroups:
   tests: []
 
 tasks:
+  new-project:
+    type: "run"
+    command: "node scripts/projects.mjs create"
+    options:
+      cache: false
+      runInCI: false
+
+  projects:
+    type: "run"
+    command: "node scripts/projects.mjs list"
+    options:
+      cache: false
+      runInCI: false
+
+  project-register:
+    type: "run"
+    command: "node scripts/projects.mjs register"
+    options:
+      cache: false
+      runInCI: false
+
+  project-impact:
+    type: "run"
+    command: "node scripts/projects.mjs impact"
+    options:
+      cache: false
+      runInCI: false
+
   rename:
     type: "run"
     command: "bash scripts/rename-template.sh"

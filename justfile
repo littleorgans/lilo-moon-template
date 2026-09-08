@@ -1,4 +1,5 @@
 set shell := ["bash", "-cu"]
+set positional-arguments
 
 # Aliases over moon. No task logic lives here; moon owns the graph.
 
@@ -31,3 +32,16 @@ rename-verify:
 
 clean:
     moon run root:clean
+
+# Create a whole repository and inspect its relationship to the template.
+new-project +args:
+    moon run root:new-project -- "$@"
+
+projects *args:
+    moon run root:projects -- "$@"
+
+project-register path:
+    moon run root:project-register -- "$1"
+
+project-impact *args:
+    moon run root:project-impact -- "$@"

@@ -1,10 +1,16 @@
 # Start a project from this template
 
-Copy this repository, put your names on it, generate the members you will keep, and delete the
-exemplars. The working contract after that is [AGENTS.md](../AGENTS.md). This page does not repeat
-it.
+Use `just new-project` from a template checkout to create a new repository with names and provenance
+already configured. Then generate the members you will keep and delete the exemplars. The working
+contract is [AGENTS.md](../AGENTS.md).
 
-This GitHub repository has no Use this template button. Clone it.
+```bash
+just new-project your-repo --dest ../projects --org your-org
+```
+
+See [project creation and impact reporting](project-lineage.md) for the registry, optional remote
+URL, dry run and setup options. After automated creation, continue at **Claim your ports** below.
+The manual copy and rename procedure remains available but does not create provenance records.
 
 ## Install the tools first
 

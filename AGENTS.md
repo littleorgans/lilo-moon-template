@@ -147,6 +147,14 @@ work; the green run proves the valid state.
 - Use double quotes and a print width of 100. The `singleQuote` and `printWidth` settings in
   `.oxfmtrc.json` define that format.
 
+## Preserve project provenance
+
+- Use `just new-project` for whole repositories and Moon generators for members inside them.
+- Keep `.template-origin.json` immutable. Registration validates its fingerprint and birth revision.
+- Commit portable records under `.template/projects/`; keep `.template/local/` ignored.
+- Treat `project-impact` as review evidence. Its manifest dependency list does not cover Moon-only
+  or other language dependencies, and unknown or unavailable projects still need inspection.
+
 ## Follow repository conventions
 
 - Use Conventional Commits. The Git history and pull request titles depend on the type, optional

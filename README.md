@@ -56,6 +56,19 @@ moon run web:dev
 The reference app runs on port 5199. `/theme` displays the component and theme examples.
 The signed-in page contains diagnostic examples that a product should replace.
 
+## Create a new repository
+
+```bash
+just new-project atlas --dest ../projects --org your-org
+just projects
+just project-impact
+```
+
+The creator records the exact template revision and inherited file signatures in the descendant.
+This template keeps one tracked record per project; local checkout paths remain ignored. See
+[project creation and impact reporting](docs/project-lineage.md) for options, registration and the
+limits of dependency analysis.
+
 ## Generate members
 
 ```bash
