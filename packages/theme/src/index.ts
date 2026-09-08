@@ -11,6 +11,7 @@ export { THEME_NAMES, canvas, editor, themes } from "./themes/index.js";
 export type { ThemeName } from "./themes/index.js";
 export {
   DEFAULT_PREFERENCE,
+  DEFAULT_PREFERENCE_OPTIONS,
   DEFAULT_THEME_NAME,
   THEME_COOKIE,
   cookieValue,
@@ -18,4 +19,4 @@ export {
   parseThemePreference,
   serializeThemePreference,
 } from "./preference.js";
-export type { ThemePreference } from "./preference.js";
+export type { ThemePreference, ThemePreferenceOptions } from "./preference.js";

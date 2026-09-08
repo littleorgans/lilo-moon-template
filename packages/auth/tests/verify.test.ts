@@ -23,22 +23,22 @@ beforeAll(async () => {
 interface TokenOptions {
   readonly key?: PrivateKey;
   readonly issuer?: string;
-  readonly audience?: string;
-  readonly expiresIn?: string;
+  readonly audience?: string | null;
+  readonly expiresIn?: string | null;
   readonly claims?: Record<string, unknown>;
 }
 
 async function token(options: TokenOptions = {}): Promise<string> {
-  return await new SignJWT({
+  const jwt = new SignJWT({
     sub: "user_01HBEQKA6K4QJAS93VPE39W1JT",
     ...options.claims,
   })
     .setProtectedHeader({ alg: "ES256", kid: "test-key" })
     .setIssuedAt()
-    .setIssuer(options.issuer ?? issuer)
-    .setAudience(options.audience ?? audience)
-    .setExpirationTime(options.expiresIn ?? "5m")
-    .sign(options.key ?? signingKey);
+    .setIssuer(options.issuer ?? issuer);
+  if (options.audience !== null) jwt.setAudience(options.audience ?? audience);
+  if (options.expiresIn !== null) jwt.setExpirationTime(options.expiresIn ?? "5m");
+  return await jwt.sign(options.key ?? signingKey);
 }
 
 const verifier = () => createVerifier({ jwks: { keys: [publicJwk] }, issuer, audience });
@@ -106,8 +106,14 @@ describe("createVerifier", () => {
 
   it("does not require an audience when the provider sets none", async () => {
     const withoutAudience = createVerifier({ jwks: { keys: [publicJwk] }, issuer });
-    await expect(withoutAudience(await token())).resolves.toMatchObject({
+    await expect(withoutAudience(await token({ audience: null }))).resolves.toMatchObject({
       userId: "user_01HBEQKA6K4QJAS93VPE39W1JT",
     });
+  });
+});
+
+it("rejects a signed access token without an expiration", async () => {
+  await expect(verifier()(await token({ expiresIn: null }))).rejects.toMatchObject({
+    reason: "claims",
   });
 });

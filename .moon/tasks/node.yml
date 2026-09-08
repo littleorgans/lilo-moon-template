@@ -45,7 +45,7 @@ tasks:
     deps:
       - "^:build"
     options:
-      runInCI: "always"
+      runInCI: false
 
   test-coverage:
     type: "test"

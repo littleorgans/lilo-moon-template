@@ -35,3 +35,15 @@ describe("ThemeSwitcher", () => {
     expect(html).toMatch(/aria-pressed="true"[^>]*>canvas/);
   });
 });
+
+it("renders the consumer's theme choices", () => {
+  const custom = renderToStaticMarkup(
+    <ThemeSwitcher
+      preference={{ mode: "light", theme: "brand" }}
+      themeNames={["brand"]}
+      setPath="/preferences"
+    />,
+  );
+  expect(custom).toContain('value="brand"');
+  expect(custom).not.toContain('value="editor"');
+});

@@ -39,8 +39,10 @@ never needs a search. Suite-level tests that cross modules, the wiring and route
 at the `tests/` root. `server/services.ts` states its own rule in place: it is the composition
 root, one lazy getter per external service and nothing else.
 
-The generator's `.raw` files are byte-copies of `apps/web`, and `root:template-check` fails CI when
-they drift. The deliberate differences are allowlisted in `scripts/template-drift.mjs`, each with
+In the template producer, the generator's `.raw` files are byte-copies of `apps/web`, and
+`root:template-check` fails CI when they drift. `just rename` removes the producer reference marker
+so a consumer can delete the example. `root:consumer-check` exercises actual generation and packed
+package consumption in disposable workspaces. The deliberate differences are allowlisted in `scripts/template-drift.mjs`, each with
 its reason, so a new difference has to be argued into that file rather than accumulating silently.
 
 ## One linter, one formatter
@@ -121,7 +123,7 @@ else. Adding an organization adds `org_id`, `role` as a string, `roles` as an ar
 
 WorkOS has no setting that creates an organization for a new user, so the application does it. A
 first social sign-in therefore yields a token with no `org_id`, and that is a normal state rather
-than an error. The application creates the organization unattended inside the callback, with no
+than an error. The reference application selects the personal organization policy, which creates the organization inside the callback, with no
 naming screen, because the org-of-one is the common case and its name is invisible until somebody
 is invited. It attaches no domains to that organization: a verified domain captures every address
 carrying it, and domain-based SSO routing runs before password auth, which a probe against a seeded
@@ -278,3 +280,19 @@ allows, and every product decision above the baseline.
 
 Changesets write GitHub changelogs from `changelog.repo` in `.changeset/config.json`. `lefthook.yml`
 is the hook file. They constrain how you release and how you commit. They do not change the graph.
+
+## Corrections for reuse
+
+Applications choose `organizationPolicy` explicitly. The `existing` policy leaves membership alone;
+`personal` retains the personal workspace preset. Session packages remain WorkOS specific.
+
+`Database.withPrincipal` only establishes transaction local role and claims. Application code creates
+its identity rows inside that transaction. Using the database wrapper does not require those tables.
+
+The Vite helper receives the consuming workspace root and reads manifest names. UI and views packages
+register their own CSS sources. Applications register their feature sources and may style product
+components. A shared component is justified by shared behavior, not by a restriction on styling.
+
+JWT verification requires expiration. Provider unavailability preserves sessions, including a refresh
+token that rotated before JWKS retrieval failed. Logout goes through a same-origin POST and then the
+WorkOS logout URL. Authorization changes take effect with a renewed access token.

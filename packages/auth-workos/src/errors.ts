@@ -78,6 +78,15 @@ function mapped(
 }
 
 export function translateWorkOSError(error: unknown): WorkOSAuthError {
+  if (
+    error instanceof TypeError &&
+    /fetch failed|failed to fetch|network request failed/i.test(error.message)
+  ) {
+    return mapped(error, "unavailable");
+  }
+  if (error instanceof Error && (error.name === "AbortError" || error.name === "TimeoutError")) {
+    return mapped(error, "unavailable");
+  }
   if (error instanceof AuthenticationException) {
     return mapped(
       error,

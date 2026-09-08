@@ -1,10 +1,16 @@
 # Start a project from this template
 
-Copy this repository, put your names on it, generate the members you will keep, and delete the
-exemplars. The working contract after that is [AGENTS.md](../AGENTS.md). This page does not repeat
-it.
+Use `just new-project` from a template checkout to create a new repository with names and provenance
+already configured. Then generate the members you will keep and delete the exemplars. The working
+contract is [AGENTS.md](../AGENTS.md).
 
-This GitHub repository has no Use this template button. Clone it.
+```bash
+just new-project your-repo --dest ../projects --org your-org
+```
+
+See [project creation and impact reporting](project-lineage.md) for the registry, optional remote
+URL, dry run and setup options. After automated creation, continue at **Claim your ports** below.
+The manual copy and rename procedure remains available but does not create provenance records.
 
 ## Install the tools first
 
@@ -71,14 +77,21 @@ Run `just rename-verify` at any time to confirm that no template identity remain
 
 ## Claim your ports
 
-Two pinned ports are part of the template's identity and must change per project, or two projects
-on one machine collide deterministically: the dev server port in `apps/web/vite.config.ts` (5199
-here) and `DEFAULT_PORT` in `scripts/lib/postgres-container.mjs` (54390 here), where one persistent
-container serves every database task through throwaway databases. Pick fresh values and commit
-them; the rename rewrites the `lilo-postgres` container name with the rest of the identity. The
-registered OAuth redirect URI must agree with the dev server port. `LILO_PG_PORT` in the shell
-environment overrides the database port without a commit. The container stays warm between runs;
-`just clean` removes it.
+Set the application port in `apps/web/vite.config.ts` and register the matching OAuth callback.
+Pass a free port to each `just new-app <name> <port>` invocation.
+
+The Postgres container name and default port are derived from the checkout's absolute path.
+Separate clones and worktrees therefore own separate containers. Override `LILO_PG_PORT` when a
+port is occupied. Run `just clean` before changing that override on an existing container.
+Cleanup removes only the current checkout's container.
+
+Auth cookies are namespaced by client id and redirect URI. Theme cookies include the request origin,
+including its port, so applications sharing localhost do not overwrite one another's cookies.
+
+`just rename` also removes `.moon/template-reference.json`. The file marks this repository as the
+producer of the application template. Its absence lets a consumer delete `apps/web` while keeping
+the generators. `root:consumer-check` verifies both generated workspace packages and installed
+tarballs in disposable consumers before template delivery.
 
 The source condition is a matching pair. The key in `exports` and the string in
 `resolve.conditions` must be the same. Node's standard conditions stay pointed at `dist`. Why is
@@ -164,8 +177,10 @@ moon sync
 project is gone. `moon.yml` `tasks.project-refs` runs `tsc --build --pretty --dry` and fails
 `just ci` with TS6053 until you prune. Per-project typecheck does not catch this.
 
-Remove every `references` entry whose path no longer exists. Leave `compilerOptions.outDir` and
-every remaining path alone. Then:
+Run `moon run root:prune-references` to remove generated root references whose targets were
+deleted. Then run `moon sync`. Surviving references and cache output paths stay generated.
+
+Then:
 
 ```bash
 just ci
@@ -185,7 +200,8 @@ moon run root:drizzle-generate
 ```
 
 `db/migrations/` gains a versioned file and `db/drizzle/_generated/schema.ts` is rewritten. Never
-edit either by hand, and never move `db/schema.sql` into `db/migrations/`. Atlas checksums that
+edit the generated Drizzle schema by hand. Security policies require hand-authored SQL migrations.
+Never move `db/schema.sql` into `db/migrations/`. Atlas checksums that
 directory in `atlas.sum` and reads every `.sql` file in it as a versioned migration.
 
 **A new table needs a policy migration as well as a schema entry.** Atlas does not model row level

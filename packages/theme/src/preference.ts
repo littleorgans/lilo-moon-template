@@ -1,5 +1,5 @@
 import type { ThemeMode } from "./apply.js";
-import { themes } from "./themes/index.js";
+import { THEME_NAMES } from "./themes/index.js";
 import type { ThemeName } from "./themes/index.js";
 
 /**
@@ -9,7 +9,7 @@ import type { ThemeName } from "./themes/index.js";
  */
 export interface ThemePreference {
   readonly mode: ThemeMode;
-  readonly theme: ThemeName;
+  readonly theme: string;
 }
 
 /** The cookie the preference travels in. Parsed by `parseThemePreference`, written by the app. */
@@ -17,7 +17,7 @@ export const THEME_COOKIE = "theme";
 
 /**
  * The theme painted at `:root`. The generated stylesheet and every fallback below key on this one
- * value, so changing the default is this line and a `root:theme-generate` run.
+ * value, so changing the default is this line and a `theme:generate-css` run.
  */
 export const DEFAULT_THEME_NAME: ThemeName = "editor";
 
@@ -28,9 +28,15 @@ function isThemeMode(value: string): value is ThemeMode {
   return value === "light" || value === "dark";
 }
 
-function isBuiltInTheme(value: string): value is ThemeName {
-  return Object.hasOwn(themes, value);
+export interface ThemePreferenceOptions {
+  readonly names: readonly string[];
+  readonly fallback: ThemePreference;
 }
+
+export const DEFAULT_PREFERENCE_OPTIONS: ThemePreferenceOptions = {
+  names: THEME_NAMES,
+  fallback: DEFAULT_PREFERENCE,
+};
 
 /** The cookie value: `mode:theme`. Both halves are validated on the way back in. */
 export function serializeThemePreference(preference: ThemePreference): string {
@@ -42,12 +48,15 @@ export function serializeThemePreference(preference: ThemePreference): string {
  * theme was renamed keeps its mode, and vice versa. Anything unrecognized falls back to the
  * default rather than throwing, because a stale cookie is a visitor, not an error.
  */
-export function parseThemePreference(value: string | null | undefined): ThemePreference {
-  if (value === undefined || value === null) return DEFAULT_PREFERENCE;
+export function parseThemePreference(
+  value: string | null | undefined,
+  options: ThemePreferenceOptions = DEFAULT_PREFERENCE_OPTIONS,
+): ThemePreference {
+  if (value === undefined || value === null) return options.fallback;
   const [mode = "", theme = ""] = value.split(":");
   return {
-    mode: isThemeMode(mode) ? mode : DEFAULT_PREFERENCE.mode,
-    theme: isBuiltInTheme(theme) ? theme : DEFAULT_PREFERENCE.theme,
+    mode: isThemeMode(mode) ? mode : options.fallback.mode,
+    theme: options.names.includes(theme) ? theme : options.fallback.theme,
   };
 }
 
@@ -60,10 +69,11 @@ export function nextPreference(
   current: ThemePreference,
   mode: unknown,
   theme: unknown,
+  options: ThemePreferenceOptions = DEFAULT_PREFERENCE_OPTIONS,
 ): ThemePreference {
   return {
     mode: typeof mode === "string" && isThemeMode(mode) ? mode : current.mode,
-    theme: typeof theme === "string" && isBuiltInTheme(theme) ? theme : current.theme,
+    theme: typeof theme === "string" && options.names.includes(theme) ? theme : current.theme,
   };
 }
 

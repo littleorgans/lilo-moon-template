@@ -48,6 +48,7 @@ interface ProviderMfaVerification {
  */
 export interface WorkOSClient {
   readonly userManagement: {
+    getLogoutUrl(options: { readonly sessionId: string; readonly returnTo: string }): string;
     // Synchronous on purpose: the SDK builds this URL locally and makes no request. Mirroring that
     // keeps the seam honest about which calls can fail over the network.
     getAuthorizationUrl(options: {

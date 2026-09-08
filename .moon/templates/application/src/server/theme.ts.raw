@@ -34,14 +34,20 @@ export async function setThemeResponse({
 }: {
   readonly request: Request;
 }): Promise<Response> {
+  const name = themeCookieName(request.url);
   const form = await request.formData();
-  const current = parseThemePreference(cookieValue(request.headers.get("cookie"), THEME_COOKIE));
+  const current = parseThemePreference(cookieValue(request.headers.get("cookie"), name));
   const next = nextPreference(current, form.get("mode"), form.get("theme"));
   return new Response(null, {
     status: 303,
     headers: {
       location: returnPath(request),
-      "set-cookie": `${THEME_COOKIE}=${serializeThemePreference(next)}; Path=/; Max-Age=31536000; SameSite=Lax`,
+      "set-cookie": `${name}=${serializeThemePreference(next)}; Path=/; Max-Age=31536000; SameSite=Lax`,
     },
   });
+}
+
+/** Local applications on separate ports must not overwrite each other's preference. */
+export function themeCookieName(url: string): string {
+  return `${THEME_COOKIE}_${encodeURIComponent(new URL(url).origin)}`;
 }

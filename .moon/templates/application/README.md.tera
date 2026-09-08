@@ -21,14 +21,14 @@ under it, so there is nothing to reimplement and nothing to keep in sync.
 | `/api/auth/email/start`  | Emails a six digit code.                                    |
 | `/api/auth/email/verify` | Checks it, or returns to `/verify-email?retry=true`.        |
 | `/verify-email`          | Where the code is typed.                                    |
-| `/app`                   | Signed in. Behind the four access states.                   |
-| `/session-error`         | A token that verified and made no sense. No sign-in button. |
-| `/api/auth/signout`      | Clears the session.                                         |
+| `/app`                   | Signed in. Behind the five access states.                   |
+| `/session-error`         | Account error or temporary outage, with retry when useful. |
+| `/api/auth/signout`      | POST clears cookies and redirects through provider logout.                                         |
 | `/theme`                 | The theme lab: every component and token, live switcher.    |
 | `/api/theme`             | Sets the preference cookie, redirects back.                 |
 
-`src/server/auth.ts` holds the only three decisions an application makes about signing in: the
-redirect identity path, where a completed sign-in lands, and where the code is typed.
+`src/server/auth.ts` holds the identity path, redirect destinations and explicit organization provisioning policy.
+Use `personal` for automatic personal workspaces or `existing` to leave membership unchanged.
 
 ## Before it can sign anybody in
 

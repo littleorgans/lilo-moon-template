@@ -25,3 +25,13 @@ describe("text primitives", () => {
     expect(block).toContain("overflow-x-auto");
   });
 });
+
+it("keeps heading semantics independent of visual size", () => {
+  const html = renderToStaticMarkup(
+    <Heading level={2} size={1}>
+      Section
+    </Heading>,
+  );
+  expect(html).toContain("<h2");
+  expect(html).toContain("text-3xl");
+});

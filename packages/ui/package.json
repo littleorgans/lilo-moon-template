@@ -13,7 +13,9 @@
     "src"
   ],
   "type": "module",
-  "sideEffects": false,
+  "sideEffects": [
+    "**/*.css"
+  ],
   "exports": {
     "./globals.css": "./src/globals.css",
     "./components/*": {

@@ -1,14 +1,36 @@
-import type { CookieJar } from "./cookies.js";
-import { SESSION_COOKIE } from "./session.js";
+import { decodeJwt } from "jose";
 
-/**
- * Drops the session cookie and returns to the sign-in page.
- *
- * It does not revoke the session at the provider. That is a real gap rather than an oversight:
- * revoking needs the session id from the token, and while sign-out is a GET it would also be
- * triggerable by any page that can make this browser fetch an image.
- */
-export function signOut(_context: unknown, jar: CookieJar): Response {
-  jar.clear(SESSION_COOKIE);
-  return new Response(null, { status: 302, headers: { location: "/" } });
+import type { CookieJar } from "./cookies.js";
+import { EMAIL_COOKIE, SESSION_COOKIE, STATE_COOKIE, readSession } from "./session.js";
+
+export interface SignOutDeps {
+  readonly cookieKey: Buffer;
+  readonly returnTo: string;
+  readonly logoutUrl: (sessionId: string) => string;
+}
+
+/** The sealed cookie proves token provenance even when its access token has expired. */
+export function signOut(
+  { request }: { readonly request: Request },
+  jar: CookieJar,
+  deps: SignOutDeps,
+): Response {
+  if (request.method !== "POST")
+    return new Response(null, { status: 405, headers: { allow: "POST" } });
+  if (request.headers.get("origin") !== new URL(deps.returnTo).origin) {
+    return new Response("Invalid sign-out origin.", { status: 403 });
+  }
+
+  const session = readSession(deps.cookieKey, jar.read(SESSION_COOKIE));
+  let location = deps.returnTo;
+  if (session !== null) {
+    try {
+      const { sid } = decodeJwt(session.accessToken);
+      if (typeof sid === "string" && sid.length > 0) location = deps.logoutUrl(sid);
+    } catch {
+      // A malformed token has no provider session to address. Always clear the local cookie.
+    }
+  }
+  for (const name of [SESSION_COOKIE, STATE_COOKIE, EMAIL_COOKIE]) jar.clear(name);
+  return new Response(null, { status: 303, headers: { location } });
 }

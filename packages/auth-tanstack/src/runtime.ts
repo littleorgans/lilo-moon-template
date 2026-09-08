@@ -21,6 +21,7 @@ import { requestCookies } from "./cookies.js";
 import { reportAuthFailure } from "./log.js";
 
 export interface AuthRuntimeOptions {
+  readonly organizationPolicy: "personal" | "existing";
   /** Which identity path a redirect sign-in takes. `authkit` is the provider's own hosted page. */
   readonly provider: AuthorizationProvider;
   /** Where a completed sign-in lands. */
@@ -56,7 +57,7 @@ export interface AuthRuntime {
   readonly completeSignIn: (context: { readonly request: Request }) => Promise<Response>;
   readonly sendEmailCode: (context: { readonly request: Request }) => Promise<Response>;
   readonly verifyEmailCode: (context: { readonly request: Request }) => Promise<Response>;
-  readonly endSession: (context: unknown) => Response;
+  readonly endSession: (context: { readonly request: Request }) => Response;
   /** Who is calling: signed in, nobody, or a token this application will not act on. */
   readonly access: () => Promise<Access>;
 }
@@ -73,7 +74,7 @@ export interface AuthRuntime {
  * it composes lives in `@lilo-moon/auth-session` and knows nothing about any of this.
  */
 export function createAuthRuntime(options: AuthRuntimeOptions): AuthRuntime {
-  const jar = options.cookies ?? requestCookies;
+  const rawJar = options.cookies ?? requestCookies;
   let built: (AuthServices & { readonly config: AuthConfig }) | null = null;
 
   const services = (): AuthServices & { readonly config: AuthConfig } => {
@@ -82,6 +83,13 @@ export function createAuthRuntime(options: AuthRuntimeOptions): AuthRuntime {
       built = { config, ...createAuthServices(config) };
     }
     return built;
+  };
+
+  const nameFor = (name: string) => `${services().config.cookieNamespace}_${name}`;
+  const jar: CookieJar = {
+    read: (name) => rawJar.read(nameFor(name)),
+    write: (name, value, cookieOptions) => rawJar.write(nameFor(name), value, cookieOptions),
+    clear: (name) => rawJar.clear(nameFor(name)),
   };
 
   return {
@@ -107,6 +115,7 @@ export function createAuthRuntime(options: AuthRuntimeOptions): AuthRuntime {
         cookieKey: config.cookieKey,
         secureCookies: config.secureCookies,
         signedInPath: options.signedInPath,
+        organizationPolicy: options.organizationPolicy,
         log: options.log ?? reportAuthFailure,
       });
     },
@@ -128,13 +137,20 @@ export function createAuthRuntime(options: AuthRuntimeOptions): AuthRuntime {
         cookieKey: config.cookieKey,
         secureCookies: config.secureCookies,
         signedInPath: options.signedInPath,
+        organizationPolicy: options.organizationPolicy,
         codeEntryPath: options.codeEntryPath,
         log: options.log ?? reportAuthFailure,
       });
     },
 
     endSession: (context) => {
-      return signOut(context, jar);
+      const { auth, config } = services();
+      const returnTo = new URL("/", config.redirectUri).href;
+      return signOut(context, jar, {
+        cookieKey: config.cookieKey,
+        returnTo,
+        logoutUrl: (sessionId) => auth.getLogoutUrl({ sessionId, returnTo }),
+      });
     },
 
     access: async () => {

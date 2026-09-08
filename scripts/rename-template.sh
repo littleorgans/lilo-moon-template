@@ -9,7 +9,7 @@ source_org="little"
 source_org+="organs"
 source_slug="${source_scope}-template"
 source_tokens=("$source_slug" "$source_org" "$source_scope")
-verify_pathspec=(".")
+verify_pathspec=("." ":!.template-origin.json" ":!.template/**")
 
 usage() {
   printf 'Usage: just rename <org> <scope> <slug>\n' >&2
@@ -102,7 +102,13 @@ if [[ "${1:-}" == "--verify" ]]; then
   exit 0
 fi
 
-if [[ "$#" -ne 3 ]]; then
+validate_only=false
+if [[ "${1:-}" == "--validate" ]]; then
+  validate_only=true
+  shift
+fi
+
+if [[ "$#" -ne 3 && !( "$#" -eq 4 && "${4:-}" == "--no-install" ) ]]; then
   usage
   exit 64
 fi
@@ -114,8 +120,9 @@ target_slug="$3"
 validate_target "Organization" "$target_org" "$source_org"
 validate_target "Package scope without @" "$target_scope" "$source_scope"
 validate_target "Repository slug" "$target_slug" "$source_slug"
+if [[ "$validate_only" == true ]]; then exit 0; fi
 require_command perl
-require_command pnpm
+if [[ "${4:-}" != "--no-install" ]]; then require_command pnpm; fi
 
 replaced_files=0
 while IFS= read -r -d '' file; do
@@ -131,8 +138,11 @@ while IFS= read -r -d '' file; do
       ' -- "$file"
     replaced_files=$((replaced_files + 1))
   fi
-done < <(git ls-files -z)
+done < <(git ls-files -z -- "${verify_pathspec[@]}")
 
-printf 'Updated %d tracked files. Refreshing the pnpm lockfile.\n' "$replaced_files"
-pnpm install
+# Reference comparisons belong to template development, not to a generated product.
+rm -f .moon/template-reference.json
+
+printf 'Updated %d tracked files.\n' "$replaced_files"
+if [[ "${4:-}" != "--no-install" ]]; then pnpm install; fi
 verify_absent

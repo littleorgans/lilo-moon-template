@@ -3,8 +3,8 @@ import * as React from "react";
 import { cn } from "../lib/utils.js";
 
 /*
- * The layout primitives that make the `className` ban in `apps/**` livable: app code expresses
- * layout through these props and never through utility classes. Every value maps to a literal
+ * Shared layout primitives provide consistent defaults. Products can extend their styles.
+ * Every value maps to a literal
  * class string, because Tailwind finds classes by scanning source text and a constructed string
  * is invisible to it.
  */

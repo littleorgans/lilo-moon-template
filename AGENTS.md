@@ -113,6 +113,7 @@ work; the green run proves the valid state.
   network, or storage boundary under `tests/integration/`.
 - Name both kinds `*.test.*` or `*.spec.*`. The shared `vitest.config.ts` discovers those names and
   measures every source file under `src/`.
+- The focused `test` task runs locally. CI uses `test-coverage` to avoid executing the same suite twice.
 - Run `moon run <project>:test-coverage` for the narrow coverage gate. Moon runs that task for every
   JavaScript project in `moon check --all` and `moon ci`.
 - Treat the coverage thresholds as a floor for untested code. Prove each test's assertion by making
@@ -146,6 +147,14 @@ work; the green run proves the valid state.
 - Use double quotes and a print width of 100. The `singleQuote` and `printWidth` settings in
   `.oxfmtrc.json` define that format.
 
+## Preserve project provenance
+
+- Use `just new-project` for whole repositories and Moon generators for members inside them.
+- Keep `.template-origin.json` immutable. Registration validates its fingerprint and birth revision.
+- Commit portable records under `.template/projects/`; keep `.template/local/` ignored.
+- Treat `project-impact` as review evidence. Its manifest dependency list does not cover Moon-only
+  or other language dependencies, and unknown or unavailable projects still need inspection.
+
 ## Follow repository conventions
 
 - Use Conventional Commits. The Git history and pull request titles depend on the type, optional
@@ -160,8 +169,9 @@ work; the green run proves the valid state.
   `package.json`, including `packageManager`, and pnpm catalog pins in
   `pnpm-workspace.yaml`. GitHub Actions versions and `actions/setup-node`'s
   `node-version` come from the github-actions manager. Regex managers cover the Node
-  and pnpm pins in `.moon/toolchains.yml`. Moon and proto CLI versions are not
-  declared in this repository, so Renovate cannot bump them.
+  and pnpm pins in `.moon/toolchains.yml`. Moon is pinned in `.prototools`, the workspace
+  constraint and the release installer. Renovate groups those three updates, and
+  `root:scripts-test` checks agreement. Proto itself is not pinned.
 
 ## Do not
 

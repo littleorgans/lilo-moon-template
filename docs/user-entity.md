@@ -1,10 +1,8 @@
 # The user entity
 
-**Status: the schema is on main and proven by `root:rls-verify`. The workflows around it are
-agreed but unbuilt.** This page covers who owns which record and what happens at signup, payment
-and auth. The package layout and the verification seam are in
-[the auth proposal](auth-proposal.md), and the screens these workflows put in front of a person are
-[The auth screens](auth-screens.md). This page does not repeat either.
+**Status: identity tables, RLS, signup and session workflows are implemented. Payments remain
+unbuilt.** Applications explicitly select personal organization provisioning or existing membership.
+The Postgres package owns transaction scoping; the application owns identity row provisioning.
 
 ## Who owns what
 
@@ -14,8 +12,9 @@ and auth. The package layout and the verification seam are in
 | Stripe    | customer, subscription, prices, invoices, and entitlement truth              |
 | This repo | `accounts` keyed by organization, `profiles` keyed by user, all product data |
 
-The rule that keeps the split honest: **a column that can go stale against the vendor does not
-belong in our schema.** No email, no display name, no avatar, no subscription status.
+WorkOS and Stripe remain authoritative for their records. A product may store a cache, reporting
+projection or audit event when it defines freshness and reconciliation. Those copies must not become
+an undocumented second authority. The baseline currently stores no email or subscription status.
 
 ## Billing is organization scoped, and that was not our choice
 
@@ -87,9 +86,10 @@ this step, are [The auth screens](auth-screens.md).
 
 ## What is deliberately absent
 
-**No billing table.** No subscriptions, no webhook, no reconciliation job. Entitlements arrive as a
-signed claim with a staleness ceiling of 300 seconds. Subscription state is the most staleness prone
-data in any product, so the one place it must not be copied to is our database.
+**Billing is not implemented.** The proposed entitlement path reads signed claims. Its freshness
+follows the provider's token lifetime, measured as 300 seconds in the original environment.
+Payment completion, retries, reconciliation and any required billing projections must be designed
+and verified with the product's actual payment flow.
 
 **No memberships table.** WorkOS owns membership, and it proves membership by putting `org_id` in a
 signed token. Duplicating that here would create a second answer to the same question.

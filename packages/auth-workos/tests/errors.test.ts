@@ -111,3 +111,11 @@ describe("translateWorkOSError", () => {
     },
   );
 });
+
+it.each([
+  new TypeError("fetch failed"),
+  new DOMException("timed out", "TimeoutError"),
+  new DOMException("aborted", "AbortError"),
+])("classifies transport failure %s as retryable", (error) => {
+  expect(translateWorkOSError(error).reason).toBe("unavailable");
+});

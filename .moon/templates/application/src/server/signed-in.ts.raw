@@ -48,10 +48,11 @@ export async function buildSignedView(
   try {
     return { principal, rows: await countVisibleRows(runScoped, principal), databaseError: null };
   } catch (error) {
+    console.error("database.query_failed", error);
     return {
       principal,
       rows: null,
-      databaseError: error instanceof Error ? error.message : String(error),
+      databaseError: "The database is temporarily unavailable. Please retry.",
     };
   }
 }
@@ -76,8 +77,10 @@ export async function loadSignedOrRedirect(deps: SignedInDeps = liveDeps()): Pro
       throw redirect({ to: "/" });
     case "ended":
       throw redirect({ to: "/", search: { ended: true } });
+    case "unavailable":
+      throw redirect({ to: "/session-error", search: { retry: true } });
     case "broken":
-      throw redirect({ to: "/session-error" });
+      throw redirect({ to: "/session-error", search: {} });
     default: {
       // A fifth access state stops compiling here rather than silently becoming a blank page.
       const exhaustive: never = access;

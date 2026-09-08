@@ -1,8 +1,12 @@
 # The auth screens
 
-**Status: agreed and unbuilt.** This is the screen inventory for #16. Nothing here exists in
-`apps/web` yet. Every screen is named by the `Principal` that produces it, so the contract and the
-UI cannot drift apart without one of them being obviously wrong.
+**Status: OAuth, email codes, personal organization provisioning, sessions and the reference screens
+are implemented. The billing and broader account management screens remain design work.**
+
+The current auth reader returns anonymous, signed-in, ended, broken or unavailable. A temporary
+provider or JWKS outage preserves the cookie and shows a retry page. Signout is a same-origin POST
+that clears local flow cookies and redirects through the provider logout URL. Existing access
+tokens remain bounded by their expiration; signature verification does not fetch current permissions.
 
 The record model, the schema and the workflows are [The user entity](user-entity.md). The package
 layout and the verification seam are [the auth proposal](auth-proposal.md). This page does not
@@ -138,7 +142,7 @@ organization, one membership. Provisioning after an orphaned organization was cr
 the orphan adopted, one membership added, no second organization.
 
 After the refresh the token carries `org_id`, and the `accounts` and `profiles` rows are inserted
-by `runScoped` in the first request that follows.
+by the application's `countVisibleRows` transaction in the first request that follows.
 
 ### 3. Signed in, no entitlements
 
@@ -218,7 +222,7 @@ Nothing in the repo pages anyone today, so "log it" currently means a structured
 nothing more. That is enough to make the failure findable and is not enough to make it noticed.
 
 **Built 2026-08-25.** `readAccess` in `@lilo-moon/auth-session` turns the session cookie into one
-of four states, and `apps/web`'s signed-in loader is the single place they become screens:
+of five states, and `apps/web`'s signed-in loader is the single place they become screens:
 
 | State       | Reached by                                     | Where the browser goes         |
 | ----------- | ---------------------------------------------- | ------------------------------ |
@@ -295,7 +299,7 @@ out not to need a screen on the success path, for the reason recorded above.
 token that fails verification, and a styled signed-in page that prints the Principal. The state
 check, the code exchange, organization creation, the refresh, and just in time row creation all run,
 **proven by a real Google sign-in on 2026-08-24 and a real email-code sign-in on 2026-08-25**, and
-the callback renders the failure above for anything the provider refuses. The four access states
+the callback renders the failure above for anything the provider refuses. The access states
 were **proven against a live staging session on 2026-08-25**: a valid token renders the page, a
 tampered signature lands on the sign-in page with the notice and a cleared cookie and one
 `auth.token.failed` line, and an expired token is refreshed without the person seeing anything. What

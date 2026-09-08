@@ -24,3 +24,6 @@ target/
 
 # local lefthook overrides
 lefthook-local.yml
+
+# Machine-specific descendant checkout locations
+.template/local/

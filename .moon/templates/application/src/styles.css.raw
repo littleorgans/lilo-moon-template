@@ -1,3 +1,4 @@
-/* The app's whole stylesheet. Tailwind, themes and source scanning are configured once, in
-   the shared entry; an application only points at it. */
 @import "@lilo-moon/ui/globals.css";
+@import "@lilo-moon/views/sources.css";
+
+@source "./";

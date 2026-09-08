@@ -60,3 +60,13 @@ describe("cookieValue", () => {
     expect(cookieValue("color-theme=x; theme=y", "theme")).toBe("y");
   });
 });
+
+it("accepts a product-owned theme registry without changing the package", () => {
+  const options = { names: ["brand"], fallback: { mode: "light" as const, theme: "brand" } };
+  expect(parseThemePreference("dark:brand", options)).toEqual({ mode: "dark", theme: "brand" });
+  expect(parseThemePreference("light:editor", options)).toEqual(options.fallback);
+  expect(nextPreference(options.fallback, "dark", "brand", options)).toEqual({
+    mode: "dark",
+    theme: "brand",
+  });
+});

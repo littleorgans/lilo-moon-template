@@ -35,7 +35,7 @@ describe("createDatabase configuration", () => {
 });
 
 describe.skipIf(!dockerIsAvailable())("createDatabase", () => {
-  it("seeds the caller's rows and scopes reads to them", async () => {
+  it("scopes caller-owned inserts and reads", async () => {
     await withPostgres("db-test", async (connectionString) => {
       applyMigrations(connectionString);
       const database = createDatabase({ connectionString });
@@ -43,10 +43,13 @@ describe.skipIf(!dockerIsAvailable())("createDatabase", () => {
         // A different tenant, inserted out of band, must stay invisible below.
         await database.withPrincipal(
           { ...principal, userId: "user_other", orgId: "org_other" },
-          () => Promise.resolve(null),
+          async (tx) => {
+            await tx.execute("INSERT INTO accounts (workos_org_id) VALUES ('org_other')");
+          },
         );
 
         const rows = await database.withPrincipal(principal, async (tx) => {
+          await tx.execute("INSERT INTO accounts (workos_org_id) VALUES ('org_integration')");
           const result = await tx.execute("SELECT workos_org_id FROM accounts");
           return result.rows;
         });
@@ -67,6 +70,7 @@ describe.skipIf(!dockerIsAvailable())("createDatabase", () => {
         ).rejects.toThrow("body failed");
         // With a pool of one, this only resolves if the failed transaction released its client.
         const rows = await database.withPrincipal(principal, async (tx) => {
+          await tx.execute("INSERT INTO profiles (workos_user_id) VALUES ('user_integration')");
           const result = await tx.execute("SELECT workos_user_id FROM profiles");
           return result.rows;
         });

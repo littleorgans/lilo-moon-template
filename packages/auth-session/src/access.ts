@@ -1,5 +1,6 @@
 import { AuthError } from "@lilo-moon/auth";
 import type { Principal, Verifier } from "@lilo-moon/auth";
+import { WorkOSAuthError } from "@lilo-moon/auth-workos";
 import type { WorkOSAuth } from "@lilo-moon/auth-workos";
 
 import type { CookieJar } from "./cookies.js";
@@ -21,7 +22,8 @@ export type Access =
   /** The token failed a check that may mean anything from key rotation to an attack. */
   | { readonly status: "ended" }
   /** Signature good, shape wrong. Our outage, so never a sign-in button. */
-  | { readonly status: "broken" };
+  | { readonly status: "broken" }
+  | { readonly status: "unavailable" };
 
 export interface AccessDeps extends SessionCookieDeps {
   readonly verify: Verifier;
@@ -31,10 +33,15 @@ export interface AccessDeps extends SessionCookieDeps {
 }
 
 function failureOf(error: unknown): TokenFailure {
-  const reason = error instanceof AuthError ? error.reason : "malformed";
-  // `claims` is the only reason that is ours rather than theirs, and the only one that must not
-  // send somebody to a sign-in button they would press forever.
-  return { kind: "token", reason, status: reason === "claims" ? "broken" : "ended", error };
+  const reason =
+    error instanceof AuthError || error instanceof WorkOSAuthError ? error.reason : "unavailable";
+  const status =
+    reason === "unavailable" || reason === "rate-limited"
+      ? "unavailable"
+      : reason === "claims" || reason === "configuration" || reason === "provider"
+        ? "broken"
+        : "ended";
+  return { kind: "token", reason, status, error };
 }
 
 function ended(jar: CookieJar): Access {
@@ -60,11 +67,12 @@ async function refreshed(jar: CookieJar, deps: AccessDeps, session: Session): Pr
     renewed = await deps.auth.refreshTokens({ refreshToken: session.refreshToken });
     principal = await deps.verify(renewed.accessToken);
   } catch (error) {
-    // Both throws mean the same thing to the person holding the browser: this session is over. A
-    // refresh token is revoked or expired, or the token it bought does not verify.
     const failure = failureOf(error);
     deps.log(failure);
-    return failure.status === "broken" ? { status: "broken" } : ended(jar);
+    if (failure.status === "ended") return ended(jar);
+    // A refresh may rotate before JWKS retrieval fails. Keep the replacement so a retry can use it.
+    if (renewed !== undefined && failure.status === "unavailable") writeSession(jar, deps, renewed);
+    return { status: failure.status };
   }
 
   writeSession(jar, deps, {
@@ -91,6 +99,6 @@ export async function readAccess(jar: CookieJar, deps: AccessDeps): Promise<Acce
     const failure = failureOf(error);
     if (failure.reason === "expired") return await refreshed(jar, deps, session);
     deps.log(failure);
-    return failure.status === "broken" ? { status: "broken" } : ended(jar);
+    return failure.status === "ended" ? ended(jar) : { status: failure.status };
   }
 }

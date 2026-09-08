@@ -50,6 +50,9 @@ function authDouble(): { auth: WorkOSAuth; calls: Call[] } {
           refreshToken: "refresh-2",
         });
       },
+      getLogoutUrl: () => {
+        throw new Error("unexpected logout");
+      },
       getAuthorizationUrl: unavailable,
       authenticateWithCode: unavailable,
       signInWithPassword: unavailable,
@@ -164,6 +167,7 @@ describe("handleCallback", () => {
       auth,
       cookieKey: key,
       secureCookies: false,
+      organizationPolicy: "personal" as const,
       signedInPath: "/app",
       log: (failure: CallbackFailure) => {
         logged.push(failure);
@@ -304,6 +308,7 @@ describe("handleCallback", () => {
     const { jar } = jarWith({ [STATE_COOKIE]: issued });
     const response = await handleCallback(request(`?code=c&state=${issued}`), jar, {
       ...callbackDeps(auth),
+      organizationPolicy: "personal" as const,
       signedInPath: "/workspace",
     });
     expect(response.headers.get("location")).toBe("/workspace");
@@ -402,4 +407,10 @@ describe("handleCallback", () => {
     expect(response.status).toBe(400);
     expect(logged[0]).toMatchObject({ reason: "provider" });
   });
+});
+
+it("leaves organization provisioning to products selecting existing memberships", async () => {
+  const { auth, calls } = authDouble();
+  expect(await ensureOrganization(auth, arrival, "existing")).toBe(arrival);
+  expect(calls).toEqual([]);
 });

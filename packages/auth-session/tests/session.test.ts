@@ -105,3 +105,16 @@ describe("stateMatches", () => {
     expect(stateMatches(undefined, null)).toBe(false);
   });
 });
+
+it("writes only the token pair even when given a richer authentication result", async () => {
+  const { writeSession } = await import("../src/session.js");
+  const { jarWith } = await import("./support.js");
+  const { jar, written } = jarWith();
+  const result = {
+    ...session,
+    user: { email: "private@example.test" },
+    organizationId: "org-test",
+  };
+  writeSession(jar, { cookieKey: key, secureCookies: false }, result);
+  expect(unseal(key, written[0]?.value ?? "")).toEqual(session);
+});

@@ -6,7 +6,14 @@
  * exists as a seam: a second language implementing the same contract reproduces these reasons, not
  * the library that produced them.
  */
-export type AuthFailure = "malformed" | "signature" | "expired" | "issuer" | "audience" | "claims";
+export type AuthFailure =
+  | "malformed"
+  | "signature"
+  | "expired"
+  | "issuer"
+  | "audience"
+  | "claims"
+  | "unavailable";
 
 export class AuthError extends Error {
   readonly reason: AuthFailure;

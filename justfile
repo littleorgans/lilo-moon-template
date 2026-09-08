@@ -1,4 +1,5 @@
 set shell := ["bash", "-cu"]
+set positional-arguments
 
 # Aliases over moon. No task logic lives here; moon owns the graph.
 
@@ -24,11 +25,23 @@ new-app name port="5200":
     moon generate application -- --name "{{name}}" --port "{{port}}"
 
 rename $org $scope $slug:
-    bash scripts/rename-template.sh "$org" "$scope" "$slug"
+    moon run root:rename -- "$org" "$scope" "$slug"
 
 rename-verify:
-    bash scripts/rename-template.sh --verify
+    moon run root:rename-verify
 
 clean:
-    moon clean
-    docker rm --force lilo-postgres 2>/dev/null || true
+    moon run root:clean
+
+# Create a whole repository and inspect its relationship to the template.
+new-project +args:
+    moon run root:new-project -- "$@"
+
+projects *args:
+    moon run root:projects -- "$@"
+
+project-register path:
+    moon run root:project-register -- "$1"
+
+project-impact *args:
+    moon run root:project-impact -- "$@"

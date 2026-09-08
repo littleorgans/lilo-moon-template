@@ -33,9 +33,9 @@ export interface CallbackFailure {
  */
 export interface TokenFailure {
   readonly kind: "token";
-  readonly reason: AuthFailure;
+  readonly reason: AuthFailure | WorkOSAuthFailure;
   /** What the person sees: `ended` sends them to sign in again, `broken` says this one is ours. */
-  readonly status: "ended" | "broken";
+  readonly status: "ended" | "broken" | "unavailable";
   readonly error: unknown;
 }
 

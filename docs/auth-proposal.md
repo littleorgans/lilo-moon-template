@@ -1,5 +1,9 @@
 # Proposal: auth and persistence in the baseline
 
+This record includes historical experiments. The current contract is in [AGENTS.md](../AGENTS.md)
+and the implemented capability inventory is in [README.md](../README.md). The correction pass keeps
+WorkOS explicit, makes organization provisioning a product choice, and tests generated and packed consumers.
+
 **Status: working document for #16, #17 and #23.** `packages/auth` is on main (#57, `53a8bcf`).
 `packages/db` is on main (#59, `4e58cc5`). `packages/auth-workos` is on main (#63, `bba230c`).
 The user entity and `root:rls-verify` are on main (#56, `f03ec78`). Sections marked **Settled** or
@@ -51,7 +55,7 @@ apps/
 
 packages/
   theme/                  On main. Typed token contract, product themes, runtime applier, validator.
-  ui/                     On main. Shared React components. shadcn + Tailwind. No className escapes.
+  ui/                     On main. Shared React components. shadcn + Tailwind. Product styling is allowed.
   views/                  On main. Product views composed from ui blocks. One directory per view.
   vite-config/            On main. Workspace source resolution for app Vite configs. Never built.
   auth/                   On main. createVerifier, toPrincipal. JWKS + jose. No vendor SDK.
@@ -160,14 +164,12 @@ package and one route file per handler, not to this one.
 cookie holds only the two tokens: no Principal, no email, nothing that could be minted before a
 role changed and outlive the change.
 
-**`packages/auth-tanstack`** On main (#70). The TanStack Start binding, and the module you rewrite
-to move to another web framework. Exports `createAuthRuntime({ provider, signedInPath })`, which
-reads configuration lazily, builds the services from `packages/auth-session` once, and exposes the
-three handlers plus `principal()` in the shape Start route files expect. Owns the `CookieJar`
-backed by Start's cookie helpers and the default failure logger, a JSON line on stderr that an
-application overrides the moment it has real logging. An application writes seventeen lines: five
-choosing `provider` and `signedInPath`, and three four-line route files that exist only because
-Start builds its route tree from filenames.
+**`packages/auth-tanstack`** On main (#70). The TanStack Start binding. Its
+`createAuthRuntime` accepts provider, destination paths, and organization policy, reads configuration
+lazily, and exposes OAuth, email, signout, and access handlers. It owns the namespaced request cookie
+adapter and default failure logger. Each application's route file keeps the `server` property
+literal inside `createFileRoute`; Start's compiler removes that property and its imports from the
+browser build. `postHandlers` shares the POST mapping and GET refusal inside that boundary.
 
 **`packages/db`** On main (#59). Exports `createDatabase(options)`, which returns `withPrincipal`
 and `close`. `withPrincipal(principal, body)` takes one client from the pool and calls `runScoped`,
@@ -255,50 +257,12 @@ Multi-theme support in Tailwind is CSS variables reassigned under a `data-theme`
 subtree. Product-type themes are owned by `packages/theme`, which recovers the lost contract by
 generating the CSS from a typed token source. See that section.
 
-### The UI boundary, enforced
+### The UI boundary
 
-**`className` and `style` do not appear anywhere in `apps/`.** Layout is components too: `Stack`,
-`Row`, `Grid` and `Container` live in `packages/ui` alongside everything else. App code composes
-components and nothing else.
-
-The original framing was "everything that is not layout is a component". That cannot be enforced,
-because "layout" is semantic and no lint rule can infer it. Banning the attributes outright needs no
-semantics, and maps onto rules already present in the installed oxlint 1.79.0.
-
-```jsonc
-// .oxlintrc.json
-"plugins": [..., "react"],
-"overrides": [
-  {
-    "files": ["apps/**/*.tsx"],
-    "rules": {
-      "react/forbid-dom-props":       ["error", { "forbid": ["className", "style"] }],
-      "react/forbid-component-props": ["error", { "forbid": ["className", "style"] }]
-    }
-  }
-]
-```
-
-Both rules are needed. `forbid-dom-props` covers native elements; `forbid-component-props` stops
-styling leaking through `<Stack className="mt-4">`. `style` is banned alongside `className` because
-it is otherwise a wide-open hatch: the deleted WorkOS installer output used `style={{ marginBottom:
-"2rem" }}` in the first file it generated.
-
-**Proven, per "Prove every gate" in AGENTS.md.** Deliberate violations fail with file and line:
-
-```
-apps/web/src/app.tsx:13:11: error react(forbid-dom-props): Prop "className" is forbidden on DOM Nodes
-apps/web/src/app.tsx:13:28: error react(forbid-dom-props): Prop "style" is forbidden on DOM Nodes
-main.tsx:14:10: error react(forbid-component-props): Prop "className" is forbidden on Components
-```
-
-Removed, lint exits 0. A fixture using all three inside `packages/ui` lints clean, proving the
-override does not leak outside `apps/`. `just ci` passes at 21 tasks.
-
-**Side effect to accept deliberately:** enabling the `react` plugin activates the whole React rule
-set under the existing `correctness`, `suspicious` and `perf` categories, not just these two.
-`react/react-in-jsx-scope` fires a false positive against the automatic JSX transform and must be set
-to `off`. Everything else passes today, but every consumer inherits the full React rule set.
+Shared components and tokens live in `packages/ui`. Product components may use `className` and
+`style` within their owning feature. Styling alone does not make a component shared. Heading level
+and visual size are separate props. Each app registers its own Tailwind sources and imports the
+views package's source registration.
 
 ### Escape hatch
 
@@ -351,8 +315,8 @@ and small, and it is the only route to a typed theme contract now that Tailwind 
 with `drizzle-check` failing CI when the committed artifact drifts from its source. Theme generation
 is the same shape and should reuse it rather than invent a second convention.
 
-Shipped 2026-08-24. `scripts/theme-css.mjs` renders `packages/theme/css/themes.css` from the typed
-themes, with `root:theme-generate` and `root:theme-check` as the task pair. Editor paints `:root`
+Shipped 2026-08-24. `packages/theme/scripts/theme-css.mjs` renders `packages/theme/css/themes.css` from the typed
+themes, with `theme:generate-css` and `theme:check-css` as the task pair. Editor paints `:root`
 and `.dark`; every theme is also addressable as `[data-theme="name"]`, dark composing whether the
 mode class sits on the element or an ancestor, which answers open question 5. Values live behind a
 deliberately closed grammar (oklch and hex) because theme values become CSS text and style
@@ -411,16 +375,11 @@ That shape is deliberate and load-bearing. Restoring the repo's usual `dist` exp
 the build edge back in front of every application's `vite.config.ts`, so `packages/vite-config`
 excludes the inherited `build` task in its `moon.yml` and says why there.
 
-**What it exports, and what it does not.** One function, `workspaceSourceConfig(env)`, spread into
-an application's config. It owns the three settings that have to agree: the serve-only
-`@lilo-moon/source` condition, the same condition on the SSR environment, whose list _replaces_ the
-top-level one rather than extending it, and `optimizeDeps.exclude` covering every workspace
-package. It does not own plugins, ports or anything else an application should choose for itself.
-There is no Vitest half: the root `vitest.config.ts` already solves that, per the paragraph above.
-
-Proven live 2026-08-26 beyond the unit tests: with `packages/views` source edited and its `dist`
-left stale, the dev server's server-rendered HTML carried the edited string. The SSR half resolves
-to source, which is the half that fails silently when the condition is set only once.
+**Current distribution.** `workspaceSourceConfig(env, workspaceRoot)` reads the consuming
+workspace's manifest names. The local export is TypeScript so Vite can bootstrap before a build.
+The package also builds JavaScript and declarations. `publishConfig` points packed consumers to
+those compiled exports, because Node cannot strip TypeScript inside `node_modules`.
+`root:consumer-check` builds and serves that packed shape independently of the source workspace.
 
 ## Spike status
 

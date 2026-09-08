@@ -1,9 +1,11 @@
-import { DEFAULT_PREFERENCE, THEME_COOKIE, parseThemePreference } from "@lilo-moon/theme";
+import { DEFAULT_PREFERENCE, parseThemePreference } from "@lilo-moon/theme";
 import type { ThemePreference } from "@lilo-moon/theme";
 import { HeadContent, Outlet, Scripts, createRootRoute } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
-import { getCookie } from "@tanstack/react-start/server";
+import { getCookie, getRequest } from "@tanstack/react-start/server";
 import type { ReactNode } from "react";
+
+import { themeCookieName } from "../server/theme.js";
 
 import stylesUrl from "../styles.css?url";
 
@@ -11,7 +13,7 @@ import stylesUrl from "../styles.css?url";
 // function is the boundary the Start plugin compiles against, and it strips the handler with its
 // server-only imports out of the client build.
 const readTheme = createServerFn({ method: "GET" }).handler(() =>
-  parseThemePreference(getCookie(THEME_COOKIE)),
+  parseThemePreference(getCookie(themeCookieName(getRequest().url))),
 );
 
 /**
@@ -56,8 +58,7 @@ function RootDocument({
   children,
 }: Readonly<{ preference: ThemePreference; children: ReactNode }>) {
   return (
-    // Data attributes, not a class: the stylesheet keys dark on `data-mode="dark"` precisely so
-    // an application can stamp the preference without the class prop the lint config forbids.
+    // The stylesheet selects the mode and theme independently.
     <html lang="en" data-mode={preference.mode} data-theme={preference.theme}>
       <head>
         <HeadContent />
