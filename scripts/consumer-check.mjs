@@ -19,9 +19,9 @@ import { createProject } from "./lib/create-project.mjs";
 import { initializeProject, projectEnvironment, projectCommand } from "./lib/project-files.mjs";
 import { pruneReferences } from "./lib/typescript-references.mjs";
 
-if (!existsSync(".moon/template-reference.json")) {
+if (existsSync(".template-origin.json")) {
   process.stdout.write(
-    "Consumer workspace: generator acceptance belongs to the template producer.\n",
+    "Consumer workspace: creation acceptance belongs to the template producer.\n",
   );
   process.exit(0);
 }
@@ -90,7 +90,7 @@ async function readyResponse(origin, app, attempts) {
 async function exercise(root) {
   const port = await freePort();
   const origin = `http://127.0.0.1:${port}`;
-  const app = spawn(process.execPath, ["apps/console/.output/server/index.mjs"], {
+  const app = spawn(process.execPath, ["apps/web/.output/server/index.mjs"], {
     cwd: root,
     env: {
       ...env,
@@ -172,6 +172,7 @@ try {
     cpSync(join(source, file), join(seed, file));
   }
   initializeProject(seed, "test: snapshot template for consumer acceptance");
+  run(seed, "git", ["remote", "add", "origin", seed]);
   createProject({
     source: seed,
     name: "consumer-project",
@@ -179,12 +180,10 @@ try {
     org: "consumer-org",
     scope: "consumer-scope",
   });
-  run(generated, "moon", ["generate", "application", "--", "--name", "console", "--port", "5281"]);
-  for (const path of ["apps/web", "packages/collections", "services/ping"])
-    rmSync(join(generated, path), { recursive: true, force: true });
+  rmSync(join(generated, "services/ping"), { recursive: true, force: true });
   // Unique utilities prove each source registration independently of the primitives' own scan.
   for (const [file, before, after] of [
-    ["apps/console/src/routes/__root.tsx", "<html ", '<html className="z-[29]" '],
+    ["apps/web/src/routes/__root.tsx", "<html ", '<html className="z-[29]" '],
     [
       "packages/views/src/theme-lab/theme-lab.tsx",
       'data-slot="swatch-grid"',
@@ -199,61 +198,48 @@ try {
   pruneReferences(generated);
   run(generated, "pnpm", ["install"]);
   run(generated, "moon", ["sync"]);
-  run(generated, "moon", [
-    "run",
-    "console:build",
-    "console:typecheck",
-    "console:test",
-    "root:template-check",
-    "root:project-refs",
-  ]);
+  run(generated, "moon", ["run", "web:build", "web:typecheck", "web:test", "root:project-refs"]);
   run(generated, "moon", ["run", "root:format"]);
   rejectViolation(
     generated,
-    "apps/console/src/gate-probe.ts",
+    "apps/web/src/gate-probe.ts",
     'export const probe: number = "wrong";\n',
-    "console:typecheck",
+    "web:typecheck",
     /not assignable/,
   );
   rejectViolation(
     generated,
-    "apps/console/tests/gate-probe.test.ts",
+    "apps/web/tests/gate-probe.test.ts",
     'import { expect, it } from "vitest";\nit("gate proof", () => expect(true).toBe(false));\n',
-    "console:test",
+    "web:test",
     /expected true to be false/,
   );
   rejectViolation(
     generated,
-    "apps/console/src/gate-probe.ts",
+    "apps/web/src/gate-probe.ts",
     'Promise.resolve("unhandled");\n',
     "root:lint",
     /no-floating-promises/,
   );
   rejectViolation(
     generated,
-    "apps/console/src/gate-probe.ts",
+    "apps/web/src/gate-probe.ts",
     "export const probe={a:1,b:2}\n",
     "root:format-check",
     /gate-probe/,
   );
-  run(generated, "moon", [
-    "run",
-    "console:typecheck",
-    "console:test",
-    "root:lint",
-    "root:format-check",
-  ]);
+  run(generated, "moon", ["run", "web:typecheck", "web:test", "root:lint", "root:format-check"]);
   const viewsSources = join(generated, "packages/views/src/sources.css");
   const registeredSources = readFileSync(viewsSources, "utf8");
   try {
     writeFileSync(viewsSources, "");
-    run(generated, "moon", ["run", "console:build"]);
+    run(generated, "moon", ["run", "web:build"]);
     await assert.rejects(exercise(generated), /published views must register/);
     process.stdout.write("consumer-check: missing CSS source registration was rejected.\n");
   } finally {
     writeFileSync(viewsSources, registeredSources);
   }
-  run(generated, "moon", ["run", "console:build"]);
+  run(generated, "moon", ["run", "web:build"]);
   await exercise(generated);
 
   mkdirSync(tarballs);
@@ -275,7 +261,12 @@ try {
         ),
   });
   pruneReferences(packed);
-  const manifestPath = join(packed, "apps/console/package.json");
+  // Installed libraries no longer have workspace projects for explicit Moon dependency edges.
+  writeFileSync(
+    join(packed, "apps/web/moon.yml"),
+    'language: "typescript"\nlayer: "application"\n',
+  );
+  const manifestPath = join(packed, "apps/web/package.json");
   const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
   for (const section of ["dependencies", "devDependencies"]) {
     for (const name of Object.keys(manifest[section])) {
@@ -291,7 +282,7 @@ try {
   initializeProject(packed, "test: initialize packed consumer");
   run(packed, "pnpm", ["install"]);
   run(packed, "moon", ["sync"]);
-  run(packed, "moon", ["run", "console:build", "console:typecheck", "console:test"]);
+  run(packed, "moon", ["run", "web:build", "web:typecheck", "web:test"]);
   await exercise(packed);
   process.stdout.write("consumer-check: generated and packed consumers passed.\n");
 } finally {

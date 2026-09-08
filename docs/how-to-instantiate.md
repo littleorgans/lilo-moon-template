@@ -1,16 +1,16 @@
 # Start a project from this template
 
 Use `just new-project` from a template checkout to create a new repository with names and provenance
-already configured. Then generate the members you will keep and delete the exemplars. The working
+already configured. Adapt the application and remove examples you do not need. The working
 contract is [AGENTS.md](../AGENTS.md).
 
 ```bash
 just new-project your-repo --dest ../projects --org your-org
 ```
 
-See [project creation and impact reporting](project-lineage.md) for the registry, optional remote
+See [project creation and consumer tracking](project-lineage.md) for the registry, optional remote
 URL, dry run and setup options. After automated creation, continue at **Claim your ports** below.
-The manual copy and rename procedure remains available but does not create provenance records.
+Use the creator to configure both remotes and register the project.
 
 ## Install the tools first
 
@@ -48,37 +48,27 @@ just --version
 
 `moon --version` must print `2.5.1`.
 
-## Copy the tree
+## Create the repository
+
+Run the creation command above from a full template checkout. By default, the new project's origin
+is `git@github.com:your-org/your-repo.git`; override it with `--remote <url>`. The template checkout's
+origin becomes the new project's upstream remote. The script configures remotes locally; create the
+hosted product repository separately before your first push.
 
 ```bash
-git clone https://github.com/littleorgans/lilo-moon-template.git your-repo
-cd your-repo
-git remote set-url origin git@github.com:your-org/your-repo.git
-just setup
-pnpm install
+cd ../projects/your-repo
+git remote -v
+just check
 just ci
 ```
 
-Stop if `just ci` is not green. Fix that against the template before you rename anything.
-
-After you rename the directory itself, run `moon clean`, delete `node_modules`, and run
-`pnpm install` again. The moon cache and the installed workspace links store absolute paths.
-
-## Rename what identifies the template
-
-Run the rename command with a GitHub organization, a JavaScript package scope without `@`, and a
-repository slug:
-
-```bash
-just rename your-org your-scope your-repo
-```
-
-Run `just rename-verify` at any time to confirm that no template identity remains in tracked files.
+The package scope defaults to the project name. Pass `--scope your-scope` during creation to choose
+another scope. Run `just rename-verify` to verify the identity replacements.
 
 ## Claim your ports
 
 Set the application port in `apps/web/vite.config.ts` and register the matching OAuth callback.
-Pass a free port to each `just new-app <name> <port>` invocation.
+Choose a distinct port for each additional application.
 
 The Postgres container name and default port are derived from the checkout's absolute path.
 Separate clones and worktrees therefore own separate containers. Override `LILO_PG_PORT` when a
@@ -88,106 +78,61 @@ Cleanup removes only the current checkout's container.
 Auth cookies are namespaced by client id and redirect URI. Theme cookies include the request origin,
 including its port, so applications sharing localhost do not overwrite one another's cookies.
 
-`just rename` also removes `.moon/template-reference.json`. The file marks this repository as the
-producer of the application template. Its absence lets a consumer delete `apps/web` while keeping
-the generators. `root:consumer-check` verifies both generated workspace packages and installed
-tarballs in disposable consumers before template delivery.
+`root:consumer-check` verifies repository creation and installed tarballs in disposable consumers
+before template delivery. It skips in downstream repositories identified by `.template-origin.json`.
 
 The source condition is a matching pair. The key in `exports` and the string in
 `resolve.conditions` must be the same. Node's standard conditions stay pointed at `dist`. Why is
 in [Why this baseline is shaped this way](decisions.md).
 
-There is no root `LICENSE` file. Add one. Set `license` in every publishable `package.json` and in
-the library generator to the same SPDX id.
+There is no root `LICENSE` file. Add one. Set `license` in every publishable `package.json` to the same SPDX id.
 
-`publishConfig.access` on the library generator is `"public"`. Change it if the package is not
-public.
+Review `publishConfig.access` in each library before publishing it.
 
 Do not change `packageManager`, `engines`, catalog pins, or the moon version. Those are the
 baseline.
 
-## Generate your members before you delete anything
+## Adapt the application and members
 
-The generators write a TypeScript library under `packages/` and a Vite React application under
-`apps/`. Other stacks follow [Add a workspace member](../AGENTS.md#add-a-workspace-member) in
-AGENTS.md.
+Develop your product in `apps/web`. Its routes, feature directories and service composition are
+ordinary application source. Replace the task board and other diagnostic examples as needed.
+Additional members follow [Add a workspace member](../AGENTS.md#add-a-workspace-member).
+
+The task board imports `packages/collections`. Remove that usage and the dependency from
+`apps/web/package.json` and `apps/web/moon.yml` before deleting collections. You may also delete
+`apps/web` entirely if the project does not need it. Keep `services/ping` only if you want the Rust
+example. No generator depends on retaining any example.
+
+After removing members:
 
 ```bash
-just new-package billing
-just new-app console
+moon run root:prune-references
 pnpm install
 moon sync
-moon project billing
-moon project console
-```
-
-`moon project` must print the project id, its layer, and the inherited tasks. If it does not, moon
-did not discover the member. Do not delete the exemplars.
-
-## Attach the application to the library
-
-The generators do not add a workspace dependency. `moon sync` does not infer one from an import.
-Typecheck then fails with TS2307 `Cannot find module`.
-
-Copy the dependency shape from `apps/web/package.json` before you delete that exemplar. In
-`apps/console/package.json` `dependencies`, add the generated library with `workspace:*`:
-
-```json
-"@your-scope/billing": "workspace:*"
-```
-
-Use the scope and names you just chose. Then:
-
-```bash
-pnpm install
-moon sync
-moon project console
-```
-
-`moon project console` must list `Depends on: billing`. Import the library from the application.
-Replace the generated `formatLabel` body, or the generated `App` heading, with something that is
-wrong. `moon run billing:test` or `moon run console:test` must fail. Restore the body. Then run
-`just ci`.
-
-Do this before you delete `apps/web`. After the delete, the only worked `workspace:*` example is
-gone.
-
-You now have your own members plus the exemplars. Keep it that way until the next section is green.
-
-## Delete the exemplars
-
-Delete `packages/collections` and `apps/web` only after your replacements exist and the new
-application already depends on the new library. The application exemplar depends on the library
-exemplar. Deleting one and not generating a replacement leaves a broken workspace.
-
-Keep both exemplars if you are not yet replacing that layer. A repo that will not ship a library
-can drop `packages/collections` once no remaining `package.json` lists it. A repo that will not
-ship a Vite React app can drop `apps/web`. Keep `services/ping` if you want a Rust member. Drop it
-if you do not.
-
-```bash
-rm -rf packages/collections apps/web
-pnpm install
-moon sync
-```
-
-`moon project collections` and `moon project web` must fail to resolve.
-
-`moon sync` adds new `references` in the root `tsconfig.json`. It does not drop a path whose
-project is gone. `moon.yml` `tasks.project-refs` runs `tsc --build --pretty --dry` and fails
-`just ci` with TS6053 until you prune. Per-project typecheck does not catch this.
-
-Run `moon run root:prune-references` to remove generated root references whose targets were
-deleted. Then run `moon sync`. Surviving references and cache output paths stay generated.
-
-Then:
-
-```bash
+just check
 just ci
 ```
 
-`moon.yml` `tasks.project-refs` must exit 0 with no TS6053. The `references` array must list only
-the members you kept.
+Moon adds project references but does not remove every deleted target. The pruning command removes
+those references before Moon synchronizes the remaining projects.
+
+## Receive template updates
+
+Start with a clean working tree, then:
+
+```bash
+git fetch upstream
+git rebase upstream/main
+pnpm install
+moon sync
+just check
+just ci
+```
+
+Resolve conflicts according to the product's requirements. In particular, an upstream edit to an
+application that the product deleted requires a decision about keeping that deletion. Shared history
+makes the comparison possible; it does not guarantee conflict-free updates. Rebasing commits already
+pushed to origin rewrites their history, so coordinate with collaborators before updating that branch.
 
 ### The database is baseline, not an exemplar
 
@@ -221,7 +166,7 @@ them.
 
 These are the baseline. Removing any of them is a fork, not an instantiation.
 
-- `.moon/workspace.yml`, `.moon/toolchains.yml`, `.moon/tasks/`, `.moon/templates/`
+- `.moon/workspace.yml`, `.moon/toolchains.yml`, `.moon/tasks/`
 - `moon.yml` at the repository root, including `tasks.lint`, `tasks.format-check`,
   `tasks.project-refs`, `tasks.secrets`, `tasks.audit`, and `inheritedTasks.include`
 - `justfile`
@@ -252,7 +197,7 @@ audit gates. Those tools live in `devDependencies` in the root `package.json`. A
 
 ## Prove the result is healthy
 
-The renamed tree must pass `just ci`. From a generated library directory, `npm pack --dry-run`
+The renamed tree must pass `just ci`. From a library directory, `npm pack --dry-run`
 lists `dist` and `src`. No packed `.map` entry may point at a path outside the package.
 
 Then prove the gates can fail. Follow [Prove every gate](../AGENTS.md#prove-every-gate). Do not

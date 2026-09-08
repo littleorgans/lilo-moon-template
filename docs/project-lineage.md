@@ -1,128 +1,110 @@
-# Create projects and inspect template impact
+# Create projects and learn from consumers
 
-The template owns `scripts/projects.mjs`. It creates a new local Git repository and records its
-relationship to a committed template revision. The command uses the repository's existing rename
-script and Moon setup tasks.
+The template owns `scripts/projects.mjs`. It creates a project with shared Git history and records
+where that project lives. Use the consumer list when improving this baseline to inspect real
+implementations for reusable components, fixes and lessons.
 
 ## Create a project
 
-From this template checkout:
+From the upstream template checkout:
 
 ```bash
 just new-project atlas --dest ../projects --org your-org
 ```
 
-The destination is `../projects/atlas`. The package scope defaults to the project name. Override it
-with `--scope your-scope`. Names use lowercase letters and digits, with internal periods,
-underscores or hyphens. The command refuses an existing destination and paths inside the template,
-including paths that resolve there through a symlink.
+The destination is `../projects/atlas`. The package scope defaults to `atlas`; override it with
+`--scope your-scope`. The source must have full Git history and an origin remote. The script refuses
+existing destinations and paths inside the template, including symlink aliases.
 
-Creation exports the committed tree at `HEAD`, replaces the template names, installs dependencies,
-runs `moon sync` and formatting, then creates one initial commit in the new repository. Your local
-Git author configuration supplies its identity. The initial commit skips hooks and signing so
-bootstrap does not depend on project hooks that are being installed. Run `just check` and `just ci`
-in the new project before delivery.
+Creation fetches the selected commit and its ancestors into an independent Git repository. It
+checks out main, replaces template names, installs dependencies and runs Moon synchronization and
+formatting. One new commit records the project configuration on top of the template history.
+The commit uses your Git identity and skips hooks and signing during bootstrap.
 
-The reference application and example members remain available. Generate your product members and
-remove examples following [the instantiation guide](how-to-instantiate.md). Configure the app port
-and your WorkOS environment there. Ignored environment files and installed dependencies are excluded from the source snapshot.
+| Remote     | Destination                                                            |
+| ---------- | ---------------------------------------------------------------------- |
+| `origin`   | `git@github.com:your-org/atlas.git`, or the URL passed with `--remote` |
+| `upstream` | The template checkout's origin URL                                     |
+
+Main tracks origin/main and pushes default to origin. Creation configures both remotes locally;
+it does not create a hosted repository, push, or require the new remote to exist yet.
 
 Options:
 
-- `--ref <commit>` chooses a different committed revision that supports project provenance.
-- `--remote <url>` sets the new repository's origin locally. It does not create a hosted repository
-  or push anything.
-- `--no-install` creates the repository with setup pending. Run `pnpm install`, `moon sync`, and
-  `just check` in it afterwards. The origin records the creation state and remains unchanged.
-- `--dry-run` prints the validated plan without creating directories or registry records.
+- `--ref <commit>` selects a committed baseline revision. The default is HEAD.
+- `--remote <url>` overrides the product origin, for example for another Git host.
+- `--no-install` leaves dependency setup pending. Run `pnpm install`, `moon sync`, and `just check`.
+- `--dry-run` validates and prints the plan without writing files.
 
-Uncommitted template edits are excluded. Commit a template change before generating a project from
-it. The producer's consumer acceptance gate creates its own temporary committed snapshot when
-verifying uncommitted development changes.
+Uncommitted edits and ignored local files are excluded. The selected commit's complete history is
+retained, including historical files and committed consumer records. Choose a template revision
+available on upstream before distributing a project, so its starting commit is shared there too.
 
-If creation fails before the initial project is finalized, it removes its reserved destination and
-records no descendant. If registration fails after the project commit succeeds, the project is
-retained and the error gives the command needed to register it again.
+The working application is the starting point for product development. Projects may change or delete
+it. See [the instantiation guide](how-to-instantiate.md) for environment setup and member removal.
 
-## Where the relationship lives
+If creation fails before the customization commit succeeds, the reserved destination is removed and
+no consumer is registered. If registration fails afterwards, the project is retained and the error
+explains how to retry registration.
 
-| Location                         | Owner               | Contents                                                                                           |
-| -------------------------------- | ------------------- | -------------------------------------------------------------------------------------------------- |
-| `.template/config.json`          | Template, tracked   | Stable template UUID and metadata schema version                                                   |
-| `.template/projects/<uuid>.json` | Template, tracked   | Project UUID, name, birth revision, creation time, remote URL, origin fingerprint                  |
-| `.template/local/<uuid>.json`    | Template, ignored   | This machine's absolute checkout path                                                              |
-| `.template-origin.json`          | Descendant, tracked | Matching project and template IDs, birth revision, generation parameters and inherited file hashes |
+## Find consumers
 
-A new project does not inherit the template's registry or other projects' paths. Registry entries
-use separate files so two creators do not overwrite a shared array. Creation leaves the new
-portable record as a Git change in the template for you to commit with the project registration.
-Machine paths remain ignored. Remote URLs stored in records omit URL credentials and query data.
-
-The birth record is immutable. Its file signatures include content, file type and executable mode.
-Registration checks the origin fingerprint before refreshing a known project. It refuses edited
-provenance. Applying a template fix to a product does not advance its birth revision or imply that
-all intervening fixes were applied.
-
-## Find or relocate a descendant
+Run these commands in the upstream template checkout:
 
 ```bash
 just projects
-just project-register /path/to/existing/atlas
+node scripts/projects.mjs list --json
+just project-register /path/to/atlas
 ```
 
-Registration reads the descendant's origin file and verifies that the path is its Git repository
-root. It updates the local locator and current origin URL. Repeat it after moving a checkout,
-cloning it onto another machine, or adding a remote. Repeating registration does not create a
-second project entry. A checkout from a different template is rejected.
+The list shows each project's name, starting template revision, repository URL and local checkout
+path. JSON output is available for agents. Use the direct Node command for clean JSON without Moon
+or just task output. Inspect those checkouts to decide what belongs back in the baseline.
 
-A copied registry on another machine can list remote repositories before their checkouts are
-available. Impact reports retain these projects as unavailable. They are not silently omitted.
-Existing projects created before this feature have no birth manifest and cannot be registered by
-inventing one. A future adoption workflow needs an explicitly reviewed starting snapshot.
+Registration refreshes the local path and origin URL without duplicating the entry. Run it after a
+checkout moves, is cloned onto another machine, or receives a new origin URL. A missing local checkout
+does not remove its portable record. This is a directory of consumers, not a synchronization service.
 
-## Inspect a template change
+| Location                         | Contents                                                                                  |
+| -------------------------------- | ----------------------------------------------------------------------------------------- |
+| `.template/config.json`          | Stable template identity                                                                  |
+| `.template/projects/<uuid>.json` | Tracked consumer name, ID, creation time, starting revision and repository URL            |
+| `.template/local/<uuid>.json`    | Ignored local checkout path                                                               |
+| `.template-origin.json`          | Downstream creation record with template identity, starting revision and setup parameters |
+
+Commit new consumer records in the upstream template. Separate files avoid concurrent creators
+replacing each other's entries. Local paths remain ignored. Stored remote URLs omit URL passwords,
+HTTP usernames and query data.
+
+The tracked `.template` directory remains inherited source so future rebases can bring registry
+updates through without replaying deletion of that directory. Its authoritative copy lives upstream.
+The downstream origin record identifies a product checkout; creation must run from the template.
+Registration preserves the recorded name, creation date and starting revision. It does not advance
+that revision after a rebase. Git history records subsequent updates.
+
+## Receive template updates
+
+In the downstream repository, with a clean working tree:
 
 ```bash
-just project-impact
-just project-impact --from HEAD~1 --to HEAD
-node scripts/projects.mjs impact --json
+git fetch upstream
+git rebase upstream/main
+pnpm install
+moon sync
+just check
+just ci
 ```
 
-By default, each project is compared from its own birth revision through the template's current
-working tree, including untracked additions and tracked deletions. `--from` supplies a common
-starting revision. `--to` selects a committed endpoint and excludes working edits. Registry and
-origin metadata are excluded from the change set.
-
-Use the direct Node command for clean JSON output. Moon and just add task output around their
-command's output.
-
-For each available checkout, the report classifies changed template paths:
-
-| State             | Meaning                                                                       |
-| ----------------- | ----------------------------------------------------------------------------- |
-| `unchanged`       | The descendant file still matches its generated signature                     |
-| `modified`        | The descendant changed the inherited file's contents, type or executable mode |
-| `deleted`         | The descendant removed that inherited file                                    |
-| `new-in-template` | The path was not inherited and does not exist in the descendant               |
-| `project-only`    | The path was not inherited, but the descendant already has a file there       |
-
-File comparison covers every language. The `manifestDependents` list identifies affected members
-and follows dependency names in current JavaScript package manifests. Its `dependencyCoverage`
-field explicitly excludes Moon-only and other language dependency edges. Inspect those graphs
-separately. Root-level changes conservatively include every current member.
-
-Missing checkouts are `unavailable`. Missing Git history, mismatched provenance or inspection errors
-are `unknown`, with a reason. A relocated file appears deleted at its original path; the report does
-not infer semantic moves. Identical files do not prove a patch is compatible, and modified files
-may already contain the intended fix. These are inputs for an agent's review.
-
-The commands do not fetch remote code, apply updates, edit descendant source during inspection, or
-open cross-project pull requests.
+Git replays product commits onto the updated baseline. Resolve conflicts where both sides changed
+the same code, including edits to examples the product deleted. For already published commits,
+coordinate the history rewrite with collaborators before pushing. Creation and registration never
+rebase or modify an existing downstream project automatically.
 
 ## Verification
 
-`root:scripts-test` checks provenance, destination refusal, failed creation, registration,
-customizations, mode changes and dependency reporting in disposable Git repositories.
-`root:consumer-check` calls the real creator with installation enabled, then builds and runs the
-generated workspace and a separate packed-library consumer. Those fixtures register only against
-a disposable template snapshot.
+`root:scripts-test` creates disposable template and product repositories. It proves shared ancestry,
+both remotes, product customization, fetching and rebasing a template fix, and pushing to the product
+origin. It also checks destination refusal, failure cleanup, registration and concurrent creation.
+`root:consumer-check` creates the real baseline with installation enabled, then builds and serves
+its application with workspace libraries and separately with packed libraries. These fixtures use
+disposable consumer registries. The gate skips in downstream repositories.

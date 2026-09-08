@@ -18,12 +18,6 @@ ci:
 setup:
     moon setup
 
-new-package name:
-    moon generate library -- --name "{{name}}"
-
-new-app name port="5200":
-    moon generate application -- --name "{{name}}" --port "{{port}}"
-
 rename $org $scope $slug:
     moon run root:rename -- "$org" "$scope" "$slug"
 
@@ -42,6 +36,3 @@ projects *args:
 
 project-register path:
     moon run root:project-register -- "$1"
-
-project-impact *args:
-    moon run root:project-impact -- "$@"

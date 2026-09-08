@@ -39,11 +39,16 @@ never needs a search. Suite-level tests that cross modules, the wiring and route
 at the `tests/` root. `server/services.ts` states its own rule in place: it is the composition
 root, one lazy getter per external service and nothing else.
 
-In the template producer, the generator's `.raw` files are byte-copies of `apps/web`, and
-`root:template-check` fails CI when they drift. `just rename` removes the producer reference marker
-so a consumer can delete the example. `root:consumer-check` exercises actual generation and packed
-package consumption in disposable workspaces. The deliberate differences are allowlisted in `scripts/template-drift.mjs`, each with
-its reason, so a new difference has to be argued into that file rather than accumulating silently.
+The repository itself is the maintained baseline. Member generators and their duplicate application
+sources have been removed. Project creation preserves the selected commit and its ancestors, then
+adds a customization commit. Downstream repositories use `origin` for their product and `upstream`
+for this template, allowing template updates through Git fetch and rebase.
+
+The consumer registry helps template development: inspect real projects for reusable improvements
+and lessons before changing the baseline. It stores repository locations and creation revisions.
+Git supplies history and comparison; no separate file fingerprint or impact engine is maintained.
+`root:consumer-check` exercises repository creation and packed package consumption in disposable
+workspaces. Downstream applications can evolve or be removed without retaining a reference copy.
 
 ## One linter, one formatter
 
@@ -266,7 +271,7 @@ secret is set. Consumer-facing detail is in
 ## Left to the consuming repo
 
 Settled here: moon, oxlint, oxfmt, TypeScript 7, the lockstep gate, pnpm catalogs, the member
-layout, the generator shapes that exist, Atlas for SQL, Drizzle as generated output, Supabase
+layout, project creation with shared Git history, Atlas for SQL, Drizzle as generated output, Supabase
 as a host, the `accounts` and `profiles` baseline with its row level security, and WorkOS as the
 identity vendor.
 

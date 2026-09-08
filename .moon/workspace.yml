@@ -5,10 +5,6 @@
 # so a bump to one file without the other fails moon. Independent of littleorgans.
 versionConstraint: "=2.5.1"
 
-generator:
-  templates:
-    - "./.moon/templates"
-
 projects:
   globs:
     - "apps/*"

@@ -1,18 +1,8 @@
-import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, realpathSync, rmSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
 
-import {
-  commitProject,
-  fileHash,
-  git,
-  initializeProject,
-  projectCommand,
-  projectEnvironment,
-  within,
-  writeJson,
-} from "./project-files.mjs";
+import { commitProject, git, projectCommand, within, writeJson } from "./project-files.mjs";
 import { ORIGIN_FILE, registerProject, remoteUrl, templateConfig } from "./project-registry.mjs";
 
 function destinationPath(path) {
@@ -43,6 +33,15 @@ export function planProject({
     }
   }
   const root = realpathSync(source);
+  if (existsSync(join(root, ORIGIN_FILE)))
+    throw new Error("Create projects from the upstream template checkout");
+  if (git(root, ["rev-parse", "--is-shallow-repository"]) === "true")
+    throw new Error("Fetch the full template history before creating a project");
+  const upstream = remoteUrl(root);
+  if (!upstream) throw new Error("Template checkout must have an origin remote");
+  remote ??= `git@github.com:${org}/${name}.git`;
+  if (!remote || remote.startsWith("-") || remote === upstream)
+    throw new Error("Project origin must be distinct from the template upstream");
   const target = destinationPath(destination);
   if (within(root, target) || within(target, root))
     throw new Error("Destination must be outside the template checkout");
@@ -66,12 +65,13 @@ export function planProject({
     scope,
     revision,
     remote,
+    upstream,
     install,
     templateId: config.id,
   };
 }
 
-/** Export a committed tree. Ignored files, working changes, Git history and descendants never enter it. */
+/** Fetch the selected commit and its ancestors into an independent repository. */
 export function createProject(options) {
   const plan = planProject(options);
   mkdirSync(dirname(plan.destination), { recursive: true });
@@ -82,17 +82,16 @@ export function createProject(options) {
   mkdirSync(plan.destination);
   let initialized = false;
   try {
-    const archive = execFileSync("git", ["archive", "--format=tar", plan.revision], {
-      cwd: plan.source,
-      env: projectEnvironment(),
-      maxBuffer: 128 * 1024 * 1024,
-    });
-    execFileSync("tar", ["-xf", "-", "-C", plan.destination], { input: archive });
+    git(plan.destination, ["init", "--initial-branch=main"]);
+    git(plan.destination, ["fetch", "--no-tags", plan.source, plan.revision]);
+    git(plan.destination, ["checkout", "-B", "main", "FETCH_HEAD"]);
     if (templateConfig(plan.destination).id !== plan.templateId)
       throw new Error("Selected revision belongs to another template identity");
-    rmSync(join(plan.destination, ".template"), { recursive: true, force: true });
-    rmSync(join(plan.destination, ORIGIN_FILE), { force: true });
-    initializeProject(plan.destination, "chore: initialize project");
+    git(plan.destination, ["remote", "add", "origin", plan.remote]);
+    git(plan.destination, ["remote", "add", "upstream", plan.upstream]);
+    git(plan.destination, ["config", "branch.main.remote", "origin"]);
+    git(plan.destination, ["config", "branch.main.merge", "refs/heads/main"]);
+    git(plan.destination, ["config", "remote.pushDefault", "origin"]);
     projectCommand(plan.destination, "bash", [
       "scripts/rename-template.sh",
       plan.org,
@@ -104,14 +103,6 @@ export function createProject(options) {
       projectCommand(plan.destination, "moon", ["sync"]);
       projectCommand(plan.destination, "moon", ["run", "root:format"]);
     }
-    if (plan.remote) git(plan.destination, ["remote", "add", "origin", plan.remote]);
-    const files = Object.fromEntries(
-      git(plan.destination, ["ls-files", "-z"])
-        .split("\0")
-        .filter(Boolean)
-        .map((path) => [path, fileHash(join(plan.destination, path))])
-        .filter(([, hash]) => hash !== null),
-    );
     const origin = {
       schemaVersion: 1,
       id: randomUUID(),
@@ -120,17 +111,15 @@ export function createProject(options) {
       template: {
         id: plan.templateId,
         revision: plan.revision,
-        repository: remoteUrl(plan.source),
+        repository: plan.upstream,
       },
       parameters: { org: plan.org, scope: plan.scope },
       setup: plan.install ? "installed" : "pending",
-      files,
     };
     writeJson(join(plan.destination, ORIGIN_FILE), origin);
     commitProject(
       plan.destination,
       `chore: initialize ${plan.name} from template ${plan.revision.slice(0, 12)}`,
-      true,
     );
     initialized = true;
     const record = registerProject(plan.source, plan.destination);

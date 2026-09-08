@@ -3,7 +3,6 @@ import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 
 import { createProject, planProject } from "./lib/create-project.mjs";
-import { projectImpact } from "./lib/project-impact.mjs";
 import { projectRecords, registerProject } from "./lib/project-registry.mjs";
 
 const source = fileURLToPath(new URL("../", import.meta.url));
@@ -15,8 +14,6 @@ const { values, positionals } = parseArgs({
     scope: { type: "string" },
     ref: { type: "string" },
     remote: { type: "string" },
-    from: { type: "string" },
-    to: { type: "string" },
     "no-install": { type: "boolean" },
     "dry-run": { type: "boolean" },
     json: { type: "boolean" },
@@ -29,42 +26,12 @@ const help = `Usage:
     [--ref <commit>] [--remote <url>] [--no-install] [--dry-run]
   just projects [--json]
   just project-register <checkout>
-  just project-impact [--from <commit>] [--to <commit>] [--json]
 
-Creation exports a committed revision, initializes Git, installs dependencies and registers
-its origin. --no-install leaves setup pending. --remote sets origin locally; it creates no
-hosted repository. --dry-run validates and prints the plan without writing files.
-Impact defaults to each project's birth revision through the current working tree.
+Creation preserves template history and sets origin to the project and upstream to the template.
+--remote overrides the default git@github.com:<organization>/<name>.git project origin.
+No hosted repository is created. --no-install leaves setup pending.
+--dry-run validates and prints the plan without writing files.
 `;
-
-function printImpact(report) {
-  if (report.projects.length === 0) return "No generated projects registered.\n";
-  return (
-    report.projects
-      .map((project) => {
-        const lines = [
-          `${project.name} (${project.id})`,
-          `  ${project.status}: ${project.path ?? project.repository ?? "no checkout registered"}`,
-        ];
-        if (project.reason) lines.push(`  ${project.reason}`);
-        if (project.changes) {
-          for (const change of project.changes)
-            lines.push(`  ${change.state.padEnd(15)} ${change.path}`);
-          lines.push(
-            `  Manifest consumers to inspect: ${project.manifestDependents.map(({ path }) => path).join(", ") || "none identified"}`,
-          );
-          lines.push(`  Dependency coverage: ${project.dependencyCoverage}`);
-          if (project.changes.length === 0)
-            lines.push("  No template file changes in this comparison.");
-        } else if (project.changedTemplateFiles)
-          lines.push(
-            `  ${project.changedTemplateFiles.length} template files changed; checkout inspection unavailable.`,
-          );
-        return lines.join("\n");
-      })
-      .join("\n\n") + "\n"
-  );
-}
 
 try {
   if (values.help || !command) process.stdout.write(help);
@@ -96,17 +63,14 @@ try {
     process.stdout.write(
       values.json
         ? `${JSON.stringify(records, null, 2)}\n`
-        : records
-            .map(
-              (project) =>
-                `${project.name}\t${project.templateRevision.slice(0, 12)}\t${project.path ?? project.repository ?? "checkout unavailable"}`,
-            )
-            .join("\n") + "\n",
-    );
-  } else if (command === "impact" && positionals.length === 1) {
-    const report = projectImpact(source, { from: values.from, to: values.to });
-    process.stdout.write(
-      values.json ? `${JSON.stringify(report, null, 2)}\n` : printImpact(report),
+        : records.length === 0
+          ? "No downstream projects registered.\n"
+          : records
+              .map(
+                (project) =>
+                  `${project.name}\t${project.templateRevision.slice(0, 12)}\t${project.repository ?? "no remote"}\t${project.path ?? "checkout unavailable"}`,
+              )
+              .join("\n") + "\n",
     );
   } else throw new Error(help);
 } catch (error) {
