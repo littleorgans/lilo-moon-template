@@ -7,7 +7,6 @@ dependsOn:
   - "ui"
   - "views"
   - "auth-tanstack"
-  - "collections"
   - "db"
 
 tasks:

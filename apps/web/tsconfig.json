@@ -15,9 +15,6 @@
       "path": "../../packages/auth-tanstack"
     },
     {
-      "path": "../../packages/collections"
-    },
-    {
       "path": "../../packages/db"
     },
     {

@@ -33,7 +33,7 @@ describe("TanStack Start", () => {
 
     const html = renderToStaticMarkup(<RouterProvider router={router} />);
 
-    expect(html).toContain("Task board");
+    expect(html).toContain("Workspace");
     expect(html).toContain("Continue with Google");
   });
 

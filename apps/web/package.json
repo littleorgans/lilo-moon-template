@@ -6,7 +6,6 @@
   "dependencies": {
     "@littleorgans/auth": "workspace:*",
     "@littleorgans/auth-tanstack": "workspace:*",
-    "@littleorgans/collections": "workspace:*",
     "@littleorgans/db": "workspace:*",
     "@littleorgans/theme": "workspace:*",
     "@littleorgans/ui": "workspace:*",

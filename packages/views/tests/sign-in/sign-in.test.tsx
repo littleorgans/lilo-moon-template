@@ -5,8 +5,8 @@ import { SignInPanel } from "../../src/sign-in/sign-in.js";
 
 const html = renderToStaticMarkup(
   <SignInPanel
-    title="Task board"
-    description="Sign in to see the tasks your workspace can see."
+    title="Workspace"
+    description="Sign in to continue to your workspace."
     oauthStartPath="/api/auth/start"
     oauthLabel="Continue with your account"
     emailStartPath="/api/auth/email/start"
@@ -22,8 +22,8 @@ describe("the session-ended notice", () => {
   it("says the session ended without naming which check failed", () => {
     const ended = renderToStaticMarkup(
       <SignInPanel
-        title="Task board"
-        description="Sign in to see the tasks your workspace can see."
+        title="Workspace"
+        description="Sign in to continue to your workspace."
         oauthStartPath="/api/auth/start"
         oauthLabel="Continue with your account"
         emailStartPath="/api/auth/email/start"
@@ -57,7 +57,7 @@ describe("SignInPanel", () => {
   });
 
   it("shows the product copy it was given", () => {
-    expect(html).toContain("Task board");
-    expect(html).toContain("workspace can see");
+    expect(html).toContain("Workspace");
+    expect(html).toContain("continue to your workspace");
   });
 });

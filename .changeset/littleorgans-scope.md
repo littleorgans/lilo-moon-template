@@ -3,7 +3,6 @@
 "@littleorgans/auth-session": minor
 "@littleorgans/auth-tanstack": minor
 "@littleorgans/auth-workos": minor
-"@littleorgans/collections": minor
 "@littleorgans/db": minor
 "@littleorgans/theme": minor
 "@littleorgans/ui": minor
