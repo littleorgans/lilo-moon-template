@@ -1,7 +1,8 @@
 # Secrets sweep, September 2026
 
 Phase 1 task 1.4. The sweep ran on 2026-09-23, before the first npm publish of `@littleorgans/*`,
-against `origin/main` at `2a91cdd`, then reviewed after rebasing onto `a66f0bd` (#103). No
+against `origin/main` at `2a91cdd`, then reviewed after rebasing onto `a66f0bd` (#103) and
+`c0231c1` (#105). There are now 10 published packages after the removal of collections. No
 credential values appear here.
 
 ## Verdict
@@ -25,7 +26,7 @@ Under it, gitleaks parses no commits (`0 commits scanned`) and reports findings 
 Every history scan below therefore ran with `GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1`.
 Anyone repeating this with gitleaks should do the same and check the `commits scanned` line.
 
-## Coverage
+## Original coverage
 
 | Surface                    | What                                                                                                                          | Commands                                                                                       |
 | -------------------------- | ----------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
@@ -33,7 +34,7 @@ Anyone repeating this with gitleaks should do the same and check the `commits sc
 | Local history              | Every local branch, remote-tracking ref and reflog. 223 commits                                                               | `gitleaks git --log-opts="--all --reflog" --redact`                                            |
 | Unreachable commits        | 212 dangling commits from `git fsck --unreachable --no-reflogs`, pinned as refs in a scratch repo that borrows the objects    | `gitleaks git --log-opts="--all" --redact`                                                     |
 | Every blob ever stored     | 1,249 unique blobs from both object stores (`git cat-file --batch-all-objects`), merge results and unreachable blobs included | `gitleaks dir --redact`; `trufflehog filesystem --no-verification`; `secretlint --maskSecrets` |
-| Packed tarballs            | `pnpm pack` of all 11 published packages after `moon run :build`, unpacked: 361 files                                         | `secretlint --maskSecrets`; `gitleaks dir --redact`; `trufflehog filesystem --no-verification` |
+| Packed tarballs            | `pnpm pack` of the original package set before #105 after `moon run :build`, unpacked: 361 files                              | `secretlint --maskSecrets`; `gitleaks dir --redact`; `trufflehog filesystem --no-verification` |
 | Shipped working-tree files | 46 tracked files: every `*.md`, `docs/`, `db/` (migrations), `.changeset/`, `.env.example`, the LICENSE files                 | the same three                                                                                 |
 | GitHub text                | Bodies of 104 issues and pull requests, issue comments, review comments and reviews, read through `gh api`                    | the same three                                                                                 |
 
@@ -79,7 +80,9 @@ Nothing to rotate. No history rewrite is recommended.
   task depends on `#ts-library:build` and runs in CI when sources change. `changeset:publish` runs
   it between the build and `changeset publish`. `scripts/tests/packed-secrets.test.mjs` proves it
   passes a clean tarball, fails one whose `dist` holds a token assembled at runtime, fails closed on
-  a failed pack or an empty package set, and removes its temporary directory each time.
+  a failed pack or an empty package set, and removes its temporary directory each time. It also
+  rejects `prepack`, `prepare`, `prepublishOnly` and `postpack` in every published package until
+  task 1.8 publishes the scanned archives.
 
 ## Reviewer reproduction
 
@@ -94,7 +97,7 @@ Nothing to rotate. No history rewrite is recommended.
   11-character WorkOS-shaped string in an unreachable `auth-http` config test: it is an invalid
   client-ID input, not a plausible complete provider key. Its provider-like prefix alone would not
   justify calling a full-length credential a fixture.
-- Repacked all 11 packages after the migration rebase with Moon's pinned pnpm and Node: 366
+- Repacked the pre-removal package set after the migration rebase with Moon's pinned tools: 366
   extracted files, zero gitleaks or secretlint hits. The earlier 361-file count belongs to the
   builder's saved artifacts; a shell-toolchain pack produced only 314 files, so it is not the
   release comparison. The db tarball now includes the shipped migrations.
@@ -104,17 +107,30 @@ Nothing to rotate. No history rewrite is recommended.
   fails on a failed pack or an empty package set, and removes its temporary directory on normal
   success and exceptions. Process termination such as SIGKILL can still leave a temp directory. Pack
   and extraction subprocess output is suppressed because it may contain secrets.
-- Three focused tests passed. The ignored dist fixture explicitly lists its files because pinned
+- The original three focused tests passed. The ignored dist fixture explicitly lists its files because pinned
   pnpm otherwise omits them during packing. Mutation checks detected omitted cleanup, disabled
   masking, forwarded pack stderr, a successful empty-package exit, skipped dist scanning and
   respected nested ignore files. Mutations were restored before verification.
 - `changeset:publish` waits for the Moon build and packed scan, then uses `&&` to prevent
   publication on failure. The release workflow calls this command when publishing is enabled.
   Changesets subsequently packs again: the inspected archives are not the exact uploaded bytes.
-  Current package manifests have no lifecycle scripts; if packaging later becomes stateful or
-  environment-dependent, publish the scanned archives or enforce deterministic packaging.
+  The lifecycle-script guard prevents the four packaging hooks from changing contents between
+  these steps. It is an interim guard, not proof of identical archives; task 1.8 will address
+  publishing the scanned archives.
 - Downloaded and scanned 12 recent completed Release/failed-CI runs out of 296 listed runs, with
   gitleaks and secretlint: zero findings. This is a sample, not full log coverage.
+
+## Round 3 after #105
+
+- Rebased onto `c0231c1` without conflicts using Moon 2.5.5. The current set is 10 published
+  packages. Repacking with pinned pnpm and Node produced 349 extracted files; gitleaks and
+  secretlint both reported zero findings. `root:packed-secrets` passed in 4.4 seconds, with ten
+  dependency builds cached.
+- All four focused tests passed. The new lifecycle guard was mutation-checked by adding each
+  forbidden hook independently to a published manifest. Each run of
+  `node --test --test-name-pattern="published packages have no lifecycle" scripts/tests/packed-secrets.test.mjs`
+  exited 1 with `publish the scanned archives (task 1.8) before adding packaging lifecycle scripts`.
+  All mutations were restored.
 
 ## Not scanned
 
@@ -127,7 +143,7 @@ Nothing to rotate. No history rewrite is recommended.
   mirror holds. The `changeset-release/main` tip from before its last force push (`c919af2`)
   survives only locally, and the local scans cover it. GitHub offers no way to list the others.
 - Forks, and the repository wiki. The wiki is enabled but has never been created.
-- The npm registry: no `@littleorgans/*` package is published yet (`npm view` returns 404 for all
-  11).
+- The npm registry: the original sweep received 404 from `npm view` for every package then in
+  scope. Registry checks were not repeated in round 3.
 - Scans for live keys: trufflehog ran without verification, so no candidate was tested against a
   provider.
