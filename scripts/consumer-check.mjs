@@ -44,6 +44,78 @@ function run(cwd, command, args) {
   return projectCommand(cwd, command, args);
 }
 
+const readManifest = (root) => JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
+
+/**
+ * The real root of the package that Node resolves for `name` from `directory`. A child process
+ * resolves it, because this process caches resolutions and would miss a reinstall.
+ */
+function resolvedPackage(directory, name) {
+  const entry = execFileSync(
+    process.execPath,
+    ["-p", "require('node:fs').realpathSync(require.resolve(process.argv[1]))", name],
+    { cwd: directory, encoding: "utf8" },
+  ).trim();
+  let root = dirname(entry);
+  while (!existsSync(join(root, "package.json")) || readManifest(root).name !== name) {
+    assert.notEqual(dirname(root), root, `${name} has no package root`);
+    root = dirname(root);
+  }
+  return { root, manifest: readManifest(root) };
+}
+
+/**
+ * A consumer on the lowest versions db's peer ranges admit must share one drizzle-orm copy with db,
+ * typecheck, and load db under native Node ESM. An exact dependency once nested a second Drizzle
+ * copy that web:typecheck rejected, and pg before 8.15.0 has no named ESM export for `Pool`.
+ */
+function checkDbPeerFloors(manifestPath, manifest) {
+  const web = join(packed, "apps/web");
+  // Creation renamed the scope, so take the package name from the generated project.
+  const name = readManifest(join(generated, "packages/db")).name;
+  // Every peer db declares takes part, so a peer added later is exercised without editing this.
+  const peers = Object.entries(resolvedPackage(web, name).manifest.peerDependencies ?? {});
+  assert.ok(peers.length > 0, "db must declare peer dependencies");
+  const floors = Object.fromEntries(
+    peers.map(([peer, range]) => {
+      const floor = /^\^(\d+\.\d+\.\d+)$/.exec(range)?.[1];
+      assert.ok(floor, `db must declare a caret ${peer} peer, found ${range}`);
+      return [peer, floor];
+    }),
+  );
+  // A floor may equal the pin, but if every floor does, this step only repeats the pinned run.
+  assert.ok(
+    Object.entries(floors).some(
+      ([peer, floor]) => floor !== resolvedPackage(web, peer).manifest.version,
+    ),
+    "at least one db peer floor must differ from the consumer pin",
+  );
+  Object.assign(manifest.dependencies, floors);
+  writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+  run(packed, "pnpm", ["install"]);
+  for (const [peer, floor] of Object.entries(floors)) {
+    const application = resolvedPackage(web, peer);
+    // Resolve db again: pnpm names its store directory after the peer versions it resolved.
+    const database = resolvedPackage(resolvedPackage(web, name).root, peer);
+    assert.equal(
+      database.root,
+      application.root,
+      `db and the application resolved different ${peer} copies`,
+    );
+    const { version } = application.manifest;
+    assert.equal(
+      version,
+      floor,
+      `the application installed ${peer} ${version}, not the floor ${floor}`,
+    );
+  }
+  // The built server bundles db, so only a direct import exercises Node's own module loading.
+  run(web, process.execPath, ["--input-type=module", "-e", "await import(process.argv[1])", name]);
+  run(packed, "moon", ["run", "web:typecheck", "--force"]);
+  const installed = Object.entries(floors).map(([peer, floor]) => `${peer} ${floor}`);
+  process.stdout.write(`consumer-check: db loads and typechecks on ${installed.join(", ")}.\n`);
+}
+
 function rejectViolation(root, file, content, target, failure) {
   const path = join(root, file);
   writeFileSync(path, content);
@@ -307,6 +379,7 @@ try {
   run(packed, "moon", ["sync"]);
   run(packed, "moon", ["run", "web:build", "web:typecheck", "web:test"]);
   await exercise(packed);
+  checkDbPeerFloors(manifestPath, manifest);
   process.stdout.write("consumer-check: generated and packed consumers passed.\n");
 } finally {
   rmSync(scratch, { recursive: true, force: true });

@@ -132,6 +132,7 @@ tasks:
       - "/LICENSE"
       - "/{apps,packages,services}/*/LICENSE"
       - "/{apps,packages,services}/*/package.json"
+      - "/.changeset/config.json"
       - "moon.yml"
       - ".moon/**/*"
       - "renovate.json"

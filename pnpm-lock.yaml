@@ -173,6 +173,9 @@ importers:
       drizzle-orm:
         specifier: 'catalog:'
         version: 0.45.2(@types/pg@8.23.1)(pg@8.23.0)
+      pg:
+        specifier: 'catalog:'
+        version: 8.23.0
       react:
         specifier: 'catalog:'
         version: 19.2.8
@@ -270,12 +273,6 @@ importers:
       '@littleorgans/auth':
         specifier: workspace:*
         version: link:../auth
-      drizzle-orm:
-        specifier: 'catalog:'
-        version: 0.45.2(@types/pg@8.23.1)(pg@8.23.0)
-      pg:
-        specifier: 'catalog:'
-        version: 8.23.0
     devDependencies:
       '@types/node':
         specifier: 'catalog:'
@@ -283,6 +280,12 @@ importers:
       '@types/pg':
         specifier: 'catalog:'
         version: 8.23.1
+      drizzle-orm:
+        specifier: 'catalog:'
+        version: 0.45.2(@types/pg@8.23.1)(pg@8.23.0)
+      pg:
+        specifier: 'catalog:'
+        version: 8.23.0
 
   packages/theme: {}
 
@@ -303,9 +306,6 @@ importers:
       tailwind-merge:
         specifier: 'catalog:'
         version: 3.6.0
-      tailwindcss:
-        specifier: 'catalog:'
-        version: 4.3.3
     devDependencies:
       '@types/react':
         specifier: 'catalog:'
@@ -319,6 +319,9 @@ importers:
       react-dom:
         specifier: 'catalog:'
         version: 19.2.8(react@19.2.8)
+      tailwindcss:
+        specifier: 'catalog:'
+        version: 4.3.3
 
   packages/views:
     dependencies:

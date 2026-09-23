@@ -27,13 +27,17 @@
     "access": "public"
   },
   "dependencies": {
-    "@littleorgans/auth": "workspace:*",
-    "drizzle-orm": "catalog:",
-    "pg": "catalog:"
+    "@littleorgans/auth": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "catalog:",
-    "@types/pg": "catalog:"
+    "@types/pg": "catalog:",
+    "drizzle-orm": "catalog:",
+    "pg": "catalog:"
+  },
+  "peerDependencies": {
+    "drizzle-orm": "catalog:db-peer",
+    "pg": "catalog:db-peer"
   },
   "engines": {
     "node": ">=24.19.0"

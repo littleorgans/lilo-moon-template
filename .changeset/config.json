@@ -2,7 +2,20 @@
   "$schema": "https://unpkg.com/@changesets/config@4.0.0/schema.json",
   "changelog": ["@changesets/changelog-github", { "repo": "littleorgans/lilo-moon-template" }],
   "commit": false,
-  "fixed": [],
+  "fixed": [
+    [
+      "@littleorgans/auth",
+      "@littleorgans/auth-session",
+      "@littleorgans/auth-tanstack",
+      "@littleorgans/auth-workos",
+      "@littleorgans/collections",
+      "@littleorgans/db",
+      "@littleorgans/theme",
+      "@littleorgans/ui",
+      "@littleorgans/views",
+      "@littleorgans/vite-config"
+    ]
+  ],
   "linked": [],
   "access": "public",
   "baseBranch": "main",
