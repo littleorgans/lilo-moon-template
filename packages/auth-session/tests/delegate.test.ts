@@ -173,11 +173,14 @@ describe("fetch as the signed-in person", () => {
   it("sends the verified token as the bearer, and passes everything else through", async () => {
     const { deps, sent } = depsWith(valid);
     const user = signedIn(await readUserAccess(session().jar, deps));
+    const signal = new AbortController().signal;
 
     const response = await user.fetch(`${service}/v1/me`, {
       method: "POST",
       headers: { "content-type": "application/json", "x-request-id": "r1" },
       body: "{}",
+      signal,
+      redirect: "manual",
     });
 
     expect(await response.text()).toBe("ok");
@@ -186,6 +189,8 @@ describe("fetch as the signed-in person", () => {
     expect(sent[0]?.authorization).toBe(`Bearer ${ACCESS}`);
     expect(sent[0]?.init?.method).toBe("POST");
     expect(sent[0]?.init?.body).toBe("{}");
+    expect(sent[0]?.init?.signal).toBe(signal);
+    expect(sent[0]?.init?.redirect).toBe("manual");
     const headers = new Headers(sent[0]?.init?.headers);
     expect(headers.get("content-type")).toBe("application/json");
     expect(headers.get("x-request-id")).toBe("r1");
