@@ -415,16 +415,28 @@ describe("an address over 254 characters", () => {
     expect(calls).toHaveLength(0);
   });
 
-  it("is not what an address of exactly 254 characters is", async () => {
+  // The limit applies to the address that is used, trimmed, not to the padding around it.
+  it("lets exactly 254 characters through on both steps, padding aside", async () => {
     const { throttle, asked } = throttleDouble();
-    const { auth } = authDouble();
+    const { auth, calls } = authDouble();
     const { log } = logSink();
     const started = await startEmailSignIn(
-      formRequest({ email: ofLength(254) }),
+      formRequest({ email: `  ${ofLength(254)}  ` }),
       jarWith().jar,
       startDeps(auth, log, throttle),
     );
-    expect(started.status).toBe(302);
-    expect(asked).toHaveLength(2);
+    const verified = await completeEmailSignIn(
+      formRequest({ code: "123456" }),
+      jarWith({ [EMAIL_COOKIE]: ofLength(254) }).jar,
+      verifyDeps(auth, log, throttle),
+    );
+    expect([started.status, verified.status]).toStrictEqual([302, 302]);
+    expect(asked.map((key) => key.step)).toStrictEqual([
+      "email-start",
+      "email-start",
+      "email-verify",
+      "email-verify",
+    ]);
+    expect(calls.map((call) => call.method)).toContain("verifyMagicAuthCode");
   });
 });
