@@ -65,28 +65,38 @@ function resolvedPackage(directory, name) {
 }
 
 /**
- * A consumer on a drizzle-orm other than the workspace pin must share one copy with the db package.
- * An exact dependency in db once nested a second copy, and web:typecheck rejected the mixed types.
+ * A consumer on the lowest versions db's peer ranges admit must share one drizzle-orm copy with db,
+ * typecheck, and load db under native Node ESM. An exact dependency once nested a second Drizzle
+ * copy that web:typecheck rejected, and pg before 8.15.0 has no named ESM export for `Pool`.
  */
-function checkDrizzleSkew(manifestPath, manifest) {
+function checkDbPeerFloors(manifestPath, manifest) {
   const web = join(packed, "apps/web");
   // Creation renamed the scope, so take the package name from the generated project.
   const name = readManifest(join(generated, "packages/db")).name;
   const pinned = resolvedPackage(web, "drizzle-orm").manifest.version;
-  const range = resolvedPackage(web, name).manifest.peerDependencies?.["drizzle-orm"];
-  const floor = /^\^(\d+\.\d+\.\d+)$/.exec(range ?? "")?.[1];
-  assert.ok(floor, `db must declare a caret drizzle-orm peer, found ${range}`);
-  assert.notEqual(floor, pinned, "the drizzle-orm peer floor must differ from the workspace pin");
-  manifest.dependencies["drizzle-orm"] = floor;
+  const peers = resolvedPackage(web, name).manifest.peerDependencies ?? {};
+  const floors = Object.fromEntries(
+    ["drizzle-orm", "pg"].map((peer) => {
+      const floor = /^\^(\d+\.\d+\.\d+)$/.exec(peers[peer] ?? "")?.[1];
+      assert.ok(floor, `db must declare a caret ${peer} peer, found ${peers[peer]}`);
+      return [peer, floor];
+    }),
+  );
+  assert.notEqual(floors["drizzle-orm"], pinned, "the drizzle-orm floor must differ from the pin");
+  Object.assign(manifest.dependencies, floors);
   writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
   run(packed, "pnpm", ["install"]);
   const application = resolvedPackage(web, "drizzle-orm");
   // Resolve db again: pnpm names its store directory after the peer versions it resolved.
   const database = resolvedPackage(resolvedPackage(web, name).root, "drizzle-orm");
   assert.equal(database.root, application.root, "db and the application resolved different copies");
-  assert.equal(application.manifest.version, floor);
+  for (const [peer, floor] of Object.entries(floors))
+    assert.equal(resolvedPackage(web, peer).manifest.version, floor, `${peer} floor`);
+  // The built server bundles db, so only a direct import exercises Node's own module loading.
+  run(web, process.execPath, ["--input-type=module", "-e", "await import(process.argv[1])", name]);
   run(packed, "moon", ["run", "web:typecheck", "--force"]);
-  process.stdout.write(`consumer-check: drizzle-orm ${floor} skew shares one copy with db.\n`);
+  const installed = Object.entries(floors).map(([peer, floor]) => `${peer} ${floor}`);
+  process.stdout.write(`consumer-check: db loads and typechecks on ${installed.join(", ")}.\n`);
 }
 
 function rejectViolation(root, file, content, target, failure) {
@@ -352,7 +362,7 @@ try {
   run(packed, "moon", ["sync"]);
   run(packed, "moon", ["run", "web:build", "web:typecheck", "web:test"]);
   await exercise(packed);
-  checkDrizzleSkew(manifestPath, manifest);
+  checkDbPeerFloors(manifestPath, manifest);
   process.stdout.write("consumer-check: generated and packed consumers passed.\n");
 } finally {
   rmSync(scratch, { recursive: true, force: true });
