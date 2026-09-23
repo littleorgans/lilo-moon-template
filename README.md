@@ -6,6 +6,11 @@ pnpm manages JavaScript packages.
 Start with [the instantiation guide](docs/how-to-instantiate.md). Follow [AGENTS.md](AGENTS.md)
 while working in the repository. [The decision record](docs/decisions.md) explains the tool choices.
 
+[The system overview](docs/system-overview.md) maps packages, seams, project creation, runtime and
+CI. [The domain model](docs/domain-model.md) defines the terms. [The assessment](docs/assessment.md)
+reviews strengths, risks and a roadmap as of 2026-09-23. [The direction](docs/direction.md)
+proposes turning the template into a reference implementation, published packages and skills.
+
 ## Implemented capabilities
 
 | Area        | Implementation                                                                                            |
