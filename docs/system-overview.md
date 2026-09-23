@@ -261,13 +261,15 @@ graph TB
 | `/verify-email`          | `routes/(auth)/verify-email.tsx`  | `VerifyCodePanel`; `?retry=true` after a refused code                  |
 | `/session-error`         | `routes/(auth)/session-error.tsx` | `SessionErrorPanel`; retry link only for `unavailable`                 |
 | `/api/auth/start`        | `routes/api/auth/start.ts`        | `GET` → mint state cookie, 302 to WorkOS                               |
-| `/api/auth/email/start`  | `routes/api/auth/email/start.ts`  | `POST` → send code, set email cookie, 302 to `/verify-email`           |
-| `/api/auth/email/verify` | `routes/api/auth/email/verify.ts` | `POST` → verify code, provision org, set session                       |
-| `/api/auth/signout`      | `routes/api/auth/signout.ts`      | `POST` with same-origin `Origin` → clear cookies, 303 to WorkOS logout |
+| `/api/auth/email/start`  | `routes/api/auth/email/start.ts`  | `POST` → throttle, send code, set email cookie, 302 to `/verify-email` |
+| `/api/auth/email/verify` | `routes/api/auth/email/verify.ts` | `POST` → throttle, verify code, provision org, set session             |
+| `/api/auth/signout`      | `routes/api/auth/signout.ts`      | `POST` → clear cookies, 303 to WorkOS logout                           |
 | `/api/theme`             | `routes/api/theme.ts`             | `POST` → update theme cookie, 303 to same-origin referer               |
 
 `postHandlers` in `packages/auth-tanstack/src/routes.ts` answers `GET` with 405 on the POST-only
-routes. The root route (`routes/__root.tsx`) reads the theme cookie in a server function. It stamps
+routes. Every POST route answers 403 unless its `Origin` header equals the origin of
+`WORKOS_REDIRECT_URI`, and a missing `Origin` is refused too (`refuseCrossOrigin` in
+`packages/auth-session/src/origin.ts`; the theme route reaches it through `auth.origin()`). The root route (`routes/__root.tsx`) reads the theme cookie in a server function. It stamps
 `data-mode` and `data-theme` on `<html>` so the first paint uses the chosen theme.
 
 ### Sign-in flows
@@ -295,6 +297,13 @@ sequenceDiagram
 The email-code path (`packages/auth-session/src/email.ts`) posts the address and sends a code. It
 stores the address in a 10-minute httpOnly cookie, posts the code, then runs the same
 `ensureOrganization` and `establishSession` steps as the callback (`callback.ts` lines 44–86).
+
+Before either step calls WorkOS it asks the application's `throttle` about two keys: the client and
+the lower-cased address. On verify the address key bounds guesses at one code. A refusal is a 429
+with `Retry-After`. `createAuthRuntime` requires a throttle and the package ships none. The
+reference `apps/web/src/server/throttle.ts` counts in process memory, keyed by the socket address,
+which is right for one instance only: a deployment with more than one instance needs a throttle over
+a shared store, and one behind a proxy needs a trusted client address.
 
 Cookie names are namespaced by `sha256(clientId:redirectUri)` (`auth-session/src/config.ts` lines
 96–99, `auth-tanstack/src/runtime.ts` line 88). The session key comes from

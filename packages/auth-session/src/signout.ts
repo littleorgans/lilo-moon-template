@@ -1,6 +1,7 @@
 import { decodeJwt } from "jose";
 
 import type { CookieJar } from "./cookies.js";
+import { refuseCrossOrigin } from "./origin.js";
 import { EMAIL_COOKIE, SESSION_COOKIE, STATE_COOKIE, readSession } from "./session.js";
 
 export interface SignOutDeps {
@@ -17,9 +18,8 @@ export function signOut(
 ): Response {
   if (request.method !== "POST")
     return new Response(null, { status: 405, headers: { allow: "POST" } });
-  if (request.headers.get("origin") !== new URL(deps.returnTo).origin) {
-    return new Response("Invalid sign-out origin.", { status: 403 });
-  }
+  const refused = refuseCrossOrigin(request, deps.returnTo);
+  if (refused !== null) return refused;
 
   const session = readSession(deps.cookieKey, jar.read(SESSION_COOKIE));
   let location = deps.returnTo;

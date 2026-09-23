@@ -1,4 +1,7 @@
+import type { Throttle } from "@littleorgans/auth-tanstack";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import type { MemoryThrottleOptions } from "../../src/server/throttle.js";
 
 // Compose the real auth packages with an in-memory request cookie adapter.
 // Built consumer HTTP checks cover the file-route wiring separately.
@@ -14,6 +17,7 @@ vi.mock("@tanstack/react-start/server", () => ({
   deleteCookie: (name: string) => {
     cookies.delete(name);
   },
+  getRequestIP: () => "203.0.113.7",
 }));
 
 const env = {
@@ -37,7 +41,11 @@ beforeEach(() => {
 
 afterEach(() => {
   process.env = saved;
+  vi.doUnmock("../../src/server/throttle.js");
 });
+
+const origin = new URL(env.WORKOS_REDIRECT_URI).origin;
+const refuseAll: Throttle = () => Promise.resolve({ allowed: false, retryAfterSeconds: 60 });
 
 describe("auth runtime wiring", () => {
   it("the start route builds a real authorization url through the real SDK", async () => {
@@ -59,7 +67,6 @@ describe("auth runtime wiring", () => {
     const { auth } = await import("../../src/server/auth.js");
     const cookieName = `${auth.services().config.cookieNamespace}_lilo_session`;
     cookies.set(cookieName, "sealed");
-    const origin = new URL(env.WORKOS_REDIRECT_URI).origin;
     const response = auth.endSession({
       request: new Request(`${origin}/api/auth/signout`, { method: "POST", headers: { origin } }),
     });
@@ -88,6 +95,7 @@ describe("the email routes through the real composition root", () => {
     const response = await auth.sendEmailCode({
       request: new Request("http://localhost:5199/api/auth/email/start", {
         method: "POST",
+        headers: { origin },
         body: new URLSearchParams({}),
       }),
     });
@@ -99,6 +107,7 @@ describe("the email routes through the real composition root", () => {
     const response = await auth.verifyEmailCode({
       request: new Request("http://localhost:5199/api/auth/email/verify", {
         method: "POST",
+        headers: { origin },
         body: new URLSearchParams({ code: "123456" }),
       }),
     });
@@ -106,6 +115,48 @@ describe("the email routes through the real composition root", () => {
     expect(await response.text()).toContain("Start again");
   });
 });
+
+describe("the POST guards through the real composition root", () => {
+  it("takes the application's origin from the configured redirect URI", async () => {
+    const { auth } = await import("../../src/server/auth.js");
+    expect(auth.origin()).toBe(origin);
+  });
+
+  it("the theme handler refuses another origin and accepts its own", async () => {
+    const { postTheme } = await import("../../src/server/theme.js");
+    const send = async (from: string) => (await postTheme({ request: themeRequest(from) })).status;
+    expect(await send("https://evil.example")).toBe(403);
+    expect(await send(origin)).toBe(303);
+  });
+
+  it("hands the email routes the reference throttle, keyed by the request's address", async () => {
+    const built: MemoryThrottleOptions[] = [];
+    vi.doMock("../../src/server/throttle.js", () => ({
+      memoryThrottle: (options: MemoryThrottleOptions) => {
+        built.push(options);
+        return refuseAll;
+      },
+    }));
+    const { auth } = await import("../../src/server/auth.js");
+    const response = await auth.sendEmailCode({
+      request: new Request(`${origin}/api/auth/email/start`, {
+        method: "POST",
+        headers: { origin },
+        body: new URLSearchParams({ email: "owner@example.com" }),
+      }),
+    });
+    expect(response.status).toBe(429);
+    expect(built[0]?.clientOf(new Request(origin))).toBe("203.0.113.7");
+  });
+});
+
+function themeRequest(from: string): Request {
+  return new Request(`${origin}/api/theme`, {
+    method: "POST",
+    headers: { origin: from },
+    body: new URLSearchParams({ mode: "dark" }),
+  });
+}
 
 describe("the signed-in loader through the real composition root", () => {
   it("redirects rather than rendering when there is no session", async () => {

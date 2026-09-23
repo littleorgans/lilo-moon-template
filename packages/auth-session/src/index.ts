@@ -27,7 +27,9 @@ export type {
   CallbackFailure,
   TokenFailure,
 } from "./failure.js";
+export { refuseCrossOrigin } from "./origin.js";
 export { signOut } from "./signout.js";
+export type { Throttle, ThrottleDecision, ThrottleKey, ThrottleStep } from "./throttle.js";
 export { createAuthServices } from "./services.js";
 export type { AuthServices } from "./services.js";
 // The cookie names are a contract with the browser rather than an implementation detail: an

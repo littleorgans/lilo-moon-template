@@ -5,7 +5,10 @@ import type { SessionDeps } from "./callback.js";
 import type { CookieJar } from "./cookies.js";
 import { dispositionFor, failurePage, messageFor, reasonFor } from "./failure.js";
 import type { CallbackFailure } from "./failure.js";
+import { refuseCrossOrigin } from "./origin.js";
 import { EMAIL_COOKIE } from "./session.js";
+import { throttled } from "./throttle.js";
+import type { Throttle, ThrottleStep } from "./throttle.js";
 
 /** Matches the provider's ten-minute code lifetime. The cookie has no reason to outlive the code. */
 const EMAIL_MAX_AGE_SECONDS = 600;
@@ -18,7 +21,23 @@ async function formField(request: Request, name: string): Promise<string | null>
   return trimmed.length === 0 ? null : trimmed;
 }
 
-export interface EmailStartDeps {
+/** Both budgets a step draws from, client first. See `ThrottleKey` for why these two. */
+function keysFor(step: ThrottleStep, email: string) {
+  return [
+    { step, by: "client" },
+    { step, by: "address", address: email.toLowerCase() },
+  ] as const;
+}
+
+/** What both email steps need to refuse a request before it reaches the provider. */
+interface EmailGuardDeps {
+  /** Any URL on the application's own origin. A POST whose Origin differs is refused with 403. */
+  readonly origin: string;
+  /** Asked before every provider call. Required, so every application decides; see `Throttle`. */
+  readonly throttle: Throttle;
+}
+
+export interface EmailStartDeps extends EmailGuardDeps {
   readonly auth: WorkOSAuth;
   readonly secureCookies: boolean;
   /** Where the person types the code. The application's route, not this package's. */
@@ -38,16 +57,25 @@ export interface EmailStartDeps {
  * The provider creates the user when the address is new, measured against the live API, so this
  * one flow is both sign-in and sign-up. The organization arrives at verification, exactly as it
  * does on the OAuth path.
+ *
+ * A page on another origin could otherwise make any visitor's browser send codes to any address,
+ * so the Origin is checked first, and the throttle is asked before the provider sends anything.
  */
 export async function startEmailSignIn(
   context: { readonly request: Request },
   jar: CookieJar,
   deps: EmailStartDeps,
 ): Promise<Response> {
+  const refused = refuseCrossOrigin(context.request, deps.origin);
+  if (refused !== null) return refused;
+
   const email = await formField(context.request, "email");
   if (email === null) {
     return failurePage("Enter the email address you want the code sent to.");
   }
+
+  const limited = await throttled(deps.throttle, context.request, keysFor("email-start", email));
+  if (limited !== null) return limited;
 
   const userAgent = context.request.headers.get("user-agent");
   try {
@@ -75,7 +103,7 @@ export async function startEmailSignIn(
   return new Response(null, { status: 302, headers: { location: deps.codeEntryPath } });
 }
 
-export interface EmailVerifyDeps extends SessionDeps {
+export interface EmailVerifyDeps extends SessionDeps, EmailGuardDeps {
   readonly auth: WorkOSAuth;
   /** Where the person is sent back to when the code they typed is not the code that was sent. */
   readonly codeEntryPath: string;
@@ -89,12 +117,18 @@ export interface EmailVerifyDeps extends SessionDeps {
  * entry page with a retry marker instead of a disposition message, and the address cookie stays:
  * they are mid-flow, not starting over. Every other failure collapses exactly as the callback's
  * do. Success runs the same organization provisioning and lands in the same `establishSession`.
+ *
+ * Every submitted code draws on the address's budget, which is what bounds guessing a six-digit
+ * code. A refused attempt keeps the address cookie, for the same reason a typo does.
  */
 export async function completeEmailSignIn(
   context: { readonly request: Request },
   jar: CookieJar,
   deps: EmailVerifyDeps,
 ): Promise<Response> {
+  const refused = refuseCrossOrigin(context.request, deps.origin);
+  if (refused !== null) return refused;
+
   const email = jar.read(EMAIL_COOKIE);
   if (email === undefined || email.length === 0) {
     return failurePage("This sign-in has expired. Start again from the sign-in page.");
@@ -107,6 +141,9 @@ export async function completeEmailSignIn(
 
   const code = await formField(context.request, "code");
   if (code === null) return retry;
+
+  const limited = await throttled(deps.throttle, context.request, keysFor("email-verify", email));
+  if (limited !== null) return limited;
 
   const userAgent = context.request.headers.get("user-agent");
   let response: Response;

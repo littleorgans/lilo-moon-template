@@ -14,6 +14,7 @@ import type {
   AuthFailureReport,
   AuthServices,
   CookieJar,
+  Throttle,
 } from "@littleorgans/auth-session";
 import type { AuthorizationProvider } from "@littleorgans/auth-workos";
 
@@ -28,6 +29,12 @@ export interface AuthRuntimeOptions {
   readonly signedInPath: string;
   /** Where the person types an emailed code. Must match the application's route for that page. */
   readonly codeEntryPath: string;
+  /**
+   * Asked before the email sign-in sends a code or checks one. Required, with no default: a
+   * limiter kept in one process's memory is wrong for any application running more than one
+   * instance, and a package cannot know which kind this is. See `Throttle`.
+   */
+  readonly throttle: Throttle;
   /** Overridable so a test never depends on a filled `.env.local`. */
   readonly env?: NodeJS.ProcessEnv;
   /** Overridable so a test never needs a live request context. */
@@ -53,6 +60,11 @@ export interface AuthRuntimeOptions {
 export interface AuthRuntime {
   /** Reads configuration on first use, then holds it. */
   readonly services: () => AuthServices & { readonly config: AuthConfig };
+  /**
+   * This application's own origin, from the configured redirect URI. What the Origin of every POST
+   * must equal; pass it to `refuseCrossOrigin` in a route this runtime does not handle.
+   */
+  readonly origin: () => string;
   readonly startSignIn: (context: unknown) => Response;
   readonly completeSignIn: (context: { readonly request: Request }) => Promise<Response>;
   readonly sendEmailCode: (context: { readonly request: Request }) => Promise<Response>;
@@ -85,6 +97,7 @@ export function createAuthRuntime(options: AuthRuntimeOptions): AuthRuntime {
     return built;
   };
 
+  const origin = () => new URL(services().config.redirectUri).origin;
   const nameFor = (name: string) => `${services().config.cookieNamespace}_${name}`;
   const jar: CookieJar = {
     read: (name) => rawJar.read(nameFor(name)),
@@ -94,6 +107,7 @@ export function createAuthRuntime(options: AuthRuntimeOptions): AuthRuntime {
 
   return {
     services,
+    origin,
 
     startSignIn: (context) => {
       const { auth, config } = services();
@@ -124,6 +138,8 @@ export function createAuthRuntime(options: AuthRuntimeOptions): AuthRuntime {
       const { auth, config } = services();
       return await startEmailSignIn(context, jar, {
         auth,
+        origin: origin(),
+        throttle: options.throttle,
         secureCookies: config.secureCookies,
         codeEntryPath: options.codeEntryPath,
         log: options.log ?? reportAuthFailure,
@@ -134,6 +150,8 @@ export function createAuthRuntime(options: AuthRuntimeOptions): AuthRuntime {
       const { auth, config } = services();
       return await completeEmailSignIn(context, jar, {
         auth,
+        origin: origin(),
+        throttle: options.throttle,
         cookieKey: config.cookieKey,
         secureCookies: config.secureCookies,
         signedInPath: options.signedInPath,
