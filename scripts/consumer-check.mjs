@@ -44,6 +44,51 @@ function run(cwd, command, args) {
   return projectCommand(cwd, command, args);
 }
 
+const readManifest = (root) => JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
+
+/**
+ * The real root of the package that Node resolves for `name` from `directory`. A child process
+ * resolves it, because this process caches resolutions and would miss a reinstall.
+ */
+function resolvedPackage(directory, name) {
+  const entry = execFileSync(
+    process.execPath,
+    ["-p", "require('node:fs').realpathSync(require.resolve(process.argv[1]))", name],
+    { cwd: directory, encoding: "utf8" },
+  ).trim();
+  let root = dirname(entry);
+  while (!existsSync(join(root, "package.json")) || readManifest(root).name !== name) {
+    assert.notEqual(dirname(root), root, `${name} has no package root`);
+    root = dirname(root);
+  }
+  return { root, manifest: readManifest(root) };
+}
+
+/**
+ * A consumer on a drizzle-orm other than the workspace pin must share one copy with the db package.
+ * An exact dependency in db once nested a second copy, and web:typecheck rejected the mixed types.
+ */
+function checkDrizzleSkew(manifestPath, manifest) {
+  const web = join(packed, "apps/web");
+  // Creation renamed the scope, so take the package name from the generated project.
+  const name = readManifest(join(generated, "packages/db")).name;
+  const pinned = resolvedPackage(web, "drizzle-orm").manifest.version;
+  const range = resolvedPackage(web, name).manifest.peerDependencies?.["drizzle-orm"];
+  const floor = /^\^(\d+\.\d+\.\d+)$/.exec(range ?? "")?.[1];
+  assert.ok(floor, `db must declare a caret drizzle-orm peer, found ${range}`);
+  assert.notEqual(floor, pinned, "the drizzle-orm peer floor must differ from the workspace pin");
+  manifest.dependencies["drizzle-orm"] = floor;
+  writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+  run(packed, "pnpm", ["install"]);
+  const application = resolvedPackage(web, "drizzle-orm");
+  // Resolve db again: pnpm names its store directory after the peer versions it resolved.
+  const database = resolvedPackage(resolvedPackage(web, name).root, "drizzle-orm");
+  assert.equal(database.root, application.root, "db and the application resolved different copies");
+  assert.equal(application.manifest.version, floor);
+  run(packed, "moon", ["run", "web:typecheck", "--force"]);
+  process.stdout.write(`consumer-check: drizzle-orm ${floor} skew shares one copy with db.\n`);
+}
+
 function rejectViolation(root, file, content, target, failure) {
   const path = join(root, file);
   writeFileSync(path, content);
@@ -307,6 +352,7 @@ try {
   run(packed, "moon", ["sync"]);
   run(packed, "moon", ["run", "web:build", "web:typecheck", "web:test"]);
   await exercise(packed);
+  checkDrizzleSkew(manifestPath, manifest);
   process.stdout.write("consumer-check: generated and packed consumers passed.\n");
 } finally {
   rmSync(scratch, { recursive: true, force: true });
