@@ -35,7 +35,10 @@ apps/web/src/
 ├── server/
 │   ├── auth.ts
 │   ├── database.ts
-│   └── theme.ts
+│   ├── product.ts
+│   ├── startup.ts
+│   ├── theme.ts
+│   └── throttle.ts
 ├── router.tsx
 └── styles.css
 ```

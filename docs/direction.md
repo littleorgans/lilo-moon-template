@@ -390,7 +390,7 @@ Generated on day one:
   - `(auth)/{callback.ts,session-error.tsx,verify-email.tsx}`;
   - `api/auth/{start.ts,signout.ts,email/start.ts,email/verify.ts}`;
   - optionally `theme.tsx` and `api/theme.ts`;
-  - `src/server/{auth.ts,database.ts,theme.ts}` (the composition root), `src/features/auth/search.ts`;
+  - `src/server/{auth.ts,database.ts,product.ts,startup.ts,theme.ts}` (the composition root), `src/features/auth/search.ts`;
   - `tests/integration/routes.test.tsx`.
 - **Service** (`services/<name>/`), taken from `services/api`:
   - `package.json`, `moon.yml` (`node-service`), `tsconfig.json`;

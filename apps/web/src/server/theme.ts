@@ -27,7 +27,8 @@ function returnPath(request: Request, origin: string): string {
       // Not a URL; fall through to the fixed destination.
     }
   }
-  return "/theme";
+  // The home page rather than the theme lab, which a production build does not serve.
+  return "/";
 }
 
 /**

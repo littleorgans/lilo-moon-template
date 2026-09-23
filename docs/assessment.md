@@ -97,7 +97,9 @@ application send codes to arbitrary addresses, and there is no rate limiting in 
 (`packages/auth-session/src/failure.ts` lines 107–113), including the `retry` disposition for
 provider outages and rate limits. Monitoring cannot tell a user error from an outage by status.
 Email-start failures are logged as `auth.callback.failed` because they reuse
-`kind: "callback"` (`email.ts` line 61, `auth-tanstack/src/log.ts` line 20).
+`kind: "callback"` (`email.ts` line 61, `auth-tanstack/src/log.ts` line 20). Addressed (roadmap
+item 11): `retry` is served as 503, and email failures are logged as `auth.email.failed` with their
+step; `docs/auth-screens.md` records why the other dispositions stay 400.
 
 **B5. Packages claim a license that the repository does not ship.** Every library `package.json`
 declares `"license": "MIT"`, while `docs/how-to-instantiate.md` (retired; its surviving sections are in `docs/maintaining.md` and `docs/guides/`) line 89 says there is no `LICENSE`
@@ -135,7 +137,10 @@ arrive through unrelated pull requests.
 **B10. The reference app carries demo residue into every product.** The document title is
 hard-coded to "Task board" (`apps/web/src/routes/__root.tsx` line 39). The public, unauthenticated
 `/theme` lab ships as a production route. The signed-in page prints the whole `Principal` JSON. All
-of this is documented as replaceable. It is also what a hurried product ships.
+of this is documented as replaceable. It is also what a hurried product ships. Addressed for the
+title, the sign-in copy and `/theme` (roadmap item 19): the copy is in
+`apps/web/src/server/product.ts`, and a production build answers `/theme` with 404. The signed-in
+page still prints the `Principal`.
 
 ## The Ugly
 

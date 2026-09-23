@@ -47,7 +47,8 @@ Both are private and never published. They use the packages from this workspace,
 named server modules in `src/server/` compose services, and `features/<name>/` owns each feature's
 model, UI and server behavior. [Code layout](docs/code-layout.md) is the structure to follow. The
 signed-in page shows the session's user and organization and the rows a scoped transaction can see.
-`/theme` is a reference page for the components and themes. `organizationPolicy` in
+`/theme` is a reference page for the components and themes, served by the dev server only. The
+product's name and sign-in copy are in `src/server/product.ts`. `organizationPolicy` in
 `src/server/auth.ts` selects `personal`, which provisions a personal workspace, or `existing`,
 which leaves membership unchanged. `src/styles.css` imports the UI stylesheet and the views source
 registration, and registers the app's own sources. Published packages do not scan neighboring

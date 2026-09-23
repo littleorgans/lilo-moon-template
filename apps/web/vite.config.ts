@@ -6,7 +6,8 @@ import { nitro } from "nitro/vite";
 import { defineConfig } from "vite";
 
 export default defineConfig((env) => ({
-  plugins: [tailwindcss(), tanstackStart(), react(), nitro()],
+  // The Nitro plugin checks the auth configuration before a built server listens. See its file.
+  plugins: [tailwindcss(), tanstackStart(), react(), nitro({ plugins: ["src/server/startup.ts"] })],
   // Not Vite's default 5173. That port is the first thing every other Vite project on the machine
   // claims, and a dev server that silently moves to 5174 breaks the OAuth redirect URI registered
   // with the identity provider. Pinned so the registered callback and the running server agree.

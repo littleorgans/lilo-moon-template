@@ -1,9 +1,10 @@
 import { RouterProvider, createMemoryHistory } from "@tanstack/react-router";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { getRouter } from "../../src/router.js";
 import { rootLoader } from "../../src/routes/__root.js";
+import * as product from "../../src/server/product.js";
 import { setThemeResponse, themeCookieName } from "../../src/server/theme.js";
 
 const origin = "https://example.test";
@@ -90,7 +91,7 @@ describe("setThemeResponse", () => {
       ),
     );
     for (const response of responses) {
-      expect(response.headers.get("location")).toBe("/theme");
+      expect(response.headers.get("location")).toBe("/");
     }
   });
 
@@ -156,6 +157,29 @@ describe("the theme lab route", () => {
     expect(html).toContain("Theme lab");
     expect(html).toContain('action="/api/theme"');
     expect(html).toContain('data-token="background"');
+  });
+
+  // Vitest runs with DEV set, so the case a production build takes is forced here. The built
+  // server's 404 is asserted end to end by root:published-shape.
+  describe("outside the dev server", () => {
+    afterEach(() => {
+      vi.doUnmock("../../src/server/product.js");
+      vi.resetModules();
+    });
+
+    it("answers /theme as not found and renders no lab", async () => {
+      vi.resetModules();
+      vi.doMock("../../src/server/product.js", () => ({ ...product, SHOW_THEME_LAB: false }));
+      const { getRouter: productionRouter } = await import("../../src/router.js");
+      const router = productionRouter();
+      router.update({ history: createMemoryHistory({ initialEntries: ["/theme"] }) });
+
+      await router.load();
+
+      const html = renderToStaticMarkup(<RouterProvider router={router} />);
+      expect(router.state.matches.some((match) => match.status === "notFound")).toBe(true);
+      expect(html).not.toContain("Theme lab");
+    });
   });
 
   it("registers the api route", () => {

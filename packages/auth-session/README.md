@@ -36,7 +36,9 @@ JSON strings are used exactly as written, without trimming. An unset or blank va
 means no previous keys. Malformed JSON is refused without echoing its contents.
 
 The runtime validates lazily on first use. To fail deployment before accepting traffic, call
-`runtime.services()` during server startup (or call `loadAuthConfig` in your own composition root).
+`loadAuthConfig` (re-exported by `@littleorgans/auth-tanstack`) from code that runs before the
+server listens. Under Nitro that is a plugin, not the application's own modules, which Nitro imports
+on the first request: `apps/web/src/server/startup.ts` in the reference app is one.
 
 Each password becomes an AES-256-GCM key through HKDF-SHA256. The session cookie holds only the
 access and refresh tokens, sealed with the key from `WORKOS_COOKIE_PASSWORD`. A cookie is opened
@@ -46,6 +48,17 @@ treated exactly like a tampered one: the request is anonymous, and nothing is lo
 The `state` and email cookies are not sealed. `state` is a random value checked against the one the
 provider returns, and the email cookie holds the address the person typed, so a rotation does not
 touch either.
+
+## Failure pages
+
+A sign-in the provider refuses renders a plain page with no script or stylesheet. The status tells
+monitoring whose problem it is: 503 for the `retry` disposition (the provider rate-limited us or is
+down) and 400 for everything else, including every refusal made before the provider is asked. The
+dispositions, and why only one is a 5xx, are in `docs/auth-screens.md` in the repository.
+
+Every refusal is handed to the `log` dependency as an `AuthFailureReport`: `kind: "callback"` for the
+redirect sign-in, `kind: "email"` with `step: "start"` or `"verify"` for the email-code sign-in, and
+`kind: "token"` for a token that fails verification.
 
 ## Rotate the cookie password
 

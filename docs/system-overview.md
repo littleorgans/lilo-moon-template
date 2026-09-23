@@ -106,18 +106,18 @@ graph LR
 Each seam is a narrow structural interface. Tests use it to exercise the security logic without a
 live framework, provider or database.
 
-| Seam                             | Declared in                                                                   | Implemented by                                    | Purpose                                                        |
-| -------------------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------- | -------------------------------------------------------------- |
-| `Verifier` / `Principal`         | `packages/auth/src/verify.ts`, `principal.ts`                                 | `createVerifier` (jose + JWKS)                    | Vendor-neutral identity: `userId`, `orgId`, roles, and more    |
-| `WorkOSClient`                   | `packages/auth-workos/src/client.ts`                                          | `@workos-inc/node` `WorkOS`                       | The exact SDK slice used; tests inject a recording client      |
-| `CookieJar`                      | `packages/auth-session/src/cookies.ts`                                        | `packages/auth-tanstack/src/cookies.ts`           | Keeps session logic free of any web framework                  |
-| `Access` union                   | `packages/auth-session/src/access.ts`                                         | `readAccess`                                      | Five session states the app branches on, never an exception    |
-| `UserAccess` / `UserFetch`       | `packages/auth-session/src/delegate.ts`                                       | `readUserAccess`, `AuthRuntime.asUser`            | Calls a service as the person without exposing their token     |
-| `ScopedClient` / `ScopedRunner`  | `packages/db/src/scoped.ts`, `apps/web/src/features/workspace/server/rows.ts` | `pg` client, `Database.withPrincipal`             | The only way claims enter Postgres                             |
-| `ThemeTarget`                    | `packages/theme/src/apply.ts`                                                 | `element.style`                                   | Applies data themes without DOM types                          |
-| `@littleorgans/source` condition | every library `package.json` `exports`                                        | `packages/vite-config/src/index.ts`               | Dev resolves `src`, builds and Node resolve `dist`             |
-| Composition root                 | `apps/web/src/server/*.ts`                                                    | `createAuthRuntime`, `getDatabase`, theme adapter | Application policy (paths, provider, org policy) in one place  |
-| Service composition root         | `services/api/src/server/*.ts`                                                | `createApp`, `startService`                       | Auth, database, logging and shutdown for the reference service |
+| Seam                             | Declared in                                                                   | Implemented by                                    | Purpose                                                             |
+| -------------------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------- | ------------------------------------------------------------------- |
+| `Verifier` / `Principal`         | `packages/auth/src/verify.ts`, `principal.ts`                                 | `createVerifier` (jose + JWKS)                    | Vendor-neutral identity: `userId`, `orgId`, roles, and more         |
+| `WorkOSClient`                   | `packages/auth-workos/src/client.ts`                                          | `@workos-inc/node` `WorkOS`                       | The exact SDK slice used; tests inject a recording client           |
+| `CookieJar`                      | `packages/auth-session/src/cookies.ts`                                        | `packages/auth-tanstack/src/cookies.ts`           | Keeps session logic free of any web framework                       |
+| `Access` union                   | `packages/auth-session/src/access.ts`                                         | `readAccess`                                      | Five session states the app branches on, never an exception         |
+| `UserAccess` / `UserFetch`       | `packages/auth-session/src/delegate.ts`                                       | `readUserAccess`, `AuthRuntime.asUser`            | Calls a service as the person without exposing their token          |
+| `ScopedClient` / `ScopedRunner`  | `packages/db/src/scoped.ts`, `apps/web/src/features/workspace/server/rows.ts` | `pg` client, `Database.withPrincipal`             | The only way claims enter Postgres                                  |
+| `ThemeTarget`                    | `packages/theme/src/apply.ts`                                                 | `element.style`                                   | Applies data themes without DOM types                               |
+| `@littleorgans/source` condition | every library `package.json` `exports`                                        | `packages/vite-config/src/index.ts`               | Dev resolves `src`, builds and Node resolve `dist`                  |
+| Composition root                 | `apps/web/src/server/*.ts`                                                    | `createAuthRuntime`, `getDatabase`, theme adapter | Application policy (paths, provider, org policy, copy) in one place |
+| Service composition root         | `services/api/src/server/*.ts`                                                | `createApp`, `startService`                       | Auth, database, logging and shutdown for the reference service      |
 
 ### Application layout
 
@@ -129,7 +129,10 @@ live framework, provider or database.
   complete example. `auth/search.ts` holds a search validator.
 - `apps/web/src/server/` is the composition root. `auth.ts` selects `GoogleOAuth`, `/app`,
   `personal` and `/verify-email`. `database.ts` builds the database lazily from `DATABASE_URL`.
-  `theme.ts` adapts the theme cookie.
+  `theme.ts` adapts the theme cookie. `product.ts` holds the product-facing copy (the document
+  title and the sign-in and session-error text) and `SHOW_THEME_LAB`, true only on the dev server.
+  `startup.ts` is a Nitro plugin that runs `loadAuthConfig` before a built server listens, so a bad
+  cookie password fails the deploy rather than the first request.
 - `apps/web/src/routeTree.gen.ts` is generated by the TanStack Start Vite plugin during a build.
 
 ## How projects use this repository
@@ -175,19 +178,19 @@ graph TB
 
 ### Routes
 
-| URL                      | File                              | Behavior                                                               |
-| ------------------------ | --------------------------------- | ---------------------------------------------------------------------- |
-| `/`                      | `routes/index.tsx`                | `SignInPanel`; `?ended=true` shows the session-ended notice            |
-| `/app`                   | `routes/app.tsx`                  | Server function `loadWorkspaceOrRedirect`, renders `WorkspacePage`     |
-| `/theme`                 | `routes/theme.tsx`                | `ThemeLab` using the root loader's preference                          |
-| `/callback`              | `routes/(auth)/callback.ts`       | `GET` → `auth.completeSignIn`                                          |
-| `/verify-email`          | `routes/(auth)/verify-email.tsx`  | `VerifyCodePanel`; `?retry=true` after a refused code                  |
-| `/session-error`         | `routes/(auth)/session-error.tsx` | `SessionErrorPanel`; retry link only for `unavailable`                 |
-| `/api/auth/start`        | `routes/api/auth/start.ts`        | `GET` → mint state cookie, 302 to WorkOS                               |
-| `/api/auth/email/start`  | `routes/api/auth/email/start.ts`  | `POST` → throttle, send code, set email cookie, 302 to `/verify-email` |
-| `/api/auth/email/verify` | `routes/api/auth/email/verify.ts` | `POST` → throttle, verify code, provision org, set session             |
-| `/api/auth/signout`      | `routes/api/auth/signout.ts`      | `POST` → clear cookies, 303 to WorkOS logout                           |
-| `/api/theme`             | `routes/api/theme.ts`             | `POST` → update theme cookie, 303 to same-origin referer               |
+| URL                      | File                              | Behavior                                                                  |
+| ------------------------ | --------------------------------- | ------------------------------------------------------------------------- |
+| `/`                      | `routes/index.tsx`                | `SignInPanel`; `?ended=true` shows the session-ended notice               |
+| `/app`                   | `routes/app.tsx`                  | Server function `loadWorkspaceOrRedirect`, renders `WorkspacePage`        |
+| `/theme`                 | `routes/theme.tsx`                | `ThemeLab` using the root loader's preference; 404 outside the dev server |
+| `/callback`              | `routes/(auth)/callback.ts`       | `GET` → `auth.completeSignIn`                                             |
+| `/verify-email`          | `routes/(auth)/verify-email.tsx`  | `VerifyCodePanel`; `?retry=true` after a refused code                     |
+| `/session-error`         | `routes/(auth)/session-error.tsx` | `SessionErrorPanel`; retry link only for `unavailable`                    |
+| `/api/auth/start`        | `routes/api/auth/start.ts`        | `GET` → mint state cookie, 302 to WorkOS                                  |
+| `/api/auth/email/start`  | `routes/api/auth/email/start.ts`  | `POST` → throttle, send code, set email cookie, 302 to `/verify-email`    |
+| `/api/auth/email/verify` | `routes/api/auth/email/verify.ts` | `POST` → throttle, verify code, provision org, set session                |
+| `/api/auth/signout`      | `routes/api/auth/signout.ts`      | `POST` → clear cookies, 303 to WorkOS logout                              |
+| `/api/theme`             | `routes/api/theme.ts`             | `POST` → update theme cookie, 303 to same-origin referer, else `/`        |
 
 `postHandlers` in `packages/auth-tanstack/src/routes.ts` answers `GET` with 405 on the POST-only
 routes. Every POST route answers 403 unless its `Origin` header equals the origin of
@@ -221,6 +224,11 @@ sequenceDiagram
 The email-code path (`packages/auth-session/src/email.ts`) posts the address and sends a code. It
 stores the address in a 10-minute httpOnly cookie, posts the code, then runs the same
 `ensureOrganization` and `establishSession` steps as the callback (`callback.ts` lines 44–86).
+
+A provider refusal on either path, or at the callback, renders a plain failure page: 503 when the
+provider rate-limited or was unavailable, 400 otherwise. The default log sink writes one JSON line
+per failure, `auth.callback.failed`, `auth.email.failed` (with its `step`) or `auth.token.failed`
+(`docs/auth-screens.md`, "Failure at the callback").
 
 An address over 254 characters, in the form or in the email cookie, is refused with 400 first.
 Before either step calls WorkOS it asks the application's `throttle` about two keys: the client and

@@ -27,7 +27,8 @@ routes remain files. Grouping carries no implicit authentication policy.
 
 Routes declare framework wiring. `features/workspace/` owns its page, data contract, provisioning
 queries and loader behavior. `server/auth.ts` and
-`server/database.ts` compose shared services; `server/theme.ts` adapts app-wide theme cookies.
+`server/database.ts` compose shared services; `server/theme.ts` adapts app-wide theme cookies;
+`server/product.ts` holds the product-facing copy, so a product renames itself in one file.
 The workspace's account/profile diagnostics belong to the app. The shared views package accepts
 application labels and paths and does not own the app's data model.
 

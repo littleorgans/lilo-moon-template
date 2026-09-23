@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import { getRouter } from "../../src/router.js";
+import { PRODUCT } from "../../src/server/product.js";
 
 describe("TanStack Start", () => {
   it("preserves the public URL contract when route files are grouped", () => {
@@ -33,8 +34,10 @@ describe("TanStack Start", () => {
 
     const html = renderToStaticMarkup(<RouterProvider router={router} />);
 
-    expect(html).toContain("Workspace");
-    expect(html).toContain("Continue with Google");
+    // From the composition root, so a product that renames itself changes one file and no test.
+    expect(html).toContain(PRODUCT.name);
+    expect(html).toContain(PRODUCT.signIn.description);
+    expect(html).toContain(PRODUCT.signIn.oauthLabel);
   });
 
   // Sign-in must be a real navigation. The route it points at sets the state cookie before handing
