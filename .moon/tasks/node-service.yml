@@ -1,0 +1,55 @@
+# Node HTTP services tagged node-service. The service runs its TypeScript source directly in dev,
+# through Node's type stripping, and compiled JavaScript from dist in start and in a container.
+# Relative imports name the .ts file, and tsconfig.build.json rewrites them to .js on emit.
+
+inheritedBy:
+  toolchains: ["javascript"]
+  layers: ["application"]
+  tags: ["node-service"]
+
+tasks:
+  build:
+    type: "build"
+    # Declarations are for libraries. A service's dist is only what `node` runs.
+    script: >-
+      node -e "require('node:fs').rmSync('dist', { recursive: true, force: true })" &&
+      tsc --project tsconfig.build.json --declaration false --declarationMap false
+    inputs:
+      - "@globs(sources)"
+      - "package.json"
+      - "tsconfig.json"
+      - "tsconfig.build.json"
+      - "/tsconfig.options.json"
+    deps:
+      - "^:build"
+    outputs:
+      - "dist"
+    options:
+      runInCI: "always"
+
+  dev:
+    type: "run"
+    command: "node --watch src/main.ts"
+    # Workspace libraries resolve to their dist, so dev needs them built. The service itself is not.
+    deps:
+      - "^:build"
+    options:
+      shell: false
+      cache: false
+      # The same root file node-application.yml loads, for the same reason: nothing else puts it in
+      # process.env. The service's own PORT belongs to its moon.yml, not to this shared layer.
+      envFile: "/.env.local"
+      persistent: true
+      runInCI: false
+
+  start:
+    type: "run"
+    command: "node dist/main.js"
+    deps:
+      - "~:build"
+    options:
+      shell: false
+      cache: false
+      envFile: "/.env.local"
+      persistent: true
+      runInCI: false
