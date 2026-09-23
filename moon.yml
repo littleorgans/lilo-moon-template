@@ -59,17 +59,26 @@ tasks:
       runInCI: false
 
   published-shape:
-    description: "Build and run a snapshot of this workspace, then repeat with packed libraries"
+    description: "Prove the gates on a workspace snapshot, then install and check every packed library"
     type: "test"
     command: "node scripts/published-shape.mjs"
+    # CI runs it when anything that is built, packed, installed or gated changes, and skips it for
+    # documentation alone. sources covers apps, packages, services, scripts, .moon and the root
+    # manifests; the rest is what the snapshot's gates and pnpm pack read from the root.
     inputs:
       - "@globs(sources)"
-      - "scripts/**/*"
       - "pnpm-lock.yaml"
+      - "moon.yml"
+      - ".pnpmfile.cjs"
+      - ".npmrc"
+      - ".prototools"
+      - ".oxlintrc.json"
+      - ".oxfmtrc.json"
+      - "vitest.config.ts"
     options:
       shell: false
       cache: false
-      runInCI: "always"
+      runInCI: true
 
   tsgolint-lockstep:
     description: "Verify repository TypeScript and type aware lint pins agree"
