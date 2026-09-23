@@ -239,6 +239,8 @@ without it, because an application that installs the packages and runs `vite dev
 `@littleorgans/vite-config` would otherwise resolve them to `src` inside `node_modules`.
 `root:published-shape` rejects any tarball whose `exports` use a condition other than `types`,
 `import` and `default`, or differ from the workspace `exports` in anything but that condition.
+The exception is `vite-config`'s root entry: the check requires its explicit `src/index.ts` to
+`dist/index.js` and `dist/index.d.ts` redirect. Other entries follow the equality rule.
 
 Node's standard conditions, including `development` and `production`, must not select source. A
 consumer who installs the package, or a moon task that runs against `dist`, would otherwise execute

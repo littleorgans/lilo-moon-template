@@ -384,18 +384,32 @@ function inspectTarball(artifact) {
     `${manifest.name} publishConfig must preserve every workspace subpath`,
   );
   // publishConfig.exports repeats exports without the workspace source condition, so each packed
-  // entry must be its workspace entry minus that condition. The one exception is an entry with no
-  // source condition to drop, vite-config's redirect from src to dist, which keeps only its subpath.
+  // entry must be its workspace entry minus that condition. Only vite-config's root entry redirects
+  // src to dist; check both sides explicitly so this exception cannot hide another export's drift.
   for (const [subpath, target] of Object.entries(workspace.exports)) {
-    if (typeof target === "object" && !(SOURCE_CONDITION in target)) continue;
-    const published =
+    let published =
       typeof target === "string"
         ? target
         : Object.fromEntries(Object.entries(target).filter(([key]) => key !== SOURCE_CONDITION));
+    const redirectsSource = workspace.name === "@littleorgans/vite-config" && subpath === ".";
+    if (redirectsSource) {
+      assert.deepEqual(
+        target,
+        { types: "./src/index.ts", default: "./src/index.ts" },
+        `${manifest.name} exports["."] must point at its workspace source entry`,
+      );
+      published = {
+        types: "./dist/index.d.ts",
+        import: "./dist/index.js",
+        default: "./dist/index.js",
+      };
+    }
     assert.deepEqual(
       manifest.exports[subpath],
       published,
-      `${manifest.name} publishConfig.exports["${subpath}"] must equal exports["${subpath}"] without ${SOURCE_CONDITION}`,
+      redirectsSource
+        ? `${manifest.name} publishConfig.exports["."] must point at its built entry`
+        : `${manifest.name} publishConfig.exports["${subpath}"] must equal exports["${subpath}"] without ${SOURCE_CONDITION}`,
     );
   }
   const entries = Object.entries(manifest.exports).flatMap(([subpath, target]) => {
