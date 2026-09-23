@@ -1,0 +1,72 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": "Dependency updates for a littleorgans Moon workspace. Extend it with github>littleorgans/lilo-moon-template//renovate/base.",
+  "extends": ["config:recommended", "helpers:pinGitHubActionDigests"],
+  "proto": {
+    "enabled": false
+  },
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Node pin in Moon toolchains.yml. The github-actions manager does not read this file.",
+      "managerFilePatterns": ["/^\\.moon/toolchains\\.yml$/"],
+      "matchStrings": ["(?:^|\\n)node:\\n  version: \"(?<currentValue>[^\"]+)\""],
+      "depNameTemplate": "node",
+      "datasourceTemplate": "node-version",
+      "versioningTemplate": "node"
+    },
+    {
+      "customType": "regex",
+      "description": "pnpm pin in Moon toolchains.yml. packageManager in package.json is covered by the npm manager.",
+      "managerFilePatterns": ["/^\\.moon/toolchains\\.yml$/"],
+      "matchStrings": ["(?:^|\\n)pnpm:\\n  version: \"(?<currentValue>[^\"]+)\""],
+      "depNameTemplate": "pnpm",
+      "datasourceTemplate": "npm"
+    },
+    {
+      "customType": "regex",
+      "description": "Moon and proto pins in .prototools. The built-in proto manager is disabled so this file is extracted once.",
+      "managerFilePatterns": ["/^\\.prototools$/"],
+      "matchStrings": ["(?:^|\\n)(?<depName>moon|proto)\\s*=\\s*\"(?<currentValue>[^\"]+)\""],
+      "packageNameTemplate": "moonrepo/{{{depName}}}",
+      "datasourceTemplate": "github-releases",
+      "extractVersionTemplate": "^v(?<version>\\S+)"
+    },
+    {
+      "customType": "regex",
+      "description": "Keep the Moon workspace constraint aligned with .prototools.",
+      "managerFilePatterns": ["/^\\.moon/workspace\\.yml$/"],
+      "matchStrings": ["versionConstraint: \"=(?<currentValue>[^\"\\n]+)\""],
+      "depNameTemplate": "moon",
+      "packageNameTemplate": "moonrepo/moon",
+      "datasourceTemplate": "github-releases",
+      "extractVersionTemplate": "^v(?<version>\\S+)"
+    }
+  ],
+  "packageRules": [
+    {
+      "description": "Every @littleorgans package releases at one version from one commit, tagged v<version>, and the reusable moon-ci.yml workflow is called at that tag. They move together.",
+      "groupName": "littleorgans",
+      "matchPackageNames": ["@littleorgans/**", "littleorgans/lilo-moon-template"]
+    },
+    {
+      "description": "oxlint-tsgolint encodes the TypeScript release it supports (7.0.2001 = TS 7.0.2). Updating either package alone produces two type systems.",
+      "groupName": "typescript lockstep",
+      "matchPackageNames": ["typescript", "oxlint-tsgolint"]
+    },
+    {
+      "description": "Node pins in Moon, CI setup-node, and engines must stay the same version. GitHub Actions names the pin depName node and packageName actions/node-versions.",
+      "groupName": "node",
+      "matchDepNames": ["node"]
+    },
+    {
+      "description": "pnpm pins in Moon, packageManager, and engines must stay the same version.",
+      "groupName": "pnpm",
+      "matchDepNames": ["pnpm"]
+    },
+    {
+      "groupName": "moon",
+      "matchDepNames": ["moon"]
+    }
+  ]
+}
