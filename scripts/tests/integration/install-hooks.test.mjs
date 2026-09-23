@@ -41,7 +41,17 @@ function fixture(t) {
   git(main, ["worktree", "add", "--quiet", join(root, "linked")]);
   const outside = join(root, "outside");
   mkdirSync(outside);
-  return { root, bin, main, linked: join(root, "linked"), outside, record: join(root, "record") };
+  const nested = join(main, "vendor/nested");
+  mkdirSync(nested, { recursive: true });
+  return {
+    root,
+    bin,
+    main,
+    linked: join(root, "linked"),
+    outside,
+    nested,
+    record: join(root, "record"),
+  };
 }
 
 function install(cwd, { root, bin, record }, extra = {}) {
@@ -81,6 +91,14 @@ await test("outside a Git repository the install is a no-op", (t) => {
   const result = install(context.outside, context);
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /not inside a Git repository/);
+  assert.equal(installs(context.record), "");
+});
+
+await test("a package below the repository root does not install into the enclosing repository", (t) => {
+  const context = fixture(t);
+  const result = install(context.nested, context);
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /not the repository root/);
   assert.equal(installs(context.record), "");
 });
 

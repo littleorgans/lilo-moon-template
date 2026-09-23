@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import { realpathSync } from "node:fs";
 import { resolve } from "node:path";
 
 // Every linked worktree shares the main checkout's .git/hooks, and lefthook writes the installing
@@ -18,6 +19,10 @@ if (gitDir === null) {
   process.stdout.write(
     "Git hooks not installed: linked worktrees use the main checkout's hooks.\n",
   );
+} else if (realpathSync(gitPath("--show-toplevel") ?? "/") !== realpathSync(process.cwd())) {
+  // lefthook installs into whatever repository encloses it, and creates a default lefthook.yml
+  // there if none exists. A copy of this package inside another repository must not do that.
+  process.stdout.write("Git hooks not installed: this package is not the repository root.\n");
 } else {
   const result = spawnSync("lefthook", ["install"], { stdio: "inherit" });
   if (result.error) throw result.error;
