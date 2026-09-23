@@ -142,6 +142,9 @@ jobs:
 The called workflow checks out your repository, installs the Node pinned in `.moon/toolchains.yml`
 and Moon from `.prototools`, runs `pnpm install --frozen-lockfile`, then `moon ci`. Your root
 `moon.yml` decides what `moon ci` runs, including `secrets`, `audit` and `tsgolint-lockstep`.
+Put an exact three-part version in a block-style `node.version` setting; plain, single-quoted and
+double-quoted values, indentation changes, CRLF and trailing comments are supported. Ranges and
+inline YAML mappings are not supported by the bootstrap reader.
 
 - **The tag.** Call a release tag, `@v<version>`, matching your `@littleorgans/*` version. The
   `littleorgans` Renovate group moves both together and pins the tag to its commit digest. No

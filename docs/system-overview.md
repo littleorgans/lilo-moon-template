@@ -66,8 +66,9 @@ project that owns workspace-wide tasks in `moon.yml`.
 
 Edges come from each member's `package.json` and nowhere else. Moon infers its project graph from
 the `workspace:` dependencies there, and `moon sync` mirrors them into TypeScript project references
-in each `tsconfig.json`. No `moon.yml` declares `dependsOn`; `scripts/tests/integration/project-graph.test.mjs`
-fails if one does or if Moon's edges stop matching the manifests.
+in each `tsconfig.json`. No JavaScript member's `moon.yml` declares `dependsOn`; `scripts/tests/integration/project-graph.test.mjs`
+fails if one does or if Moon's edges stop matching the manifests. Members without a `package.json`
+keep their own dependency model, including explicit Moon edges.
 
 ```mermaid
 graph LR
@@ -467,7 +468,8 @@ browser or a live WorkOS environment. The `measured against the live API` commen
 
 `.github/workflows/ci.yml` calls the reusable `.github/workflows/moon-ci.yml` on
 `vars.CI_RUNNER || ubuntu-latest`, with a read-only token and no secrets. That job checks out full
-history without keeping the token, installs pnpm, the Node pinned in `.moon/toolchains.yml` and the
+history without keeping the token, installs pnpm, the exact Node version in the block-style
+`node.version` setting in `.moon/toolchains.yml` and the
 Moon toolchain from `.prototools`, then runs `pnpm install --frozen-lockfile` and `moon ci` with
 `MOON_BASE` and `MOON_HEAD` set for affected detection. A second job named `CI` reports the
 required status check and fails unless `moon ci` succeeded. Projects call the same workflow at a

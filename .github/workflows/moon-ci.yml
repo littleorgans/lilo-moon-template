@@ -41,10 +41,17 @@ jobs:
       # below runs before Moon, so it reads the same pin rather than keep a second copy here.
       - name: Read the Node pin from .moon/toolchains.yml
         id: node
+        shell: bash
         run: |
-          version="$(sed -n '/^node:$/,/^[^ #]/s/^  version: "\([^"]*\)"$/\1/p' .moon/toolchains.yml)"
-          if [ -z "$version" ]; then
-            echo "::error file=.moon/toolchains.yml::no node.version pin"
+          # Accept block-style YAML with plain, single-quoted or double-quoted pins, comments,
+          # CRLF and any indentation. Reject ranges, duplicate pins and output-file injection.
+          version="$(sed -En '/^node:[[:space:]]*(#.*)?$/,/^[^[:space:]#]/ {
+            s/^[[:space:]]+version:[[:space:]]*"([0-9]+\.[0-9]+\.[0-9]+)"[[:space:]]*(#.*)?$/\1/p
+            s/^[[:space:]]+version:[[:space:]]*'"'"'([0-9]+\.[0-9]+\.[0-9]+)'"'"'[[:space:]]*(#.*)?$/\1/p
+            s/^[[:space:]]+version:[[:space:]]*([0-9]+\.[0-9]+\.[0-9]+)[[:space:]]*(#.*)?$/\1/p
+          }' .moon/toolchains.yml)"
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error file=.moon/toolchains.yml::expected one exact node.version pin in a node block"
             exit 1
           fi
           echo "version=$version" >> "$GITHUB_OUTPUT"

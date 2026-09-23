@@ -49,8 +49,7 @@ Follow this procedure so Moon, pnpm, TypeScript, and CI discover the same projec
 3. For a JavaScript or TypeScript member, add `package.json` with a unique workspace name. Put
    runtime and development dependencies in that manifest, then reference shared versions with
    `catalog:` from `pnpm-workspace.yaml`. A dependency on another member uses `workspace:*`, and
-   that line is the whole edge: Moon infers the project dependency from it, so `moon.yml` never
-   declares `dependsOn`. Publishable libraries must define a version plus real
+   that line is the whole edge: Moon infers the project dependency from it, so a JavaScript member's `moon.yml` never declares `dependsOn`. Other languages may declare their own Moon edges. Publishable libraries must define a version plus real
    `exports`, `types`, `files`, and `publishConfig` entries that point at built files. Use
    `packages/auth/package.json` as the package shape.
 4. For TypeScript, add `tsconfig.json` with `extends` pointing at the root

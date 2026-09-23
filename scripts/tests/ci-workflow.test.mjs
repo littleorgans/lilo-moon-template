@@ -21,6 +21,10 @@ await test("moon-ci.yml is a least-privilege reusable workflow", () => {
   const jobs = Object.values(workflow.jobs);
   assert.equal(jobs.length, 1);
   const [job] = jobs;
+  assert.equal(job.if, undefined);
+  assert.equal(job["continue-on-error"], undefined);
+  assert.equal(job.permissions, undefined, "do not override the read-only permissions");
+  assert.equal(job.environment, undefined, "do not attach consumer environment secrets");
   assert.equal(job.concurrency, undefined);
   assert.equal(job["runs-on"], "${{ inputs.runs-on }}");
   for (const step of job.steps.filter((entry) => entry.uses)) {
@@ -30,12 +34,17 @@ await test("moon-ci.yml is a least-privilege reusable workflow", () => {
   assert.match(checkout.uses, /^actions\/checkout@/);
   assert.deepEqual(checkout.with, { "fetch-depth": 0, "persist-credentials": false });
   const moon = job.steps.at(-1);
+  for (const step of job.steps) {
+    assert.equal(step.if, undefined, "required steps must not skip");
+    assert.equal(step["continue-on-error"], undefined, "required failures must propagate");
+  }
   assert.equal(moon.run, "moon ci");
   assert.deepEqual(Object.keys(moon.env), ["MOON_BASE", "MOON_HEAD"]);
 });
 
 await test("ci.yml calls moon-ci.yml and keeps the required CI check", () => {
   const workflow = readWorkflow("ci.yml");
+  assert.deepEqual(Object.keys(workflow.on), ["pull_request", "push"]);
   assert.deepEqual(workflow.permissions, {});
   const { moon, ci } = workflow.jobs;
   assert.equal(moon.uses, "./.github/workflows/moon-ci.yml");
@@ -48,6 +57,8 @@ await test("ci.yml calls moon-ci.yml and keeps the required CI check", () => {
   assert.equal(ci.if, "always()");
   assert.deepEqual(ci.permissions, {});
   assert.equal(ci.steps.length, 1);
+  assert.equal(ci.steps[0].if, undefined);
+  assert.equal(ci.steps[0]["continue-on-error"], undefined);
   assert.equal(ci.steps[0].env.RESULT, "${{ needs.moon.result }}");
   for (const [result, status] of [
     ["success", 0],
@@ -84,9 +95,22 @@ await test("moon-ci.yml installs the Node that .moon/toolchains.yml pins", (t) =
   const pin = /^node:\n {2}version: "([^"]+)"$/m.exec(toolchains)?.[1];
   assert.ok(pin, "this repository pins node in .moon/toolchains.yml");
   assert.deepEqual(readPin(toolchains), { status: 0, output: `version=${pin}\n`, stdout: "" });
+  for (const value of [pin, `'${pin}'`, `"${pin}"`]) {
+    const external = `pnpm:\n  version: "11.22.0"\nnode: # caller's runtime\n    version: ${value} # exact pin\n`;
+    assert.equal(readPin(external).output, `version=${pin}\n`);
+    assert.equal(readPin(external.replaceAll("\n", "\r\n")).output, `version=${pin}\n`);
+  }
+  for (const invalid of [
+    'node:\n  version: "24"\n',
+    'node:\n  version: "24.19.0"\n  version: "25.0.0"\n',
+    "node:\n  version: \"24.19.0'\n",
+  ]) {
+    assert.equal(readPin(invalid).status, 1);
+    assert.equal(readPin(invalid).output, "");
+  }
   // Another tool's version key must not be taken for Node's.
   const unpinned = readPin('pnpm:\n  version: "11.22.0"\nnode:\n  # none\n');
   assert.equal(unpinned.status, 1);
   assert.equal(unpinned.output, "");
-  assert.match(unpinned.stdout, /no node\.version pin/);
+  assert.match(unpinned.stdout, /expected one exact node\.version pin/);
 });
