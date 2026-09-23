@@ -27,6 +27,16 @@ export type Access =
   | { readonly status: "broken" }
   | { readonly status: "unavailable" };
 
+/**
+ * `Access` with the token the signed-in state was proven with. Internal to this package.
+ *
+ * Only `readAccess` and `readUserAccess` see it, and each rebuilds its own value from it rather than
+ * passing it on, so the token never becomes a property of anything an application holds.
+ */
+export type Verified =
+  | { readonly status: "signed-in"; readonly principal: Principal; readonly accessToken: string }
+  | Exclude<Access, { readonly status: "signed-in" }>;
+
 export interface AccessDeps extends SessionCookieDeps {
   readonly verify: Verifier;
   /** Only `refreshTokens` is used. The whole client is taken so applications wire one object. */
@@ -96,7 +106,7 @@ function sharedRefresh(auth: WorkOSAuth, refreshToken: string): Promise<Authenti
   return pending;
 }
 
-function ended(jar: CookieJar): Access {
+function ended(jar: CookieJar): Verified {
   // A cookie that cannot be verified is not a session, so it does not survive the request that
   // discovered that. Leaving it would make every later request repeat this work and this log line.
   jar.clear(SESSION_COOKIE);
@@ -113,7 +123,7 @@ function ended(jar: CookieJar): Access {
  * also measured rather than assumed, so a silent refresh cannot quietly drop somebody's tenant.
  * Concurrent requests for one session share the provider call; see `inFlight`.
  */
-async function refreshed(jar: CookieJar, deps: AccessDeps, session: Session): Promise<Access> {
+async function refreshed(jar: CookieJar, deps: AccessDeps, session: Session): Promise<Verified> {
   let principal: Principal;
   let renewed;
   try {
@@ -132,26 +142,37 @@ async function refreshed(jar: CookieJar, deps: AccessDeps, session: Session): Pr
     accessToken: renewed.accessToken,
     refreshToken: renewed.refreshToken,
   });
-  return { status: "signed-in", principal };
+  return { status: "signed-in", principal, accessToken: renewed.accessToken };
 }
 
 /**
- * Turns the session cookie into one of the five states a caller can act on.
+ * Turns the session cookie into one of the five states, keeping the token that proved the first.
  *
  * The access token is verified on every request. Nothing is trusted merely because it came out of
  * our own cookie: sealing proves we wrote it, and only the signature proves the provider issued
  * it. A cookie that survives a key rotation has to fail here.
  */
-export async function readAccess(jar: CookieJar, deps: AccessDeps): Promise<Access> {
+export async function verified(jar: CookieJar, deps: AccessDeps): Promise<Verified> {
   const session = readSession(deps.cookieKey, jar.read(SESSION_COOKIE));
   if (session === null) return { status: "anonymous" };
 
   try {
-    return { status: "signed-in", principal: await deps.verify(session.accessToken) };
+    const principal = await deps.verify(session.accessToken);
+    return { status: "signed-in", principal, accessToken: session.accessToken };
   } catch (error) {
     const failure = failureOf(error);
     if (failure.reason === "expired") return await refreshed(jar, deps, session);
     deps.log(failure);
     return failure.status === "ended" ? ended(jar) : { status: failure.status };
   }
+}
+
+/** Turns the session cookie into one of the five states a caller can act on. */
+export async function readAccess(jar: CookieJar, deps: AccessDeps): Promise<Access> {
+  const result = await verified(jar, deps);
+  // Rebuilt rather than returned: `Access` is what loaders hand the page, and the token must not
+  // ride along in a value that gets serialised to the browser.
+  return result.status === "signed-in"
+    ? { status: "signed-in", principal: result.principal }
+    : result;
 }

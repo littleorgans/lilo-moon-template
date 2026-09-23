@@ -99,6 +99,7 @@ live framework, provider or database.
 | `WorkOSClient`                   | `packages/auth-workos/src/client.ts`                                          | `@workos-inc/node` `WorkOS`                       | The exact SDK slice used; tests inject a recording client     |
 | `CookieJar`                      | `packages/auth-session/src/cookies.ts`                                        | `packages/auth-tanstack/src/cookies.ts`           | Keeps session logic free of any web framework                 |
 | `Access` union                   | `packages/auth-session/src/access.ts`                                         | `readAccess`                                      | Five session states the app branches on, never an exception   |
+| `UserAccess` / `UserFetch`       | `packages/auth-session/src/delegate.ts`                                       | `readUserAccess`, `AuthRuntime.asUser`            | Calls a service as the person without exposing their token    |
 | `ScopedClient` / `ScopedRunner`  | `packages/db/src/scoped.ts`, `apps/web/src/features/workspace/server/rows.ts` | `pg` client, `Database.withPrincipal`             | The only way claims enter Postgres                            |
 | `ThemeTarget`                    | `packages/theme/src/apply.ts`                                                 | `element.style`                                   | Applies data themes without DOM types                         |
 | `@littleorgans/source` condition | every library `package.json` `exports`                                        | `packages/vite-config/src/index.ts`               | Dev resolves `src`, builds and Node resolve `dist`            |
@@ -255,6 +256,35 @@ Without this, a request that lost the race could get `invalid_grant`, count as `
 the cookie the winner had just written. Separate instances share nothing. A request that arrives
 after the call has settled, or on another instance, relies on WorkOS returning the same rotated pair
 for 30 seconds after the old token's first use.
+
+### Calling a service as the signed-in person
+
+`Access` carries the Principal and never the access token, because `Access` is what loaders hand
+the page. Server code that has to call a service on the person's behalf, which authenticates them
+with `@littleorgans/auth-http`, uses `auth.asUser()` instead
+(`readUserAccess` in `packages/auth-session/src/delegate.ts`):
+
+```ts
+const user = await auth.asUser();
+if (user.status !== "signed-in") return user.status; // map as the workspace loader maps Access
+const response = await user.fetch(`${serviceUrl}/v1/things`);
+```
+
+`asUser` returns the same five states as `Access`. The token is read through the same verification
+and the same shared refresh, so an expired one is renewed, and the cookie rewritten, before anything
+is sent. `anonymous`, `ended`, `broken` and `unavailable` carry no `fetch`, so only a verified
+session can call anything, and none of them is thrown.
+
+There is no accessor for the raw token. `user.fetch` sets `Authorization: Bearer`, replacing any the
+caller set, and sends only to an origin listed in the runtime's `serviceOrigins` option. The list is
+empty by default, entries must be HTTPS except on localhost, and a path in an entry is refused
+rather than read as a restriction. Anything else rejects before a request is made. A redirect to
+another origin drops the header, per the Fetch standard. The token exists only in that function's
+closure: `JSON.stringify` of the result yields the status and the Principal, and seroval, which
+Start uses to serialise loader and server-function results, throws on the function rather than
+encoding it. The token is fixed for the request that read it, so do not hold the result beyond that
+request. The reference app calls no service yet, so it configures no origins; `services/api` will be
+the first.
 
 ### Data access and row level security
 

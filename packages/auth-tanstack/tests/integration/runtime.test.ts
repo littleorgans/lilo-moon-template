@@ -1,4 +1,4 @@
-import { randomBytes } from "node:crypto";
+import { generateKeyPairSync, randomBytes, sign } from "node:crypto";
 
 import type {
   AuthFailureReport,
@@ -8,7 +8,7 @@ import type {
   ThrottleKey,
 } from "@littleorgans/auth-session";
 import { EMAIL_COOKIE, SESSION_COOKIE, STATE_COOKIE, seal } from "@littleorgans/auth-session";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createAuthRuntime } from "../../src/runtime.js";
 
@@ -290,5 +290,94 @@ describe("access", () => {
       `${runtime.services().config.cookieNamespace}_${SESSION_COOKIE}`,
     ]);
     expect(reports.map((report) => report.reason)).toStrictEqual(["malformed"]);
+  });
+});
+
+// The real verifier, fed a key this test owns: the JWKS endpoint is answered in place of WorkOS,
+// so a token minted here verifies exactly as a provider-issued one would, without a network.
+const { privateKey, publicKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
+const jwk = { ...publicKey.export({ format: "jwk" }), kid: "test-key", alg: "RS256", use: "sig" };
+
+const encode = (value: unknown) => Buffer.from(JSON.stringify(value)).toString("base64url");
+
+function mint(claims: Readonly<Record<string, unknown>>): string {
+  const body = `${encode({ alg: "RS256", kid: "test-key", typ: "JWT" })}.${encode(claims)}`;
+  return `${body}.${sign("sha256", Buffer.from(body), privateKey).toString("base64url")}`;
+}
+
+const service = "https://api.example.com";
+
+describe("asUser", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  /** A runtime holding a session whose token the real verifier accepts, and what reached the wire. */
+  function signedInRuntime(serviceOrigins?: readonly string[]) {
+    const present: Record<string, string> = {};
+    const runtime = createAuthRuntime({
+      provider: "GoogleOAuth",
+      signedInPath: "/app",
+      organizationPolicy: "personal",
+      codeEntryPath: "/verify-email",
+      throttle: allowAll,
+      env,
+      cookies: jarWith(present).jar,
+      ...(serviceOrigins === undefined ? {} : { serviceOrigins }),
+    });
+    const { config } = runtime.services();
+    const token = mint({
+      iss: config.issuer,
+      sub: "user_01HBEQ",
+      org_id: "org_01M0",
+      exp: Math.floor(Date.now() / 1000) + 300,
+    });
+    present[`${config.cookieNamespace}_${SESSION_COOKIE}`] = seal(config.cookieKey, {
+      accessToken: token,
+      refreshToken: "r",
+    });
+    const sent: { url: string; authorization: string | null }[] = [];
+    vi.stubGlobal("fetch", (input: string | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url === config.jwksUri) return Promise.resolve(Response.json({ keys: [jwk] }));
+      sent.push({ url, authorization: new Headers(init?.headers).get("authorization") });
+      return Promise.resolve(new Response("ok"));
+    });
+    return { runtime, token, sent };
+  }
+
+  // Proves the runtime hands the reader the configured origins, the verifier and the key: the
+  // token that proved the session is the one the service receives.
+  it("calls a configured service with the verified token as the bearer", async () => {
+    const { runtime, token, sent } = signedInRuntime([service]);
+    const user = await runtime.asUser();
+    if (user.status !== "signed-in") throw new Error(`Expected signed-in, got ${user.status}`);
+
+    expect(user.principal.userId).toBe("user_01HBEQ");
+    expect(await (await user.fetch(`${service}/v1/me`)).text()).toBe("ok");
+    expect(sent).toStrictEqual([{ url: `${service}/v1/me`, authorization: `Bearer ${token}` }]);
+    expect(JSON.stringify(user)).not.toContain(token);
+  });
+
+  it("sends the token nowhere when the application configured no services", async () => {
+    const { runtime, sent } = signedInRuntime();
+    const user = await runtime.asUser();
+    if (user.status !== "signed-in") throw new Error(`Expected signed-in, got ${user.status}`);
+
+    await expect(user.fetch(`${service}/v1/me`)).rejects.toThrow("not in serviceOrigins");
+    expect(sent).toHaveLength(0);
+  });
+
+  it("maps a missing and a rejected session onto the same states as access", async () => {
+    const present: Record<string, string> = {};
+    const runtime = runtimeWith(jarWith(present).jar);
+    expect(await runtime.asUser()).toStrictEqual({ status: "anonymous" });
+
+    const { config } = runtime.services();
+    present[`${config.cookieNamespace}_${SESSION_COOKIE}`] = seal(config.cookieKey, {
+      accessToken: "not.a.jwt",
+      refreshToken: "r",
+    });
+    expect(await runtime.asUser()).toStrictEqual({ status: "ended" });
   });
 });

@@ -13,4 +13,6 @@ export const auth = createAuthRuntime({
   // the client only when nothing sits in front of the application; behind a proxy you control, read
   // the forwarded one with `getRequestIP({ xForwardedFor: true })`. See memoryThrottle.
   throttle: memoryThrottle({ clientOf: () => getRequestIP() }),
+  // No `serviceOrigins` yet, so `auth.asUser().fetch` sends the person's token nowhere. List a
+  // service's origin here when this application first calls one. See docs/system-overview.md.
 });

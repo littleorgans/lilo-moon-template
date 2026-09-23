@@ -12,6 +12,8 @@
  */
 export { readAccess } from "./access.js";
 export type { Access, AccessDeps } from "./access.js";
+export { readUserAccess } from "./delegate.js";
+export type { UserAccess, UserAccessDeps, UserFetch } from "./delegate.js";
 export { startAuthorization } from "./authorize.js";
 export type { AuthorizeDeps } from "./authorize.js";
 export { handleCallback } from "./callback.js";
