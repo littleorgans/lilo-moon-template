@@ -42,46 +42,6 @@ fileGroups:
   tests: []
 
 tasks:
-  new-project:
-    type: "run"
-    command: "node scripts/projects.mjs create"
-    options:
-      shell: false
-      cache: false
-      runInCI: false
-
-  projects:
-    type: "run"
-    command: "node scripts/projects.mjs list"
-    options:
-      shell: false
-      cache: false
-      runInCI: false
-
-  project-register:
-    type: "run"
-    command: "node scripts/projects.mjs register"
-    options:
-      shell: false
-      cache: false
-      runInCI: false
-
-  rename:
-    type: "run"
-    command: "bash scripts/rename-template.sh"
-    options:
-      shell: false
-      cache: false
-      runInCI: false
-
-  rename-verify:
-    type: "run"
-    command: "bash scripts/rename-template.sh --verify"
-    options:
-      shell: false
-      cache: false
-      runInCI: false
-
   prune-references:
     description: "Prune generated root references after removing workspace members"
     type: "run"
@@ -99,7 +59,7 @@ tasks:
       runInCI: false
 
   consumer-check:
-    description: "Generate, customize and run a consumer, then repeat with packed libraries"
+    description: "Build and run a snapshot of this workspace, then repeat with packed libraries"
     type: "test"
     command: "node scripts/consumer-check.mjs"
     inputs:
@@ -180,8 +140,6 @@ tasks:
       - ".github/**/*"
       - ".vscode/**/*"
       - ".changeset/**/*"
-      - ".template/**/*"
-      - "!.template/local/**/*"
     options:
       shell: false
       runInCI: "always"
@@ -304,17 +262,6 @@ tasks:
     checks:
       - check: "condition"
         script: "test ! -f db/schema.sql"
-    options:
-      shell: false
-      cache: false
-      runInCI: "always"
-
-  rename-verifier:
-    description: "Prove rename inputs are non-empty and the verdict is definite without proving token correctness"
-    type: "test"
-    command: "bash scripts/rename-template.sh --verify-contract"
-    inputs:
-      - "scripts/rename-template.sh"
     options:
       shell: false
       cache: false

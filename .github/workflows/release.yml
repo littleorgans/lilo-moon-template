@@ -22,10 +22,6 @@ jobs:
       # maintainer approves it the required CI check never reports, so the PR cannot merge. Falling
       # back to GITHUB_TOKEN keeps a clone working with no secret configured, at the cost of that
       # manual approval on every release.
-      #
-      # Rename this secret when you instantiate. `just rename` does not rewrite it, because it is
-      # not one of the template identity tokens, so it will follow a clone unnoticed. The fallback
-      # is what keeps that harmless rather than broken.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0

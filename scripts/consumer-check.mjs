@@ -17,7 +17,6 @@ import { dirname, join, relative } from "node:path";
 import { setTimeout } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 
-import { createProject } from "./lib/create-project.mjs";
 import { dockerIsAvailable, psqlInput, withPostgres } from "./lib/postgres-container.mjs";
 import {
   initializeProject,
@@ -27,17 +26,9 @@ import {
 } from "./lib/project-files.mjs";
 import { pruneReferences } from "./lib/typescript-references.mjs";
 
-if (existsSync(".template-origin.json")) {
-  process.stdout.write(
-    "Consumer workspace: creation acceptance belongs to the template producer.\n",
-  );
-  process.exit(0);
-}
-
 const source = process.cwd();
 const scratch = mkdtempSync(join(tmpdir(), "baseline-consumer-"));
-const seed = join(scratch, "seed");
-const generated = join(scratch, "generated");
+const snapshot = join(scratch, "snapshot");
 const packed = join(scratch, "packed");
 const tarballs = join(scratch, "tarballs");
 // A child Moon must discover its own workspace and toolchain rather than inherit its parent's paths.
@@ -79,8 +70,8 @@ function resolvedPackage(directory, name) {
  */
 function checkDbPeerFloors(manifestPath, manifest) {
   const web = join(packed, "apps/web");
-  // Creation renamed the scope, so take the package name from the generated project.
-  const name = readManifest(join(generated, "packages/db")).name;
+  // Take the package name from the manifest, so the scope is not written twice.
+  const name = readManifest(join(snapshot, "packages/db")).name;
   // Every peer db declares takes part, so a peer added later is exercised without editing this.
   const peers = Object.entries(resolvedPackage(web, name).manifest.peerDependencies ?? {});
   assert.ok(peers.length > 0, "db must declare peer dependencies");
@@ -540,7 +531,7 @@ async function exerciseServiceDatabase(root, dbName) {
 }
 
 try {
-  mkdirSync(seed);
+  mkdirSync(snapshot);
   const files = execFileSync(
     "git",
     ["ls-files", "-z", "--cached", "--others", "--exclude-standard"],
@@ -550,19 +541,10 @@ try {
     .filter(Boolean);
   for (const file of new Set(files)) {
     if (!existsSync(join(source, file))) continue;
-    mkdirSync(dirname(join(seed, file)), { recursive: true });
-    cpSync(join(source, file), join(seed, file));
+    mkdirSync(dirname(join(snapshot, file)), { recursive: true });
+    cpSync(join(source, file), join(snapshot, file));
   }
-  initializeProject(seed, "test: snapshot template for consumer acceptance");
-  run(seed, "git", ["remote", "add", "origin", seed]);
-  createProject({
-    source: seed,
-    name: "consumer-project",
-    destination: generated,
-    org: "consumer-org",
-    scope: "consumer-scope",
-  });
-  rmSync(join(generated, "services/ping"), { recursive: true, force: true });
+  initializeProject(snapshot, "test: snapshot the workspace for consumer acceptance");
   // Unique utilities prove each source registration independently of the primitives' own scan.
   for (const [file, before, after] of [
     ["apps/web/src/routes/__root.tsx", "<html ", '<html className="z-[29]" '],
@@ -572,71 +554,71 @@ try {
       'data-slot="swatch-grid" className="z-[23]"',
     ],
   ]) {
-    const path = join(generated, file);
+    const path = join(snapshot, file);
     const content = readFileSync(path, "utf8");
     assert.ok(content.includes(before), `CSS fixture anchor missing in ${file}`);
     writeFileSync(path, content.replace(before, after));
   }
-  pruneReferences(generated);
-  run(generated, "pnpm", ["install"]);
-  run(generated, "moon", ["sync"]);
-  run(generated, "moon", ["run", "web:build", "web:typecheck", "web:test", "root:project-refs"]);
-  run(generated, "moon", ["run", "root:format"]);
+  pruneReferences(snapshot);
+  run(snapshot, "pnpm", ["install"]);
+  run(snapshot, "moon", ["sync"]);
+  run(snapshot, "moon", ["run", "web:build", "web:typecheck", "web:test", "root:project-refs"]);
+  run(snapshot, "moon", ["run", "root:format"]);
   rejectViolation(
-    generated,
+    snapshot,
     "apps/web/src/gate-probe.ts",
     'export const probe: number = "wrong";\n',
     "web:typecheck",
     /not assignable/,
   );
   rejectViolation(
-    generated,
+    snapshot,
     "apps/web/tests/gate-probe.test.ts",
     'import { expect, it } from "vitest";\nit("gate proof", () => expect(true).toBe(false));\n',
     "web:test",
     /expected true to be false/,
   );
   rejectViolation(
-    generated,
+    snapshot,
     "apps/web/src/gate-probe.ts",
     'Promise.resolve("unhandled");\n',
     "root:lint",
     /no-floating-promises/,
   );
   rejectViolation(
-    generated,
+    snapshot,
     "apps/web/src/gate-probe.ts",
     "export const probe={a:1,b:2}\n",
     "root:format-check",
     /gate-probe/,
   );
-  run(generated, "moon", ["run", "web:typecheck", "web:test", "root:lint", "root:format-check"]);
-  const viewsSources = join(generated, "packages/views/src/sources.css");
+  run(snapshot, "moon", ["run", "web:typecheck", "web:test", "root:lint", "root:format-check"]);
+  const viewsSources = join(snapshot, "packages/views/src/sources.css");
   const registeredSources = readFileSync(viewsSources, "utf8");
   try {
     writeFileSync(viewsSources, "");
-    run(generated, "moon", ["run", "web:build"]);
-    await assert.rejects(exercise(generated), /published views must register/);
+    run(snapshot, "moon", ["run", "web:build"]);
+    await assert.rejects(exercise(snapshot), /published views must register/);
     process.stdout.write("consumer-check: missing CSS source registration was rejected.\n");
   } finally {
     writeFileSync(viewsSources, registeredSources);
   }
-  run(generated, "moon", ["run", "web:build"]);
-  await exercise(generated);
+  run(snapshot, "moon", ["run", "web:build"]);
+  await exercise(snapshot);
 
   mkdirSync(tarballs);
   const artifacts = new Map();
-  for (const entry of readdirSync(join(generated, "packages"))) {
-    const directory = join(generated, "packages", entry);
+  for (const entry of readdirSync(join(snapshot, "packages"))) {
+    const directory = join(snapshot, "packages", entry);
     const manifest = JSON.parse(readFileSync(join(directory, "package.json"), "utf8"));
     const artifact = join(tarballs, `${entry}.tgz`);
     run(directory, "pnpm", ["pack", "--out", artifact]);
     artifacts.set(manifest.name, artifact);
   }
-  cpSync(generated, packed, {
+  cpSync(snapshot, packed, {
     recursive: true,
     filter: (path) =>
-      !relative(generated, path)
+      !relative(snapshot, path)
         .split(/[\\/]/)
         .some((part) =>
           ["node_modules", ".git", "packages", "services", ".output", "cache"].includes(part),
@@ -668,7 +650,7 @@ try {
   await exercise(packed);
   checkDbPeerFloors(manifestPath, manifest);
   await exerciseService(artifacts);
-  process.stdout.write("consumer-check: generated, packed and service consumers passed.\n");
+  process.stdout.write("consumer-check: snapshot, packed and service consumers passed.\n");
 } finally {
   rmSync(scratch, { recursive: true, force: true });
 }
