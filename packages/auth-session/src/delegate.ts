@@ -125,9 +125,11 @@ function userFetch(accessToken: string, origins: ReadonlySet<string>, send: type
 /**
  * Reads the session as `readAccess` does, and on success hands back a way to call services with it.
  *
- * The token is the one `readAccess` would have verified, so an expired one has already been
- * refreshed through the same shared call, and the renewed cookie written, before anything is sent.
- * It is fixed for this request: hold the result no longer than the request that produced it.
+ * The token is the one `readAccess` would have verified, so an expired one, or one within
+ * `REFRESH_MARGIN_SECONDS` of expiring, has already been refreshed through the same shared call, and
+ * the renewed cookie written, before anything is sent. If a refresh started early fails, `fetch`
+ * sends the token the person came with, which still verified. It is fixed for this request: hold
+ * the result no longer than the request that produced it.
  *
  * The origins are checked before the session is read, so a misconfiguration surfaces on the first
  * call whether or not anyone is signed in.

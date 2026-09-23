@@ -252,10 +252,21 @@ using the application. `readAccess` spends one refresh, verifies the replacement
 token rather than trusting it for having arrived over TLS, and reseals the cookie. The person sees
 nothing, which is what the row promised.
 
-Two provider behaviours this depends on, both measured on 2026-08-25 rather than assumed:
-refreshing **without** an `organizationId` preserves the one already in the token, so a silent
-refresh cannot quietly drop somebody's tenant; and the refresh token that comes back is **the same
-token**, not a rotated one, so the envelope in the cookie stays valid for its full year.
+A token with 20 seconds or less left (`REFRESH_MARGIN_SECONDS`) is refreshed the same way, before it
+expires, because a token forwarded to a service with seconds left expires on the way and comes back
+as a 401. That early refresh cannot make things worse than not trying: if it fails, the person is
+served the token that still verified and the cookie is left as it was.
+
+Two provider behaviours this depends on. Refreshing **without** an `organizationId` preserves the
+one already in the token, measured on 2026-08-25 rather than assumed, so a silent refresh cannot
+quietly drop somebody's tenant. And WorkOS **rotates** the refresh token on every exchange, retiring
+the one sent, with a 30-second replay grace period in which the retired token returns the same new
+pair rather than `invalid_grant`. That is what the shared refresh (#101) and the margin's arithmetic
+rest on; see the refresh section of `docs/system-overview.md`. An earlier version of this page
+recorded the opposite, that the same token came back, from a 2026-08-25 observation. The
+`invalid_grant` refusals that #101 fixed, and WorkOS's session resilience guide, both say otherwise,
+and that observation is superseded. The cookie's one-year `Max-Age` is how long the browser keeps
+the envelope, not how long anything inside it stays valid: every refresh rewrites it.
 
 ## Failure at the callback
 

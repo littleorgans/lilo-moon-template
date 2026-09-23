@@ -8,17 +8,19 @@ import { AuthError } from "@littleorgans/auth";
 import type { Principal, Verifier } from "@littleorgans/auth";
 import { WorkOSAuthError } from "@littleorgans/auth-workos";
 import type { Authentication, WorkOSAuth } from "@littleorgans/auth-workos";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { readAccess, refreshesInFlight } from "../src/access.js";
+import { REFRESH_MARGIN_SECONDS, readAccess, refreshesInFlight } from "../src/access.js";
 import { readUserAccess } from "../src/delegate.js";
 import type { ServiceOrigin, UserAccess, UserAccessDeps } from "../src/delegate.js";
 import type { TokenFailure } from "../src/failure.js";
 import { SESSION_COOKIE, readSession, seal } from "../src/session.js";
 import { jarWith } from "./support.js";
+import { createSigner, freezeClock, verifierFor } from "./tokens.js";
 
 const cookieKey = randomBytes(32);
 const service = "https://api.example.com";
+const provider = await createSigner();
 
 const principal: Principal = {
   userId: "user_01HBEQ",
@@ -563,5 +565,72 @@ describe("redirects, through the real fetch", () => {
     } finally {
       await Promise.all([close(own.server), close(other.server)]);
     }
+  });
+});
+
+// The token is forwarded, so one with seconds left would expire at the service. `readUserAccess`
+// reads it through the same margin as `readAccess`, and falls back the same way.
+describe("a token near its expiry", () => {
+  beforeEach(freezeClock);
+  afterEach(() => {
+    vi.useRealTimers();
+    expect(refreshesInFlight()).toBe(0);
+  });
+
+  async function nearing(secondsLeft: number) {
+    const accessToken = await provider.sign(secondsLeft);
+    const renewed: Authentication = { ...renewal, accessToken: await provider.sign(300) };
+    const request = jarWith({
+      [SESSION_COOKIE]: seal(cookieKey, { accessToken, refreshToken: "refresh-1" }),
+    });
+    return { accessToken, renewed, request };
+  }
+
+  it("is sent as it is when it is outside the margin", async () => {
+    const { accessToken, request } = await nearing(REFRESH_MARGIN_SECONDS + 1);
+    const { auth, calls } = authDouble();
+    const { deps, sent } = depsWith(verifierFor(provider), auth);
+
+    await signedIn(await readUserAccess(request.jar, deps)).fetch(`${service}/v1/me`);
+
+    expect(calls).toHaveLength(0);
+    expect(sent[0]?.authorization).toBe(`Bearer ${accessToken}`);
+  });
+
+  it("is refreshed inside the margin, and the new token is the bearer", async () => {
+    const { request, renewed } = await nearing(REFRESH_MARGIN_SECONDS - 1);
+    const { auth, calls } = authDouble(() => Promise.resolve(renewed));
+    const { deps, sent } = depsWith(verifierFor(provider), auth);
+
+    await signedIn(await readUserAccess(request.jar, deps)).fetch(`${service}/v1/me`);
+
+    expect(calls).toHaveLength(1);
+    expect(sent[0]?.authorization).toBe(`Bearer ${renewed.accessToken}`);
+    expect(readSession(cookieKey, request.written[0]?.value)?.accessToken).toBe(
+      renewed.accessToken,
+    );
+  });
+
+  it.each([
+    [
+      "unavailable",
+      new WorkOSAuthError({ reason: "unavailable", message: "503", cause: undefined }),
+    ],
+    [
+      "refused",
+      new WorkOSAuthError({ reason: "unauthorized", message: "invalid_grant", cause: undefined }),
+    ],
+  ])("sends the current token when the early refresh is %s", async (_, error) => {
+    const { accessToken, request } = await nearing(10);
+    const { auth, calls } = authDouble(() => Promise.reject(error));
+    const { deps, sent, logged } = depsWith(verifierFor(provider), auth);
+
+    await signedIn(await readUserAccess(request.jar, deps)).fetch(`${service}/v1/me`);
+
+    expect(calls).toHaveLength(1);
+    expect(sent[0]?.authorization).toBe(`Bearer ${accessToken}`);
+    expect(request.written).toHaveLength(0);
+    expect(request.cleared).toHaveLength(0);
+    expect(logged.map((failure) => failure.status)).toStrictEqual(["signed-in"]);
   });
 });
