@@ -1,16 +1,11 @@
-# Start a project from this template
+# Set up and operate this repository
 
-Use `just new-project` from a template checkout to create a new repository with names and provenance
-already configured. Adapt the application and remove examples you do not need. The working
-contract is [AGENTS.md](../AGENTS.md).
-
-```bash
-just new-project your-repo --dest ../projects --org your-org
-```
-
-See [project creation and consumer tracking](project-lineage.md) for the registry, optional remote
-URL, dry run and setup options. After automated creation, continue at **Claim your ports** below.
-Use the creator to configure both remotes and register the project.
+Projects no longer start by copying this repository. They add the published `@littleorgans/*`
+packages and take application glue from the reference app. The template instantiation, rename and
+update-by-rebase sections were removed in phase 1. What remains here, toolchain setup, ports,
+environment and publishing, moves into `docs/guides/adopt-web-app.md` and
+`docs/guides/adopt-service.md` in phase 1 task 1.9 (see [the direction](direction.md#f-phased-plan)).
+The working contract is [AGENTS.md](../AGENTS.md).
 
 ## Install the tools first
 
@@ -48,23 +43,6 @@ just --version
 
 `moon --version` must print `2.5.5`.
 
-## Create the repository
-
-Run the creation command above from a full template checkout. By default, the new project's origin
-is `git@github.com:your-org/your-repo.git`; override it with `--remote <url>`. The template checkout's
-origin becomes the new project's upstream remote. The script configures remotes locally; create the
-hosted product repository separately before your first push.
-
-```bash
-cd ../projects/your-repo
-git remote -v
-just check
-just ci
-```
-
-The package scope defaults to the project name. Pass `--scope your-scope` during creation to choose
-another scope. Run `just rename-verify` to verify the identity replacements.
-
 ## Claim your ports
 
 Set the development port in `apps/web/vite.config.ts` and the preview port in `apps/web/moon.yml`.
@@ -79,32 +57,21 @@ Cleanup removes only the current checkout's container.
 Auth cookies are namespaced by client id and redirect URI. Theme cookies include the request origin,
 including its port, so applications sharing localhost do not overwrite one another's cookies.
 
-`root:consumer-check` verifies repository creation and installed tarballs in disposable consumers
-before template delivery. It skips in downstream repositories identified by `.template-origin.json`.
-
 The source condition is a matching pair. The key in `exports` and the string in
 `resolve.conditions` must be the same. Node's standard conditions stay pointed at `dist`. Why is
 in [Why this baseline is shaped this way](decisions.md).
 
-There is no root `LICENSE` file. Add one. Set `license` in every publishable `package.json` to the same SPDX id.
+Every publishable `package.json` sets `license` to `MIT` and ships a copy of the root `LICENSE`.
 
 Review `publishConfig.access` in each library before publishing it.
 
 Do not change `packageManager`, `engines`, catalog pins, or the moon version. Those are the
 baseline.
 
-## Adapt the application and members
+## Remove a workspace member
 
-Develop your product in `apps/web`. Its routes, feature directories and service composition are
-ordinary application source. Replace the task board and other diagnostic examples as needed.
-Additional members follow [Add a workspace member](../AGENTS.md#add-a-workspace-member).
-
-The task board imports `packages/collections`. Remove that usage and the dependency from
-`apps/web/package.json` and `apps/web/moon.yml` before deleting collections. You may also delete
-`apps/web` entirely if the project does not need it. Keep `services/ping` only if you want the Rust
-example. No generator depends on retaining any example.
-
-After removing members:
+Additional members follow [Add a workspace member](../AGENTS.md#add-a-workspace-member). After
+removing members:
 
 ```bash
 moon run root:prune-references
@@ -117,25 +84,7 @@ just ci
 Moon adds project references but does not remove every deleted target. The pruning command removes
 those references before Moon synchronizes the remaining projects.
 
-## Receive template updates
-
-Start with a clean working tree, then:
-
-```bash
-git fetch upstream
-git rebase upstream/main
-pnpm install
-moon sync
-just check
-just ci
-```
-
-Resolve conflicts according to the product's requirements. In particular, an upstream edit to an
-application that the product deleted requires a decision about keeping that deletion. Shared history
-makes the comparison possible; it does not guarantee conflict-free updates. Rebasing commits already
-pushed to origin rewrites their history, so coordinate with collaborators before updating that branch.
-
-### The database is baseline, not an exemplar
+## The database is baseline, not an exemplar
 
 `db/schema.sql` holds `accounts` and `profiles`. They are the user entity and they are meant to be
 kept: see [The user entity](user-entity.md). Add your own tables alongside them, then:
@@ -163,41 +112,9 @@ RLS task before Atlas or Docker starts. Deleting `db/schema.sql` on its own skip
 well, which leaves `packages/db/migrations/` and `db/drizzle/_generated/` in the tree with nothing
 checking them.
 
-## What you must not delete
-
-These are the baseline. Removing any of them is a fork, not an instantiation.
-
-- `.moon/workspace.yml`, `.moon/toolchains.yml`, `.moon/tasks/`
-- `moon.yml` at the repository root, including `tasks.lint`, `tasks.format-check`,
-  `tasks.project-refs`, `tasks.secrets`, `tasks.audit`, and `inheritedTasks.include`
-- `justfile`
-- `scripts/assert-tsgolint-lockstep.mjs`, `scripts/check-security.mjs`, and the root lockstep task
-- `scripts/rls-verify.mjs`, `scripts/drizzle-schema.mjs`, and `scripts/lib/postgres-container.mjs`,
-  unless you delete `db/` entirely
-- `pnpm-workspace.yaml` catalogs
-- `tsconfig.options.json`
-- `.oxlintrc.json` and `.oxfmtrc.json`
-- `lefthook.yml`, lefthook `scripts.prepare` in the root `package.json`, and `commitlint.config.js`
-- `.changeset/`
-- `.github/workflows/ci.yml`
-- `renovate.json`
-- `.vscode/extensions.json` and `.vscode/settings.json`
-- `.prototools`
-- `.npmrc`
-- `.editorconfig`
-- `AGENTS.md`
-
-`services/` is a glob in both `.moon/workspace.yml` `projects.globs` and `pnpm-workspace.yaml`
-`packages`. Leave the glob. `services/ping` is the Rust exemplar. The Rust toolchain is on in
-`.moon/toolchains.yml`. Python stays commented until a Python member lands.
-
-A clone that keeps only ping still runs `pnpm install` for the root oxlint, oxfmt, secretlint, and
-audit gates. Those tools live in `devDependencies` in the root `package.json`. A Rust-only
-`moon ci` still installs that JavaScript toolchain.
-
 ## Prove the result is healthy
 
-The renamed tree must pass `just ci`. From a library directory, `npm pack --dry-run`
+The tree must pass `just ci`. From a library directory, `npm pack --dry-run`
 lists `dist` and `src`. No packed `.map` entry may point at a path outside the package.
 
 Then prove the gates can fail. Follow [Prove every gate](../AGENTS.md#prove-every-gate). Do not
@@ -232,19 +149,17 @@ gate publishing.
 Adding lint, typecheck, and tests to the publish path is a non-trivial workflow change that must
 account for job sequencing within one workflow file, the `contents: write` and
 `pull-requests: write` permissions, and a workflow-level `cancel-in-progress` setting that can cancel
-a run before job-level concurrency protects a publish and can leave a partial release. This template
+a run before job-level concurrency protects a publish and can leave a partial release. This repository
 has exercised neither the OIDC publish path nor the extra workflow gate, so it does not prescribe an
 integration recipe.
 
-The Version Packages PR is authored by `secrets.HELIOY_PAT` when that secret exists, and by
-`GITHUB_TOKEN` when it does not. **Rename that secret to something of your own.** It carries the
-template author's naming, `just rename` does not rewrite it because it is not a template identity
-token, and `just rename-verify` will not flag it. Leave it unset and releases still work, but the PR arrives from
-`github-actions[bot]` in an approval-required state: its `CI` run comes back `action_required`, the
-required check never reports, and the PR cannot merge until a maintainer opens it and selects
-**Approve workflows to run**. That is
+The Version Packages PR is authored by `secrets.HELIOY_PAT`, an organization-level token, when that
+secret exists, and by `GITHUB_TOKEN` when it does not. Leave it unset and releases still work, but
+the PR arrives from `github-actions[bot]` in an approval-required state: its `CI` run comes back
+`action_required`, the required check never reports, and the PR cannot merge until a maintainer
+opens it and selects **Approve workflows to run**. That is
 [GitHub's documented `GITHUB_TOKEN` behavior](https://docs.github.com/en/actions/concepts/security/github_token),
-and this template hit it on the first changeset it ever produced.
+and this repository hit it on the first changeset it ever produced.
 
 Point that secret at a token belonging to a user with write access, or to a GitHub App installation
 token, and the approval step disappears. Prefer the App token. A PAT expires, and when it does

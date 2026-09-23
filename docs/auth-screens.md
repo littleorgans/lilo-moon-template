@@ -9,8 +9,8 @@ that clears local flow cookies and redirects through the provider logout URL. Ex
 tokens remain bounded by their expiration; signature verification does not fetch current permissions.
 
 The record model, the schema and the workflows are [The user entity](user-entity.md). The package
-layout and the verification seam are [the auth proposal](auth-proposal.md). This page does not
-repeat either.
+layout and the verification seam are in [the decision record](decisions.md#identity-and-entitlements).
+This page does not repeat either.
 
 ## Why the inventory exists
 
@@ -337,5 +337,4 @@ pass `roleSlugs` from `ensureOrganization`. `provisionOrganization` already acce
 is one argument rather than a change to the flow.
 
 Still not settled: which feature the entitlement gate protects in a real product, which arrives with
-the first product; and whether a second app in the template renders these screens differently, which
-is open question 4 in [the auth proposal](auth-proposal.md).
+the first product; and whether a second app renders these screens differently.

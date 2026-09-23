@@ -1,7 +1,7 @@
 # Repository contract
 
-This repository is a language agnostic monorepo baseline. Moon owns the task graph for every
-language. pnpm is only the JavaScript package manager. The `projects` settings in
+This repository holds a reference web application and the published `@littleorgans/*` packages it
+is built from. Moon owns the task graph for every language. pnpm is only the JavaScript package manager. The `projects` settings in
 `.moon/workspace.yml` define the workspace, and `javascript.packageManager` in
 `.moon/toolchains.yml` selects pnpm.
 
@@ -48,13 +48,13 @@ Follow this procedure so Moon, pnpm, TypeScript, and CI discover the same projec
    runtime and development dependencies in that manifest, then reference shared versions with
    `catalog:` from `pnpm-workspace.yaml`. Publishable libraries must define a version plus real
    `exports`, `types`, `files`, and `publishConfig` entries that point at built files. Use
-   `packages/collections/package.json` as the package shape.
+   `packages/auth/package.json` as the package shape.
 4. For TypeScript, add `tsconfig.json` with `extends` pointing at the root
    `tsconfig.options.json`, plus `include` entries for source and tests. The library example is
-   `packages/collections/tsconfig.json`. Keep `composite`, `declaration`, and `declarationMap` from
+   `packages/auth/tsconfig.json`. Keep `composite`, `declaration`, and `declarationMap` from
    `compilerOptions` in `tsconfig.options.json` because Moon routes typecheck output to its cache.
 5. For a publishable library, add `tsconfig.build.json` for the `dist` build. Follow
-   `compilerOptions`, `include`, and `exclude` in `packages/collections/tsconfig.build.json`: extend
+   `compilerOptions`, `include`, and `exclude` in `packages/auth/tsconfig.build.json`: extend
    the member config, set `composite` and `incremental` to `false`, set `rootDir` to `src`, set
    `outDir` to `dist`, include only `src/**/*.ts`, and exclude tests. `composite: false` lets the
    first compiler pass emit JavaScript without declarations. `incremental: false` keeps build
@@ -169,16 +169,6 @@ work; the green run proves the valid state.
 - Keep shared tooling free of app-specific paths, ports and coverage exceptions. Scope runtime tasks
   explicitly so adding a different language or application runtime inherits the right checks.
 
-## Create projects and learn from consumers
-
-- Run `just new-project` from this upstream template checkout. Preserve shared Git history.
-- Downstream `origin` is the product repository; `upstream` is this template. Pushes default to origin.
-- Keep `.template-origin.json` as the creation record, including the starting template revision.
-- Commit consumer records under `.template/projects/`; keep `.template/local/` ignored.
-- Use `just projects` in this template to locate consumers and inspect their implementations for
-  fixes, reusable features and lessons worth bringing back into the baseline.
-- Downstream projects own their application code and may change or delete the examples.
-
 ## Follow repository conventions
 
 - Use Conventional Commits. The Git history and pull request titles depend on the type, optional
@@ -202,8 +192,8 @@ work; the green run proves the valid state.
 
 ## Do not
 
-- Do not describe this repository as a TypeScript monorepo. The baseline supports multiple
-  languages, and Moon owns their shared graph.
+- Do not describe this repository as a TypeScript monorepo. Every member is TypeScript today, but
+  Moon owns the graph so a member in another language joins it without a second task runner.
 - Do not add application dependencies to the root `package.json`. The root manifest owns repository
   tools, while each application owns the code it imports.
 - Do not reimplement a Moon task in `justfile`. Duplicate command paths drift and make local results

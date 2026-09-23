@@ -1,5 +1,8 @@
 # Assessment and roadmap
 
+> Phase 1 removed the template machinery this review describes: project creation, the rename, the
+> consumer registry, `collections` and `services/ping`.
+
 An assessment of `main` at `a95bab6` (#95), written 2026-09-23. It records strengths, weaknesses
 and risks, with evidence, and proposes a prioritized roadmap. The
 [verification log](#verification-log) says which claims were checked by running something and

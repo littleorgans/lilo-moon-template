@@ -12,11 +12,9 @@ Turborepo reads npm and pnpm workspaces. It does not read `Cargo.toml` or `pypro
 baseline is language agnostic, so the task graph has to see those members when they appear.
 
 Moon does. `projects.globs` in `.moon/workspace.yml` lists `apps/*`, `packages/*`, and `services/*`
-with no language filter. The JavaScript toolchain is on. The Rust toolchain is on.
-`services/ping` is the Rust member. The Python toolchain stays commented in `.moon/toolchains.yml`
-until a real Python member lands. pnpm remains the JavaScript package manager. Moon is the
-workspace. A clone that keeps only ping still installs the root JavaScript tools, because oxlint,
-oxfmt, secretlint, and audit live in `devDependencies` in the root `package.json`.
+with no language filter. The JavaScript toolchain is on. The Rust toolchain returns with a real Rust
+member, and the Python toolchain stays commented in `.moon/toolchains.yml` until a real Python
+member lands. pnpm remains the JavaScript package manager. Moon is the workspace.
 
 `justfile` holds aliases only. Task commands, inputs, outputs, and deps live in moon. Two command
 paths drift. CI runs `moon ci`.
@@ -28,7 +26,7 @@ use directories, and the `(auth)` group preserves the public callback and sessio
 routes remain files. Grouping carries no implicit authentication policy.
 
 Routes declare framework wiring. `features/workspace/` owns its page, data contract, provisioning
-queries and loader behavior. `features/tasks/` owns the task board. `server/auth.ts` and
+queries and loader behavior. `server/auth.ts` and
 `server/database.ts` compose shared services; `server/theme.ts` adapts app-wide theme cookies.
 The workspace's account/profile diagnostics belong to the app. The shared views package accepts
 application labels and paths and does not own the app's data model.
@@ -42,16 +40,10 @@ runtime without inheriting web commands. The application owns its development an
 Library builds clear their declared output before compiling, so deleted source does not remain
 published from a previous build. Formatting inputs cover the files and configuration oxfmt reads.
 
-The repository itself is the maintained baseline. Member generators and their duplicate application
-sources have been removed. Project creation preserves the selected commit and its ancestors, then
-adds a customization commit. Downstream repositories use `origin` for their product and `upstream`
-for this template, allowing template updates through Git fetch and rebase.
-
-The consumer registry helps template development: inspect real projects for reusable improvements
-and lessons before changing the baseline. It stores repository locations and creation revisions.
-Git supplies history and comparison; no separate file fingerprint or impact engine is maintained.
-`root:consumer-check` exercises repository creation and packed package consumption in disposable
-workspaces. Downstream applications can evolve or be removed without retaining a reference copy.
+The repository is a reference implementation and the source of published packages, not a
+template. Projects depend on the packages rather than copying this tree, so fixes reach them
+through upgrades; [the direction](direction.md) records why. `root:consumer-check` exercises a
+snapshot of this workspace and packed package consumption in disposable workspaces.
 
 ## One linter, one formatter
 
@@ -244,13 +236,13 @@ Node's standard conditions, including `development` and `production`, must not s
 consumer who installs the package, or a moon task that runs against `dist`, would otherwise execute
 TypeScript the runtime cannot load.
 
-Rename the condition with the rest of the scope when you instantiate. Keep the split.
+Keep the split.
 
 ## Changelogs cover JavaScript packages
 
 Changesets reads `package.json`, so private and publishable JavaScript packages both receive
-versions and changelogs. It cannot see `Cargo.toml`, `pyproject.toml`, or `go.mod`. `services/ping`
-sets `publish = false`, so the current Rust member has nothing to release.
+versions and changelogs. It cannot see `Cargo.toml`, `pyproject.toml`, or `go.mod`. Every member
+today is a JavaScript package, so nothing is left out yet.
 
 Moon does not version or publish packages. Its FAQ points JavaScript workspaces to Yarn releases,
 Changesets, or Lerna. This leaves non-JavaScript release notes outside the baseline. Revisit the
@@ -274,12 +266,12 @@ came from `github-actions[bot]`, its `CI` run returned `action_required`, and it
 until a maintainer approved the workflow. `release.yml` now prefers `secrets.HELIOY_PAT` and falls
 back to `GITHUB_TOKEN`, which moves the authorship off the bot and removes the approval when the
 secret is set. Consumer-facing detail is in
-[Start a project from this template](how-to-instantiate.md).
+[Set up and operate this repository](how-to-instantiate.md).
 
 ## Left to the consuming repo
 
 Settled here: moon, oxlint, oxfmt, TypeScript 7, the lockstep gate, pnpm catalogs, the member
-layout, project creation with shared Git history, Atlas for SQL, Drizzle as generated output, Supabase
+layout, Atlas for SQL, Drizzle as generated output, Supabase
 as a host, the `accounts` and `profiles` baseline with its row level security, and WorkOS as the
 identity vendor.
 
