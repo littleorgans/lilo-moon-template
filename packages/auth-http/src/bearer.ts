@@ -11,8 +11,7 @@ export type BearerToken =
   | { readonly kind: "present"; readonly token: string };
 
 // RFC 7235 `credentials = auth-scheme [ 1*SP token68 ]`, with the token68 alphabet from RFC 6750
-// section 2.1. A comma cannot appear in a token, so two Authorization headers, which Headers.get
-// joins with ", ", fail here rather than silently authenticating as the first one.
+// section 2.1.
 const credentials = /^(\S+)(?: +(.*))?$/;
 const token68 = /^[A-Za-z0-9\-._~+/]+=*$/;
 
@@ -28,8 +27,10 @@ const token68 = /^[A-Za-z0-9\-._~+/]+=*$/;
 export function readBearerToken(headers: Headers): BearerToken {
   const header = headers.get("authorization");
   if (header === null) return { kind: "missing" };
-  // Bound parsing and verification work even in runtimes without a server header limit.
-  // Reject combined credentials before inspecting their first scheme.
+  // Checked before any parsing or verification, so the cost of a hostile header stays bounded
+  // even in runtimes without a server header limit. A comma never appears in a token, and
+  // Headers.get joins two Authorization headers with ", ": reject the pair before reading the
+  // first scheme, rather than authenticating as whichever credential happens to come first.
   if (header.length > 8192 || header.includes(",") || /[^\x20-\x7e]/.test(header)) {
     return { kind: "malformed" };
   }
