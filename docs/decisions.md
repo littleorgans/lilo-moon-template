@@ -301,7 +301,9 @@ register their own CSS sources. Applications register their feature sources and 
 components. A shared component is justified by shared behavior, not by a restriction on styling.
 
 JWT verification requires expiration. Provider unavailability preserves sessions, including a refresh
-token that rotated before JWKS retrieval failed. A token within 20 seconds of expiry is refreshed
-early, and a failed early refresh serves the token that still verified rather than ending anything.
+token that rotated before JWKS retrieval failed. WorkOS rotates the refresh token on every exchange
+and honours a 30-second replay grace period; the earlier note that the same token came back was
+wrong and is withdrawn. A token within 20 seconds of expiry is refreshed early, and a failed early
+refresh serves the token that still verified rather than ending anything.
 Logout goes through a same-origin POST and then the WorkOS logout URL. Authorization changes take
 effect with a renewed access token.

@@ -263,7 +263,8 @@ removed when the call settles. Each request still verifies the result and writes
 Without this, a request that lost the race could get `invalid_grant`, count as `ended`, and clear
 the cookie the winner had just written. Separate instances share nothing. A request that arrives
 after the call has settled, or on another instance, relies on WorkOS returning the same rotated pair
-for 30 seconds after the old token's first use.
+for 30 seconds after the old token's first use, which WorkOS documents as the replay grace period in
+its session resilience guide.
 
 A token that verifies but expires within `REFRESH_MARGIN_SECONDS` (20) is refreshed as if it had
 expired, because `asUser` forwards it and one with seconds left would expire at the service. `exp`
@@ -274,8 +275,15 @@ cookie is left alone, apart from a rotated replacement kept when its verificatio
 Inside the margin, `invalid_grant` is also what a request carrying a stale cookie gets once the
 reuse window has passed, so ending the session there would clear the newer cookie. A revoked
 session ends at expiry, as it did before. The margin plus the verifier's 5-second clock tolerance
-stays below the 30-second reuse window, so every request that refreshes with the old cookie while
-the old token still verifies gets the same new pair.
+stays below the 30-second reuse window: the first use is never earlier than 20 seconds before
+`exp`, so the window reaches at least 10 seconds past `exp`, and the old token stops verifying 5
+seconds past it. Every request that refreshes with the old cookie while the old token still
+verifies therefore gets the same new pair. Nothing remembers a failed early refresh, so during a
+provider outage each request in those 25 seconds makes one failing call and is still served; after
+them the expired path makes the same call and returns `unavailable`, which is where the outage
+would have been felt anyway. A clock more than 280 seconds ahead of the provider's would put every
+fresh token inside the margin, but 25 seconds more skew and the verifier rejects every token as
+expired, as it always has, so the remedy is the clock and not a guard here.
 
 ### Calling a service as the signed-in person
 
