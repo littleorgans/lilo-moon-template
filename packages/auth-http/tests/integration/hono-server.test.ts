@@ -1,4 +1,4 @@
-import { createServer } from "node:http";
+import { createServer, request } from "node:http";
 import type { AddressInfo } from "node:net";
 
 import { serve } from "@hono/node-server";
@@ -55,7 +55,14 @@ beforeAll(async () => {
     jwks: { uri: `http://127.0.0.1:${portOf(provider.address())}/jwks` },
   });
   const app = new Hono<AuthEnv>()
-    .use(requireAuth({ verify, onRejection: (rejection) => rejections.push(rejection) }))
+    .use(
+      requireAuth({
+        verify,
+        onRejection: (rejection) => {
+          rejections.push(rejection);
+        },
+      }),
+    )
     .get("/me", (c) => c.json(c.var.principal));
   service = serve({ fetch: app.fetch, port: 0, hostname: "127.0.0.1" });
   await listening(service);
@@ -105,4 +112,39 @@ it("answers 401, then 503 during a provider outage, then 200 with the Principal"
   expect(forged.status).toBe(401);
   expect(forged.headers.get("www-authenticate")).toBe('Bearer error="invalid_token"');
   expect(await forged.json()).toStrictEqual({ error: "invalid_token" });
+});
+
+it("rejects mixed duplicate credentials over a real HTTP connection", async () => {
+  const received = await new Promise<{ status: number | undefined; body: string }>(
+    (resolve, reject) => {
+      const incoming = request(
+        `${origin}/me`,
+        {
+          headers: [
+            "Host",
+            new URL(origin).host,
+            "Authorization",
+            "Basic abc",
+            "Authorization",
+            "Bearer a.b.c",
+          ],
+          agent: false,
+          timeout: 1000,
+        },
+        (response) => {
+          let body = "";
+          response.setEncoding("utf8");
+          response.on("data", (chunk: string) => {
+            body += chunk;
+          });
+          response.on("end", () => resolve({ status: response.statusCode, body }));
+          response.on("error", reject);
+        },
+      );
+      incoming.on("error", reject);
+      incoming.on("timeout", () => incoming.destroy(new Error("request timed out")));
+      incoming.end();
+    },
+  );
+  expect(received).toStrictEqual({ status: 401, body: '{"error":"malformed_token"}' });
 });

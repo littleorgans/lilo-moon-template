@@ -18,7 +18,7 @@ export type RejectionCode =
 
 export interface Rejection {
   readonly code: RejectionCode;
-  /** The verifier's error, for server-side logs. It is never sent to the client. */
+  /** The verifier's error, non-enumerable for server logs. Never serialize it to clients. */
   readonly cause?: AuthError;
 }
 
@@ -37,9 +37,10 @@ export interface AuthenticatorOptions {
   readonly authorize?: (principal: Principal, request: Request) => boolean | Promise<boolean>;
   /**
    * Observes every rejection, including its cause, so a service can log why a request failed
-   * without putting the reason in the response. A 503 in particular needs an alert, not a shrug.
+   * without putting the reason in the response. Async observers are awaited; failures propagate
+   * to the framework error handler. A 503 in particular needs an alert, not a shrug.
    */
-  readonly onRejection?: (rejection: Rejection, request: Request) => void;
+  readonly onRejection?: (rejection: Rejection, request: Request) => void | Promise<void>;
 }
 
 // Only `expired` gets its own code, because it is the one failure a client can fix by itself by
@@ -81,7 +82,7 @@ const responses = {
  */
 export function rejectionResponse(rejection: Rejection): Response {
   const { status, challenge } = responses[rejection.code];
-  const headers = new Headers({ "content-type": "application/json" });
+  const headers = new Headers({ "content-type": "application/json", "cache-control": "no-store" });
   if (challenge !== null) headers.set("www-authenticate", challenge);
   return new Response(JSON.stringify({ error: rejection.code }), { status, headers });
 }
@@ -94,8 +95,8 @@ export function rejectionResponse(rejection: Rejection): Response {
  * Reading it as a 401 would hide the bug behind a client error.
  */
 export function createAuthenticator(options: AuthenticatorOptions): Authenticator {
-  function reject(request: Request, rejection: Rejection): Authentication {
-    options.onRejection?.(rejection, request);
+  async function reject(request: Request, rejection: Rejection): Promise<Authentication> {
+    await options.onRejection?.(rejection, request);
     return { ok: false, rejection };
   }
 
@@ -109,7 +110,11 @@ export function createAuthenticator(options: AuthenticatorOptions): Authenticato
       principal = await options.verify(bearer.token);
     } catch (error) {
       if (!(error instanceof AuthError)) throw error;
-      return reject(request, { code: codeFor[error.reason], cause: error });
+      // Keep diagnostics available to the logger, but out of JSON.stringify and object spreads.
+      const rejection: Rejection = Object.defineProperty({ code: codeFor[error.reason] }, "cause", {
+        value: error,
+      });
+      return reject(request, rejection);
     }
 
     if (options.authorize !== undefined && !(await options.authorize(principal, request))) {

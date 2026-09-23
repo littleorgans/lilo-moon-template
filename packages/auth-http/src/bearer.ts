@@ -28,6 +28,11 @@ const token68 = /^[A-Za-z0-9\-._~+/]+=*$/;
 export function readBearerToken(headers: Headers): BearerToken {
   const header = headers.get("authorization");
   if (header === null) return { kind: "missing" };
+  // Bound parsing and verification work even in runtimes without a server header limit.
+  // Reject combined credentials before inspecting their first scheme.
+  if (header.length > 8192 || header.includes(",") || /[^\x20-\x7e]/.test(header)) {
+    return { kind: "malformed" };
+  }
   const match = credentials.exec(header);
   // The scheme is case-insensitive (RFC 7235 section 2.1).
   if (match?.[1]?.toLowerCase() !== "bearer") return { kind: "missing" };

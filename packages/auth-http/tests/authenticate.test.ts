@@ -87,7 +87,8 @@ describe("verification failures", () => {
       throw cause;
     };
     const rejection = rejectionOf(await createAuthenticator({ verify })(request("Bearer a.b.c")));
-    expect(rejection).toStrictEqual({ code, cause });
+    expect(rejection).toStrictEqual({ code });
+    expect(rejection.cause).toBe(cause);
   });
 
   // Not an AuthError means a bug in our code, which must surface as a 500, never as a 401.
@@ -174,10 +175,7 @@ describe("onRejection", () => {
     await authenticate(incoming);
     fail = false;
     await authenticate(request("Bearer a.b.c"));
-    expect(onRejection).toHaveBeenCalledExactlyOnceWith(
-      { code: "auth_unavailable", cause },
-      incoming,
-    );
+    expect(onRejection).toHaveBeenCalledExactlyOnceWith({ code: "auth_unavailable" }, incoming);
   });
 });
 
@@ -204,4 +202,51 @@ describe("rejectionResponse", () => {
     const body = await rejectionResponse({ code: "invalid_token", cause }).text();
     expect(body).toBe('{"error":"invalid_token"}');
   });
+});
+
+// These inputs must never reach cryptographic verification, regardless of server limits.
+it.each(["Bearer\ta.b.c", "Basic abc, Bearer a.b.c", "Bearer,a.b.c", `Bearer ${"a".repeat(8192)}`])(
+  "rejects ambiguous or unbounded credentials (%#. case)",
+  async (authorization) => {
+    expect(await codeFor(unreachable, authorization)).toBe("malformed_token");
+  },
+);
+
+it("awaits asynchronous rejection logging", async () => {
+  const events: string[] = [];
+  const authenticate = createAuthenticator({
+    verify: unreachable,
+    onRejection: async () => {
+      await new Promise<void>((resolve) => setTimeout(resolve, 5));
+      events.push("logged");
+    },
+  });
+  await authenticate(request());
+  expect(events).toStrictEqual(["logged"]);
+});
+
+it("propagates asynchronous logging failures to the framework", async () => {
+  const failed = Promise.reject(new Error("logging failed"));
+  // Also observe it here so the old implementation cannot create an unhandled rejection.
+  await expect(failed).rejects.toThrow("logging failed");
+  await expect(
+    createAuthenticator({ verify: unreachable, onRejection: () => failed })(request()),
+  ).rejects.toThrow("logging failed");
+});
+
+it("prevents shared caches from retaining authentication rejections", () => {
+  expect(rejectionResponse({ code: "auth_unavailable" }).headers.get("cache-control")).toBe(
+    "no-store",
+  );
+});
+
+it("keeps verifier details out of accidental rejection serialization", async () => {
+  const cause = new AuthError("signature", "private verifier detail");
+  const result = await createAuthenticator({
+    verify: async () => {
+      throw cause;
+    },
+  })(request("Bearer a.b.c"));
+  expect(JSON.stringify(result)).toBe('{"ok":false,"rejection":{"code":"invalid_token"}}');
+  expect(rejectionOf(result).cause).toBe(cause);
 });
