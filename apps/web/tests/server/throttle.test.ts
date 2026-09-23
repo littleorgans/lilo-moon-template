@@ -137,6 +137,56 @@ describe("memoryThrottle", () => {
     expect(passes).toBe(1);
   });
 
+  // The address arrives at whatever length was submitted. Kept verbatim, one 100 KB address would
+  // cost 100 KB for ten minutes.
+  it("keys by a digest, so a long address costs what a short one does", async () => {
+    const set = vi.spyOn(Map.prototype, "set");
+    try {
+      const throttle = memoryThrottle({ clientOf: () => "live", limits, now: clock().now });
+      await throttle(address(`${"a".repeat(100_000)}@example.com`), request);
+      const keys = set.mock.calls.map(([key]) => String(key));
+      expect(keys).toHaveLength(1);
+      expect(keys[0]?.length).toBeLessThan(100);
+    } finally {
+      set.mockRestore();
+    }
+  });
+
+  const fill = (throttle: ReturnType<typeof memoryThrottle>, count: number, from = 0) =>
+    Promise.all(
+      Array.from({ length: count }, (_, index) =>
+        throttle(address(`fill-${from + index}@example.com`), request),
+      ),
+    );
+
+  // Rotating client addresses would otherwise grow the map with the request rate.
+  it("caps the map by evicting the window opened longest ago", async () => {
+    const throttle = memoryThrottle({ clientOf: () => "live", limits, now: clock().now });
+    await throttle(address("first@example.com"), request);
+    await fill(throttle, 99_999);
+    // Full: the next new window evicts the first, whose budget starts over.
+    await throttle(address("newest@example.com"), request);
+    expect((await throttle(address("first@example.com"), request)).allowed).toBe(true);
+    // Windows opened later are still counted.
+    expect((await throttle(address("fill-99998@example.com"), request)).allowed).toBe(false);
+  });
+
+  it("counts a reopened window as the newest, not by when its key was first seen", async () => {
+    const time = clock();
+    const throttle = memoryThrottle({ clientOf: () => "live", limits, now: time.now });
+    await throttle(address("first@example.com"), request);
+    time.advance(30);
+    // Opened after the first window and still live when it reopens. Few enough that no sweep runs.
+    await fill(throttle, 9_000);
+    time.advance(30);
+    // Reopens the expired window, which moves it behind everything opened before now.
+    await throttle(address("first@example.com"), request);
+    await fill(throttle, 91_000, 9_000);
+    // The cap evicted fill-0, opened longest ago, and left the reopened window counted.
+    expect((await throttle(address("first@example.com"), request)).allowed).toBe(false);
+    expect((await throttle(address("fill-0@example.com"), request)).allowed).toBe(true);
+  });
+
   it("defaults to limits that fit the provider's ten-minute code", () => {
     for (const step of Object.values(EMAIL_LIMITS)) {
       for (const limit of Object.values(step)) expect(limit.windowSeconds).toBe(600);

@@ -8,7 +8,8 @@ export type ThrottleStep = "email-start" | "email-verify";
  * socket address, and whether `X-Forwarded-For` can be trusted depends on the deployment. So the
  * throttle derives the client from the request it is given. `address` is the email the step acts
  * on, lower-cased so that case variants share one budget. On verify it is the address the code was
- * sent to, so it caps guesses at one code however many clients make them.
+ * sent to, so it caps guesses at one code however many clients make them. It is whatever was
+ * submitted, of any length, so a store should key by a digest of it rather than the address itself.
  */
 export type ThrottleKey =
   | { readonly step: ThrottleStep; readonly by: "client" }

@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import type { Throttle, ThrottleKey, ThrottleStep } from "@littleorgans/auth-tanstack";
 
 export interface Limit {
@@ -33,6 +35,9 @@ export const EMAIL_LIMITS: ThrottleLimits = {
 // then at most this often, so a map full of live windows costs one pass a minute, not one a request.
 const SWEEP_ABOVE = 10_000;
 const SWEEP_EVERY_MS = 60_000;
+// A ceiling on memory whatever the traffic: about 20 MB at roughly 190 bytes a window. Rotating
+// client addresses, which IPv6 makes cheap, would otherwise grow the map with the request rate.
+const MAX_WINDOWS = 100_000;
 
 export interface MemoryThrottleOptions {
   /**
@@ -56,7 +61,9 @@ export interface MemoryThrottleOptions {
  *
  * The map holds one window per key seen in the last ten minutes. The address is attacker-chosen, so
  * it grows with the number of clients that can still spend, times each client's start budget; the
- * client budget is what bounds it, which is one more reason to identify clients correctly.
+ * client budget is what bounds it, which is one more reason to identify clients correctly. Keys hold
+ * a digest rather than the address, which arrives at whatever length was submitted, and past
+ * `MAX_WINDOWS` the window opened longest ago, the one closest to reopening anyway, makes room.
  */
 export function memoryThrottle({
   clientOf,
@@ -75,9 +82,12 @@ export function memoryThrottle({
 
     const limit = limits[key.step][key.by];
     const who = key.by === "address" ? key.address : (clientOf(request) ?? "unknown");
-    const id = `${key.step}:${key.by}:${who}`;
+    const id = `${key.step}:${key.by}:${createHash("sha256").update(who).digest("base64url")}`;
     let window = windows.get(id);
     if (window === undefined || window.resetsAt <= at) {
+      // Reinserted rather than updated, so the map's order is the order windows opened.
+      if (window !== undefined) windows.delete(id);
+      if (windows.size >= MAX_WINDOWS) windows.delete(windows.keys().next().value ?? id);
       window = { count: 0, resetsAt: at + limit.windowSeconds * 1000 };
       windows.set(id, window);
     }
