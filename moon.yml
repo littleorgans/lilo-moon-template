@@ -108,7 +108,9 @@ tasks:
       - "/{apps,packages,services}/*/package.json"
       - "/.changeset/config.json"
       - "moon.yml"
-      - ".moon/**/*"
+      # Configuration only: .moon/cache changes on every run, so a .moon/**/* input never caches.
+      - ".moon/*.yml"
+      - ".moon/tasks/**/*"
       - "renovate.json"
       - ".github/workflows/**/*"
       - ".prototools"
