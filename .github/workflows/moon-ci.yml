@@ -72,7 +72,15 @@ jobs:
 
       # The github context is the caller's, so these are the caller's pull request or push.
       - name: moon ci
-        run: moon ci
+        run: |
+          # A new branch has an all-zero before SHA; manual callers may have no base at all.
+          # There is no valid comparison in either case, so check every task.
+          if [ -z "$MOON_BASE" ] || [ "$MOON_BASE" = "0000000000000000000000000000000000000000" ]; then
+            # --force still reads revisions; HEAD/HEAD is valid even on the first commit.
+            MOON_BASE=HEAD MOON_HEAD=HEAD moon ci --force
+          else
+            moon ci
+          fi
         env:
           MOON_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
           MOON_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}

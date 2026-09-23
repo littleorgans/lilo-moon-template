@@ -7,6 +7,8 @@ import { test } from "node:test";
 
 import { parse } from "yaml";
 
+import { projectEnvironment } from "../lib/project-files.mjs";
+
 const readWorkflow = (name) => parse(readFileSync(`.github/workflows/${name}`, "utf8"));
 
 // Projects call moon-ci.yml from another repository at a release tag, so what it may do is fixed
@@ -38,8 +40,78 @@ await test("moon-ci.yml is a least-privilege reusable workflow", () => {
     assert.equal(step.if, undefined, "required steps must not skip");
     assert.equal(step["continue-on-error"], undefined, "required failures must propagate");
   }
-  assert.equal(moon.run, "moon ci");
   assert.deepEqual(Object.keys(moon.env), ["MOON_BASE", "MOON_HEAD"]);
+});
+
+await test("moon-ci.yml checks every task without a base and propagates Moon failures", () => {
+  const step = readWorkflow("moon-ci.yml").jobs["moon-ci"].steps.at(-1);
+  for (const [base, args] of [
+    ["", "ci --force"],
+    ["0000000000000000000000000000000000000000", "ci --force"],
+    ["1234567890123456789012345678901234567890", "ci"],
+  ]) {
+    for (const status of [0, 23]) {
+      const result = spawnSync(
+        "bash",
+        ["-e", "-c", `moon() { echo "$*"; return "$MOON_TEST_EXIT"; };\n${step.run}`],
+        {
+          encoding: "utf8",
+          env: { ...process.env, MOON_BASE: base, MOON_TEST_EXIT: String(status) },
+        },
+      );
+      assert.equal(result.stdout.trim(), args);
+      assert.equal(result.status, status, `base ${base || "absent"}, Moon exit ${status}`);
+    }
+  }
+});
+
+await test("the first-push workflow step runs real Moon without diffing the zero SHA", (t) => {
+  const root = mkdtempSync(join(tmpdir(), "moon-ci-first-push-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const env = projectEnvironment();
+  const run = (command, args, extraEnv = {}) =>
+    spawnSync(command, args, { cwd: root, env: { ...env, ...extraEnv }, encoding: "utf8" });
+  mkdirSync(join(root, ".moon"));
+  writeFileSync(
+    join(root, ".moon/workspace.yml"),
+    'projects:\n  sources:\n    root: "."\nvcs:\n  defaultBranch: main\n',
+  );
+  const task = (status) =>
+    writeFileSync(
+      join(root, "moon.yml"),
+      `tasks:\n  check:\n    type: test\n    toolchains: system\n    script: "echo first-push-checked; exit ${status}"\n`,
+    );
+  task(0);
+  for (const args of [
+    ["init", "--initial-branch=main"],
+    ["add", "."],
+    [
+      "-c",
+      "user.name=Fixture",
+      "-c",
+      "user.email=fixture@example.test",
+      "-c",
+      "core.hooksPath=/dev/null",
+      "-c",
+      "commit.gpgsign=false",
+      "commit",
+      "-m",
+      "fixture",
+    ],
+  ]) {
+    const result = run("git", args);
+    assert.equal(result.status, 0, result.stderr);
+  }
+  const step = readWorkflow("moon-ci.yml").jobs["moon-ci"].steps.at(-1);
+  for (const status of [0, 7]) {
+    task(status);
+    const result = run("bash", ["-e", "-c", step.run], {
+      MOON_BASE: "0000000000000000000000000000000000000000",
+      MOON_HEAD: "HEAD",
+    });
+    assert.match(result.stdout + result.stderr, /first-push-checked/);
+    assert.equal(result.status === 0, status === 0, result.stdout + result.stderr);
+  }
 });
 
 await test("ci.yml calls moon-ci.yml and keeps the required CI check", () => {
