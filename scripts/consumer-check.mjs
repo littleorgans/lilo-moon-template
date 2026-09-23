@@ -80,10 +80,15 @@ function checkDbPeerFloors(manifestPath, manifest) {
     peers.map(([peer, range]) => {
       const floor = /^\^(\d+\.\d+\.\d+)$/.exec(range)?.[1];
       assert.ok(floor, `db must declare a caret ${peer} peer, found ${range}`);
-      const pinned = resolvedPackage(web, peer).manifest.version;
-      assert.notEqual(floor, pinned, `the ${peer} floor must differ from the consumer pin`);
       return [peer, floor];
     }),
+  );
+  // A floor may equal the pin, but if every floor does, this step only repeats the pinned run.
+  assert.ok(
+    Object.entries(floors).some(
+      ([peer, floor]) => floor !== resolvedPackage(web, peer).manifest.version,
+    ),
+    "at least one db peer floor must differ from the consumer pin",
   );
   Object.assign(manifest.dependencies, floors);
   writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
@@ -97,7 +102,12 @@ function checkDbPeerFloors(manifestPath, manifest) {
       application.root,
       `db and the application resolved different ${peer} copies`,
     );
-    assert.equal(application.manifest.version, floor, `${peer} floor`);
+    const { version } = application.manifest;
+    assert.equal(
+      version,
+      floor,
+      `the application installed ${peer} ${version}, not the floor ${floor}`,
+    );
   }
   // The built server bundles db, so only a direct import exercises Node's own module loading.
   run(web, process.execPath, ["--input-type=module", "-e", "await import(process.argv[1])", name]);
