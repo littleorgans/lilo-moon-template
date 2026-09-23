@@ -24,7 +24,7 @@ function packageFixture(t, content) {
   mkdirSync(join(root, "packages/fixture/dist"), { recursive: true });
   writeFileSync(
     join(root, "packages/fixture/package.json"),
-    '{"name":"fixture","version":"0.0.0","files":["dist"]}\n',
+    '{"name":"fixture","version":"0.0.0","files":["dist/index.js","dist/.gitignore"]}\n',
   );
   writeFileSync(join(root, "packages/fixture/dist/index.js"), content);
   return root;
