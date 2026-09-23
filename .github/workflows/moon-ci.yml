@@ -1,0 +1,71 @@
+name: Moon CI
+
+# The CI of a Moon workspace: a frozen install, then `moon ci`, which runs every affected task marked
+# runInCI. In a workspace set up from this repository those are the build, typecheck, lint, format,
+# test coverage, secrets, audit, tsgolint-lockstep and database gates. ci.yml here calls it, and so
+# does a project's CI, at a release tag:
+#
+#   uses: littleorgans/lilo-moon-template/.github/workflows/moon-ci.yml@v<version>
+#
+# docs/guides/shared-config.md has the whole caller. No secrets are declared, so a caller passes
+# none, and `secrets: inherit` would hand over secrets nothing here reads.
+
+on:
+  workflow_call:
+    inputs:
+      runs-on:
+        description: "Runner label. A called workflow cannot read the caller's env, so the caller resolves vars.CI_RUNNER."
+        type: string
+        default: "ubuntu-latest"
+
+# A called workflow can only keep or reduce the caller's token permissions.
+permissions:
+  contents: read
+
+jobs:
+  moon-ci:
+    name: moon ci
+    runs-on: ${{ inputs.runs-on }}
+    steps:
+      # The caller's repository at the caller's commit. Full history for the MOON_BASE comparison, and
+      # every blob now: a partial clone fetches blobs later and needs the token kept on disk to do it
+      # in a private repository, where every tool the tasks run could read it.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+
+      # .moon/toolchains.yml is the project's one Node pin; Moon runs its tasks on it. The install
+      # below runs before Moon, so it reads the same pin rather than keep a second copy here.
+      - name: Read the Node pin from .moon/toolchains.yml
+        id: node
+        run: |
+          version="$(sed -n '/^node:$/,/^[^ #]/s/^  version: "\([^"]*\)"$/\1/p' .moon/toolchains.yml)"
+          if [ -z "$version" ]; then
+            echo "::error file=.moon/toolchains.yml::no node.version pin"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ steps.node.outputs.version }}
+          cache: pnpm
+
+      - uses: moonrepo/setup-toolchain@261c62cb5b0f580c7be7c8cd0f023a2e96756095 # v0
+        with:
+          # proto install reads moon from .prototools. A moon-version literal would hide a stale pin.
+          auto-install: true
+
+      - name: Install dependencies
+        # Fails when the lockfile is stale or an integrity hash does not match.
+        run: pnpm install --frozen-lockfile
+
+      # The github context is the caller's, so these are the caller's pull request or push.
+      - name: moon ci
+        run: moon ci
+        env:
+          MOON_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          MOON_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}

@@ -9,7 +9,11 @@ await test("Moon installer and workspace constraint agree, and workflows install
     readFileSync(".moon/workspace.yml", "utf8").match(/versionConstraint: "=([^"]+)"/)?.[1],
     version,
   );
-  for (const workflow of [".github/workflows/ci.yml", ".github/workflows/release.yml"]) {
+  for (const workflow of [
+    ".github/workflows/ci.yml",
+    ".github/workflows/moon-ci.yml",
+    ".github/workflows/release.yml",
+  ]) {
     assert.doesNotMatch(readFileSync(workflow, "utf8"), /moon-version:/, workflow);
   }
 });
