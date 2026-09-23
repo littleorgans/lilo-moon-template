@@ -20,7 +20,8 @@ Settled inputs:
   (`gh repo view` reports `PUBLIC`) [V].
 - No downstream projects exist, so nothing needs migrating and template-only machinery can be
   deleted.
-- `HELIOY_PAT` is an org-level token. It is not a personal credential and not a blocker.
+- `HELIOY_PAT` (renamed to `LILO_GITHUB_PAT` on 2026-09-24) is an org-level token. It is not a
+  personal credential and not a blocker.
 - Decisions D1–D10 were approved on 2026-09-23 (see [Decisions](#decisions-approved-2026-09-23)).
   Two items remain open: creating the npm org and confirming WorkOS refresh-token reuse behavior.
 
@@ -151,8 +152,9 @@ Cross-cutting findings:
   released together. That fits a fixed version (below).
 - **Engines.** Every package requires `node >=24.19.0`. That floor becomes a consumer
   requirement. Decided (D8): Node 24, with the `>=24.19.0` floor kept.
-- **`HELIOY_PAT` release flow (U7).** It is org-level. It only authors the Version Packages pull
-  request. Publishing authenticates to npm separately, so it is not a blocker.
+- **`HELIOY_PAT` release flow (U7).** (Renamed to `LILO_GITHUB_PAT` on 2026-09-24.) It is org-level.
+  It only authors the Version Packages pull request. Publishing authenticates to npm separately, so
+  it is not a blocker.
 - **Secrets.** `secretlint` over every unpacked tarball found nothing [V]. A regex sweep of all 88
   commits' history for common key formats (Stripe, AWS, GitHub, npm, Slack, PEM) found nothing
   [V]. It is not a substitute for a full-history scanner such as gitleaks, which phase 1 runs
@@ -210,7 +212,8 @@ Every later package, such as `auth-http` or `db-tools`, repeats step 1 once.
 3. Set `vars.NPM_PUBLISH_ENABLED=true` after the bootstrap.
 4. Add a post-publish smoke job. In an empty directory, `npm install` the just-published versions
    from the public registry and typecheck a sample importing each entry point.
-5. `HELIOY_PAT` keeps authoring the Version Packages pull request. No change.
+5. `HELIOY_PAT` (renamed to `LILO_GITHUB_PAT` on 2026-09-24) keeps authoring the Version Packages
+   pull request. No change.
 6. `.changeset/config.json`: add the `fixed` group. Keep `@littleorgans/web` and the reference service
    private and unversioned, and switch `privatePackages.version` to `false`.
 
