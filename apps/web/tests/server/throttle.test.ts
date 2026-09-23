@@ -114,6 +114,29 @@ describe("memoryThrottle", () => {
     }
   });
 
+  // Once past the threshold with nothing expired, a sweep on every call would cost a full pass per
+  // request, which is a cheap way for an attacker with many addresses to spend the server's CPU.
+  it("rescans a map full of live windows at most once a minute", async () => {
+    const time = clock();
+    const throttle = memoryThrottle({ clientOf: () => "live", limits, now: time.now });
+    await Promise.all(
+      Array.from({ length: 10_001 }, (_, index) =>
+        throttle(address(`live-${index}@example.com`), request),
+      ),
+    );
+    const iterated = vi.spyOn(Map.prototype, Symbol.iterator);
+    let passes: number;
+    try {
+      await attempts(throttle, client, 3);
+      time.advance(59);
+      await throttle(client, request);
+      passes = iterated.mock.calls.length;
+    } finally {
+      iterated.mockRestore();
+    }
+    expect(passes).toBe(1);
+  });
+
   it("defaults to limits that fit the provider's ten-minute code", () => {
     for (const step of Object.values(EMAIL_LIMITS)) {
       for (const limit of Object.values(step)) expect(limit.windowSeconds).toBe(600);

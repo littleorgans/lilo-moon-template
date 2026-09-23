@@ -1,18 +1,24 @@
 import type { Throttle, ThrottleKey, ThrottleStep } from "@littleorgans/auth-tanstack";
 
-interface Limit {
+export interface Limit {
   readonly attempts: number;
   readonly windowSeconds: number;
 }
 
-type Limits = Readonly<Record<ThrottleStep, Readonly<Record<ThrottleKey["by"], Limit>>>>;
+export type ThrottleLimits = Readonly<
+  Record<ThrottleStep, Readonly<Record<ThrottleKey["by"], Limit>>>
+>;
 
 /**
  * Ten minutes is the provider's code lifetime, so a window never outlasts the code it guards. Ten
  * guesses at a six-digit code per address per window is a one-in-a-hundred-thousand chance, and a
  * person who mistypes gets several tries.
+ *
+ * Windows are fixed, not sliding: a client that spends a budget in the last second of one window
+ * and the first of the next gets twice the budget in two seconds. That doubles the numbers above,
+ * which still leaves guessing at one code in the noise, and costs nothing per request.
  */
-export const EMAIL_LIMITS: Limits = {
+export const EMAIL_LIMITS: ThrottleLimits = {
   "email-start": {
     client: { attempts: 10, windowSeconds: 600 },
     address: { attempts: 3, windowSeconds: 600 },
@@ -23,16 +29,20 @@ export const EMAIL_LIMITS: Limits = {
   },
 };
 
-// Stale windows are swept only once the map grows past this, so a quiet server does no work.
+// Stale windows are swept only once the map grows past this, so a quiet server does no work, and
+// then at most this often, so a map full of live windows costs one pass a minute, not one a request.
 const SWEEP_ABOVE = 10_000;
+const SWEEP_EVERY_MS = 60_000;
 
 export interface MemoryThrottleOptions {
   /**
    * Who sent the request. Behind a proxy the socket address is the proxy's, which puts every client
-   * in one budget; trust a forwarded address only when the proxy sets it.
+   * in one budget and refuses them all together once it is spent. Read the forwarded address
+   * instead, `getRequestIP({ xForwardedFor: true })`, only when a proxy you control overwrites that
+   * header; a client can otherwise set it and choose its own budget.
    */
   readonly clientOf: (request: Request) => string | undefined;
-  readonly limits?: Limits;
+  readonly limits?: ThrottleLimits;
   readonly now?: () => number;
 }
 
@@ -43,6 +53,10 @@ export interface MemoryThrottleOptions {
  * its own counts, so N instances allow N times each budget, and a restart forgets them all. An
  * application that runs more than one instance replaces this with a throttle over a shared store,
  * such as Redis or its database, keeping the same keys and limits.
+ *
+ * The map holds one window per key seen in the last ten minutes. The address is attacker-chosen, so
+ * it grows with the number of clients that can still spend, times each client's start budget; the
+ * client budget is what bounds it, which is one more reason to identify clients correctly.
  */
 export function memoryThrottle({
   clientOf,
@@ -50,11 +64,13 @@ export function memoryThrottle({
   now = Date.now,
 }: MemoryThrottleOptions): Throttle {
   const windows = new Map<string, { count: number; resetsAt: number }>();
+  let sweptAt = Number.NEGATIVE_INFINITY;
 
   return (key, request) => {
     const at = now();
-    if (windows.size > SWEEP_ABOVE) {
+    if (windows.size > SWEEP_ABOVE && at - sweptAt >= SWEEP_EVERY_MS) {
       for (const [id, window] of windows) if (window.resetsAt <= at) windows.delete(id);
+      sweptAt = at;
     }
 
     const limit = limits[key.step][key.by];
