@@ -1,83 +1,82 @@
 # lilo-moon-template
 
-A reference implementation of a TypeScript web application, and the source of the `@littleorgans/*`
-npm packages it is built from. Once published, projects add the packages as dependencies and
-follow the reference app for the thin glue they own. They do not copy, rename or rebase this
-repository.
-
-Moon owns the task graph. pnpm manages JavaScript packages. Follow [AGENTS.md](AGENTS.md) while
-working in the repository. [The decision record](docs/decisions.md) explains the tool choices.
-
-[The direction](docs/direction.md) sets out the plan: the reference implementation, the published
-packages, and skills that teach how frontends and services are built here. [The system
-overview](docs/system-overview.md) maps packages, seams, runtime and CI. [The domain
-model](docs/domain-model.md) defines the terms. [The assessment](docs/assessment.md) is a review as
-of 2026-09-23, from before the template machinery was removed.
+A reference implementation of a TypeScript web app and service, and the source of the
+`@littleorgans/*` npm packages they are built from. Projects add the packages as dependencies and
+follow the reference app and service for the thin glue they own. The name is historical: this is
+not a template, and projects do not copy, rename or rebase it.
 
 ## Status
 
-Nothing is published yet. Every package is at `0.0.0`, and the release workflow publishes only after
-the repository variable `NPM_PUBLISH_ENABLED` is set to `true`. The first release, `0.1.0`, follows
-the phase 1 work in [the direction](docs/direction.md#f-phased-plan).
+`0.1.0` is published. All eleven packages below are on npm at that version with provenance, and
+the `v0.1.0` tag and GitHub release mark the commit they were built from. Every package shares one
+version (the Changesets `fixed` group), so install them all at the same version. During `0.x` a
+minor release may break. [Releasing the packages](docs/releasing.md) covers how a release is made.
 
 ## Packages
 
-Every package below is publishable, and none is published yet. They release together at one
-version (the Changesets `fixed` group), because their internal dependencies are exact pins.
+| Package                                                                                    | Purpose                                                                                                           | Key peers                                          |
+| ------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| [`@littleorgans/auth`](https://www.npmjs.com/package/@littleorgans/auth)                   | Verifies an identity provider access token and maps its claims to a `Principal`.                                  | none                                               |
+| [`@littleorgans/auth-workos`](https://www.npmjs.com/package/@littleorgans/auth-workos)     | WorkOS login flows and identity provider API calls.                                                               | none                                               |
+| [`@littleorgans/auth-session`](https://www.npmjs.com/package/@littleorgans/auth-session)   | Sealed session cookies, CSRF state, the redirect sign-in handlers, and calls to services as the signed-in person. | none                                               |
+| [`@littleorgans/auth-tanstack`](https://www.npmjs.com/package/@littleorgans/auth-tanstack) | Binds the session to TanStack Start requests, cookies and route options.                                          | `@tanstack/react-start` ^1.168                     |
+| [`@littleorgans/auth-http`](https://www.npmjs.com/package/@littleorgans/auth-http)         | Bearer authentication for services on Fetch `Request` and `Response`, a Hono adapter and a config loader.         | `@littleorgans/auth`, `hono` ^4.13 (optional)      |
+| [`@littleorgans/db`](https://www.npmjs.com/package/@littleorgans/db)                       | Postgres transactions scoped to a `Principal` by row level security, with the identity migrations and grant.      | `drizzle-orm` ^0.45, `pg` ^8.15, `@types/pg` ^8.15 |
+| [`@littleorgans/db-tools`](https://www.npmjs.com/package/@littleorgans/db-tools)           | The `rls-verify` CLI, which proves row level security holds in your own database.                                 | `pg` ^8.15, `@littleorgans/db` (optional)          |
+| [`@littleorgans/theme`](https://www.npmjs.com/package/@littleorgans/theme)                 | Typed design token contract, product themes, preferences and the CSS generated from them.                         | none                                               |
+| [`@littleorgans/ui`](https://www.npmjs.com/package/@littleorgans/ui)                       | Shared React components: shadcn primitives, layout, typography and the Tailwind entry stylesheet.                 | `react` ^19, `react-dom` ^19, `tailwindcss` ^4     |
+| [`@littleorgans/views`](https://www.npmjs.com/package/@littleorgans/views)                 | Screens composed from `ui`, with labels and paths supplied by the application.                                    | `react` ^19, `react-dom` ^19                       |
+| [`@littleorgans/vite-config`](https://www.npmjs.com/package/@littleorgans/vite-config)     | Resolves workspace packages to source in an application's Vite config, from a supplied workspace root.            | `vite` ^8                                          |
 
-- `auth` verifies tokens and maps claims to a `Principal`.
-- `auth-workos` wraps the WorkOS SDK. `auth-session` handles WorkOS browser sessions and calls
-  services as the signed-in person without handing out their token.
-- `auth-tanstack` binds sessions to TanStack Start requests.
-- `auth-http` authenticates bearer tokens for services on Fetch `Request` and `Response`, with a
-  Hono adapter and a service config loader.
-- `db` runs Postgres transactions under a principal. Applications own tables and provisioning.
-- `theme` owns token contracts, validation and CSS generation. Consumers can supply theme preferences.
-- `ui` owns shared components. `views` composes them into reference screens.
-- `vite-config` discovers packages from an explicitly supplied consumer workspace root.
+[`auth-http`](packages/auth-http/README.md), [`db`](packages/db/README.md) and
+[`db-tools`](packages/db-tools/README.md) have their own READMEs. Applications own their tables,
+provisioning and login roles. Payments, CRM, Zustand persistence, Convex, system theme mode, saved
+user theme editing and service-to-service identity are not implemented.
 
-## Implemented capabilities
+## The reference app and service
 
-| Area        | Implementation                                                                                            |
-| ----------- | --------------------------------------------------------------------------------------------------------- |
-| Workspace   | Moon tasks, pinned toolchains, pnpm catalogs                                                              |
-| Identity    | WorkOS Google OAuth and email codes, encrypted cookies, token verification, TanStack Start adapter        |
-| Services    | Bearer authentication on Fetch `Request` and `Response`, with a Hono adapter                              |
-| Persistence | Postgres, Drizzle queries, Atlas SQL migrations, transaction scoped identity and real RLS verification    |
-| UI          | React, Tailwind 4, shadcn/Radix components, layout and typography components                              |
-| Themes      | Typed tokens, generated CSS, runtime validation, light and dark modes, preference cookies and a theme lab |
-| Delivery    | CI, formatting, type aware lint, coverage, dependency audit, secret scanning and Changesets               |
+Both are private and never published. They use the packages from this workspace, not from npm.
 
-Payments, CRM, Zustand persistence, Convex, system theme mode and saved user theme editing are
-not implemented.
+`apps/web` is a TanStack Start app. It shows the glue a project owns: grouped routes wire URLs,
+named server modules in `src/server/` compose services, and `features/<name>/` owns each feature's
+model, UI and server behavior. [Code layout](docs/code-layout.md) is the structure to follow. The
+signed-in page shows the session's user and organization and the rows a scoped transaction can see.
+`/theme` is a reference page for the components and themes. `organizationPolicy` in
+`src/server/auth.ts` selects `personal`, which provisions a personal workspace, or `existing`,
+which leaves membership unchanged. `src/styles.css` imports the UI stylesheet and the views source
+registration, and registers the app's own sources. Published packages do not scan neighboring
+directories.
 
-## The reference app
-
-`apps/web` is private and never published. It consumes the packages from workspace source and
-shows the glue a project owns: grouped routes wire URLs, named server modules compose services, and
-`features/<name>/` owns each feature's model, UI and server behavior. See [Code
-layout](docs/code-layout.md) for the structure to follow when adding features and members.
-
-The signed-in page shows the session's user and organization, and the rows a scoped transaction can
-see. `/theme` is a reference page for the components and themes.
-
-Each application selects `organizationPolicy` in `src/server/auth.ts`: `personal` provisions a
-personal workspace, while `existing` leaves organization membership unchanged. Each application
-imports the UI stylesheet and the views source registration in `src/styles.css`, and registers its
-own source directory. Published packages do not scan neighboring repositories.
+`services/api` is a Hono service. It authenticates callers with `auth-http` and reads and writes
+Postgres through `db` under forced row level security. It answers `GET /health` and
+`GET`/`PUT /v1/account`. Its `build`, `dev` and `start` tasks come from the `node-service` Moon
+layer in [`.moon/tasks/node-service.yml`](.moon/tasks/node-service.yml): `dev` runs the TypeScript
+source through Node's type stripping, and `start` runs the built `dist`. `api:container` builds a
+Docker image. [Its README](services/api/README.md) covers configuration, errors, logging and tests.
 
 ## Start a project
 
-A new project installs the packages and copies a small amount of glue from this repository at a
-release tag. Follow [Adopt the packages in a web app](docs/guides/adopt-web-app.md) for a TanStack
-Start app, and [Adopt the packages in a service](docs/guides/adopt-service.md) for a TypeScript HTTP
-service, beside a web app or on its own. The `lilo/build/start-project` skill
+A new project installs the packages from npm and copies a small amount of glue from this repository
+at a release tag. Follow [Adopt the packages in a web app](docs/guides/adopt-web-app.md) for a
+TanStack Start app, and [Adopt the packages in a service](docs/guides/adopt-service.md) for a
+TypeScript HTTP service, beside a web app or on its own. The `lilo/build/start-project` skill
 ([`skills/lilo/build/start-project`](skills/lilo/build/start-project/SKILL.md)) covers the choices
-the guides leave open. Both guides are written for the `0.1.0` release.
+the guides leave open. Read the guides at the tag that matches the version you install.
 
-## Start locally
+## Work in this repository
 
-Install just, proto and the Moon version in `.prototools`, then run:
+Follow [AGENTS.md](AGENTS.md). [Maintain this repository](docs/maintaining.md) covers the
+toolchain, members, the database baseline and the CI runner. [Releasing the
+packages](docs/releasing.md) covers publishing. [The decision record](docs/decisions.md) explains
+the tool choices, [the system overview](docs/system-overview.md) maps packages, seams, runtime and
+CI, and [the domain model](docs/domain-model.md) defines the terms. [The
+direction](docs/direction.md) is the plan that replaced the template with packages, and [the
+assessment](docs/assessment.md) is a review from before that change.
+
+### Set up
+
+Install just, proto, and the Moon version in `.prototools`
+([Install the tools first](docs/maintaining.md#install-the-tools-first)), then run:
 
 ```bash
 just setup
@@ -86,33 +85,36 @@ just check
 just ci
 ```
 
-For signing in, copy `.env.example` to `.env.local` and configure the WorkOS values. The redirect URI
-must match the running app. `DATABASE_URL` is optional. An app without it can still sign in.
+### Start locally
+
+Copy `.env.example` to `.env.local` and fill in the WorkOS values. The redirect URI must match the
+running app. The web app signs people in without `DATABASE_URL`. The service requires it, with the
+migrations and grant that [its README](services/api/README.md#run-it) describes.
 
 ```bash
 moon run web:dev
+moon run api:dev
 ```
 
-The reference app runs on port 5199. [Maintain this repository](docs/maintaining.md) covers the
-toolchain, members, the database baseline and the CI runner. [Releasing the packages](docs/releasing.md)
-covers publishing.
+The reference app runs on port 5199 and the service on 8787.
 
-## Verification
+### Verification
 
-`just check` repairs formatting and lint issues, then verifies the graph. `just ci` is read only.
-CI runs the coverage task once per JavaScript project; `test` remains available for focused local runs.
-Docker enables the real Postgres checks. CI requires those checks when a schema exists.
+`just check` repairs formatting and lint issues, then verifies the graph. `just ci` is read only
+and runs what CI runs. CI runs `test-coverage` once per JavaScript project; `test` remains for
+focused local runs. Docker enables the real Postgres checks locally. CI requires them when a schema
+exists.
 
-`root:published-shape` copies this workspace into a disposable repository, builds the reference app,
-proves its typecheck, test, lint and format gates reject deliberate violations, and verifies HTTP
-and CSS behavior. It packs every library and runs `publint` and `attw` on each tarball, then
-repeats the app check with the tarballs installed outside their source workspace, including on
-`db`'s lowest peer versions. A separate npm consumer pins direct third-party dependencies to the
-versions the workspace lockfile resolves. It imports every exported entry point and typechecks it
-with TypeScript 5 and `skipLibCheck: false`. The same consumer runs a service against the packed
-`auth-http` and `db`, applying the shipped migrations and login grant to a real Postgres. A
-drizzle-orm release below `db`'s peer range must fail the install. CI runs it only when code,
-manifests, the lockfile or Moon configuration change.
+`root:published-shape` copies the workspace into a disposable repository, builds the reference
+app, proves its typecheck, test, lint and format gates reject deliberate violations, and checks its
+HTTP and CSS behavior. It packs every library, runs `publint` and `attw` on each tarball, and
+repeats the app check with the tarballs installed, including on `db`'s lowest peer versions. A
+separate npm consumer outside any workspace imports every entry point and typechecks it with
+TypeScript 5 and `skipLibCheck: false`. It runs a service on the packed `auth-http` and `db`
+against a real Postgres with the shipped migrations and grant, then runs the packed `rls-verify`. A
+`drizzle-orm` below `db`'s peer range must fail the install. CI runs the task when code, manifests,
+the lockfile or Moon configuration change, and the release gate runs it on the tarballs it
+publishes.
 
 Postgres containers and their default ports are derived from the checkout path. `just clean`
-removes only that checkout's container and Moon cache. Change `LILO_PG_PORT` if a port is occupied.
+removes only that checkout's container and Moon cache. Set `LILO_PG_PORT` if a port is occupied.
