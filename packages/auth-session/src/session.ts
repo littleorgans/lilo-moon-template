@@ -65,18 +65,57 @@ function readString(value: unknown, key: string): string | null {
   return typeof property === "string" && property.length > 0 ? property : null;
 }
 
-/** Opens a sealed session, returning null unless both tokens are present and non-empty. */
-export function readSession(key: Buffer, sealed: string | undefined): Session | null {
+/**
+ * The keys a session cookie is sealed and opened with.
+ *
+ * Two fields rather than one list, so which key seals is a matter of type rather than of position:
+ * `seal` takes one key and every writer passes `cookieKey`, so a previous key has no path into a
+ * cookie written today.
+ */
+export interface CookieKeys {
+  /** Seals every cookie written, and is the first key tried when opening one. */
+  readonly cookieKey: Buffer;
+  /** Retired keys, tried in order after `cookieKey` and only when opening. Defaults to none. */
+  readonly previousCookieKeys?: readonly Buffer[];
+}
+
+/**
+ * Opens a cookie with the current key, then each previous key in turn.
+ *
+ * Trial decryption rather than a key id in the sealed value. A key id would change the format, so a
+ * cookie written by this version could not be opened by the one it replaces, and a rolling deploy
+ * would sign out whoever a new instance had just written a cookie for. The trials cost at most one
+ * AES-GCM tag check per key over a few hundred bytes, microseconds beside the signature check every
+ * request already makes, and the previous list is empty outside a rotation. A cookie that no key
+ * opens is exactly what a tampered one is: not a session.
+ */
+function unsealWithAny(keys: CookieKeys, sealed: string): unknown {
+  for (const key of [keys.cookieKey, ...(keys.previousCookieKeys ?? [])]) {
+    const value = unseal(key, sealed);
+    if (value !== null) return value;
+  }
+  return null;
+}
+
+/**
+ * Opens a sealed session, returning null unless both tokens are present and non-empty.
+ *
+ * A session opened with a previous key is not rewritten here. It moves to the current key the next
+ * time the tokens change, which for an access token that lives 300 seconds is within five minutes
+ * of use: every write already seals with `cookieKey`. Rewriting it now would put the same tokens
+ * back in the browser, and a response doing that can land after a concurrent request's refresh and
+ * replace the rotated pair with the spent one, which ends the session at its next refresh.
+ */
+export function readSession(keys: CookieKeys, sealed: string | undefined): Session | null {
   if (sealed === undefined) return null;
-  const value = unseal(key, sealed);
+  const value = unsealWithAny(keys, sealed);
   const accessToken = readString(value, "accessToken");
   const refreshToken = readString(value, "refreshToken");
   if (accessToken === null || refreshToken === null) return null;
   return { accessToken, refreshToken };
 }
 
-export interface SessionCookieDeps {
-  readonly cookieKey: Buffer;
+export interface SessionCookieDeps extends CookieKeys {
   readonly secureCookies: boolean;
 }
 

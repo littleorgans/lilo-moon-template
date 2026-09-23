@@ -28,8 +28,8 @@ minor release may break. [Releasing the packages](docs/releasing.md) covers how 
 | [`@littleorgans/views`](https://www.npmjs.com/package/@littleorgans/views)                 | Screens composed from `ui`, with labels and paths supplied by the application.                                    | `react` ^19, `react-dom` ^19                       |
 | [`@littleorgans/vite-config`](https://www.npmjs.com/package/@littleorgans/vite-config)     | Resolves workspace packages to source in an application's Vite config, from a supplied workspace root.            | `vite` ^8                                          |
 
-[`auth-http`](packages/auth-http/README.md), [`db`](packages/db/README.md) and
-[`db-tools`](packages/db-tools/README.md) have their own READMEs. Applications own their tables,
+[`auth-session`](packages/auth-session/README.md), [`auth-http`](packages/auth-http/README.md),
+[`db`](packages/db/README.md) and [`db-tools`](packages/db-tools/README.md) have their own READMEs. Applications own their tables,
 provisioning and login roles. Payments, CRM, Zustand persistence, Convex, system theme mode, saved
 user theme editing and service-to-service identity are not implemented.
 

@@ -554,7 +554,8 @@ Moon loads `.env.local` for `dev` and `preview`. Vite does not, so running `vite
 directly starts without it. `loadAuthConfig`
 ([`packages/auth-session/src/config.ts`](../../packages/auth-session/src/config.ts)) validates the
 values on the first request that needs them. It names every missing variable at once, refuses a
-cookie password under 32 characters, and refuses a non-HTTPS redirect URI except on localhost. The
+cookie password under 32 characters, and refuses a non-HTTPS redirect URI except on localhost.
+Leave `WORKOS_COOKIE_PASSWORD_PREVIOUS` empty until you rotate the cookie password. The
 comments in `.env.example` describe the reference repository, and the variable names are the same.
 
 Sign in once with Google and once with an emailed code, and land on `/app`. `moon run web:preview`
@@ -614,6 +615,17 @@ first, as `apps/web/src/server/theme.ts` does for `/api/theme`. See
 `auth.asUser().fetch` sends the signed-in person's token only to origins listed in
 `serviceOrigins`. [Adopt the packages in a service](adopt-service.md#7-call-it-from-the-web-app)
 covers the setup.
+
+### Rotating the cookie password
+
+Changing `WORKOS_COOKIE_PASSWORD` on its own signs everyone out. To rotate without that, make the
+new password current and list the old one in `WORKOS_COOKIE_PASSWORD_PREVIOUS`. With more than one
+instance, first deploy the new password as a previous one. Remove the old password only after the
+application's WorkOS **Maximum session length** has passed since the last instance sealing with it
+stopped. The
+[auth-session README](../../packages/auth-session/README.md#rotate-the-cookie-password) gives the
+steps and why each is timed as it is. A leaked password is replaced outright, never listed as
+previous.
 
 ## Upgrade
 

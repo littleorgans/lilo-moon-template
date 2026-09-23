@@ -123,6 +123,7 @@ export function createAuthRuntime(options: AuthRuntimeOptions): AuthRuntime {
       auth,
       verify,
       cookieKey: config.cookieKey,
+      previousCookieKeys: config.previousCookieKeys,
       secureCookies: config.secureCookies,
       log: options.log ?? reportAuthFailure,
     };
@@ -194,6 +195,7 @@ export function createAuthRuntime(options: AuthRuntimeOptions): AuthRuntime {
       const returnTo = new URL("/", config.redirectUri).href;
       return signOut(context, jar, {
         cookieKey: config.cookieKey,
+        previousCookieKeys: config.previousCookieKeys,
         returnTo,
         logoutUrl: (sessionId) => auth.getLogoutUrl({ sessionId, returnTo }),
       });

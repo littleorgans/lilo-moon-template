@@ -213,7 +213,7 @@ describe("completeEmailSignIn", () => {
     });
     const sealed = written.find((entry) => entry.name === SESSION_COOKIE);
     expect(sealed).toBeDefined();
-    expect(readSession(deps.cookieKey, sealed?.value)).toStrictEqual({
+    expect(readSession(deps, sealed?.value)).toStrictEqual({
       accessToken: "access-with-org",
       refreshToken: "refresh-2",
     });

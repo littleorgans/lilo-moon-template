@@ -8,7 +8,13 @@ import type {
   Throttle,
   ThrottleKey,
 } from "@littleorgans/auth-session";
-import { EMAIL_COOKIE, SESSION_COOKIE, STATE_COOKIE, seal } from "@littleorgans/auth-session";
+import {
+  EMAIL_COOKIE,
+  SESSION_COOKIE,
+  STATE_COOKIE,
+  loadAuthConfig,
+  seal,
+} from "@littleorgans/auth-session";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createAuthRuntime } from "../../src/runtime.js";
@@ -291,6 +297,48 @@ describe("access", () => {
       `${runtime.services().config.cookieNamespace}_${SESSION_COOKIE}`,
     ]);
     expect(reports.map((report) => report.reason)).toStrictEqual(["malformed"]);
+  });
+});
+
+// The runtime must hand every reader of the session the previous keys, not only the current one. A
+// cookie sealed before the rotation opens, so its unparseable token ends the session rather than
+// leaving it anonymous, and sign-out finds the provider session inside it.
+describe("a rotated cookie password", () => {
+  const rotated = {
+    ...env,
+    WORKOS_COOKIE_PASSWORD: "n".repeat(32),
+    WORKOS_COOKIE_PASSWORD_PREVIOUS: env.WORKOS_COOKIE_PASSWORD,
+  };
+  const before = loadAuthConfig(env);
+
+  function holding(accessToken: string) {
+    const present: Record<string, string> = {};
+    const runtime = createAuthRuntime({
+      provider: "GoogleOAuth",
+      signedInPath: "/app",
+      organizationPolicy: "personal",
+      codeEntryPath: "/verify-email",
+      throttle: allowAll,
+      env: rotated,
+      cookies: jarWith(present).jar,
+      log: () => undefined,
+    });
+    present[`${before.cookieNamespace}_${SESSION_COOKIE}`] = seal(before.cookieKey, {
+      accessToken,
+      refreshToken: "r",
+    });
+    return runtime;
+  }
+
+  it("opens a cookie sealed before the rotation in access and asUser", async () => {
+    expect(await holding("not.a.jwt").access()).toStrictEqual({ status: "ended" });
+    expect(await holding("not.a.jwt").asUser()).toStrictEqual({ status: "ended" });
+  });
+
+  it("ends the provider session named in a cookie sealed before the rotation", () => {
+    const token = `${encode({ alg: "none" })}.${encode({ sid: "session_01" })}.`;
+    const location = holding(token).endSession(signout).headers.get("location");
+    expect(location).toContain("session_id=session_01");
   });
 });
 

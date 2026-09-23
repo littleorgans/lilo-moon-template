@@ -185,6 +185,9 @@ async function exercise(root) {
       WORKOS_API_KEY: "test-key",
       WORKOS_REDIRECT_URI: `${origin}/callback`,
       WORKOS_COOKIE_PASSWORD: "consumer-test-password-with-at-least-32-characters",
+      // Parsed from the installed tarball on the first request, so a packed loadAuthConfig that
+      // refused a well-formed rotation list would fail every assertion below.
+      WORKOS_COOKIE_PASSWORD_PREVIOUS: "consumer-previous-password-with-at-least-32-chars",
     },
     stdio: "inherit",
   });

@@ -44,4 +44,4 @@ export type { AuthServices } from "./services.js";
 // application may need to clear one. `seal` and `unseal` are the pair that lets a test start a
 // request already signed in, and assert on what the response wrote back.
 export { EMAIL_COOKIE, SESSION_COOKIE, STATE_COOKIE, seal, unseal } from "./session.js";
-export type { SessionCookieDeps } from "./session.js";
+export type { CookieKeys, SessionCookieDeps } from "./session.js";

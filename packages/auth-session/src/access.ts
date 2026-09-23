@@ -235,7 +235,7 @@ function secondsLeft(token: string): number | null {
  * `refreshed`.
  */
 export async function verified(jar: CookieJar, deps: AccessDeps): Promise<Verified> {
-  const session = readSession(deps.cookieKey, jar.read(SESSION_COOKIE));
+  const session = readSession(deps, jar.read(SESSION_COOKIE));
   if (session === null) return { status: "anonymous" };
 
   let principal: Principal;
