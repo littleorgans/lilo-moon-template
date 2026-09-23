@@ -1,12 +1,15 @@
 -- Atlas desired state, and the applicability boundary for every Atlas and Drizzle task in
 -- moon.yml. While this file is absent those tasks skip before Atlas or Docker starts.
 --
--- Never move this file into db/migrations/. Atlas checksums that directory in atlas.sum and
--- treats every .sql file in it as a versioned migration.
+-- Never move this file into packages/db/migrations/. Atlas checksums that directory in atlas.sum
+-- and treats every .sql file in it as a versioned migration.
+--
+-- That directory ships in @littleorgans/db, so every table added here reaches every consumer of
+-- the package. Product tables belong in a consuming project's own schema, not here.
 --
 -- THIS FILE IS NOT THE WHOLE SCHEMA. Atlas Community does not model functions, row level
 -- security, policies, roles, or grants: it drops them from a diff silently and exits 0. Those
--- live in a hand-written migration under db/migrations/ instead. See docs/user-entity.md.
+-- live in a hand-written migration under packages/db/migrations/ instead. See docs/user-entity.md.
 --
 -- accounts and profiles are the baseline user entity, not exemplars. Identity itself belongs to
 -- the auth vendor and is never copied here. A column that can go stale against the vendor does

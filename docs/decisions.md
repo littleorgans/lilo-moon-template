@@ -186,6 +186,10 @@ The three moved off the repository root together because a desired-state SQL fil
 debris next to `package.json` and `moon.yml`, and because splitting the trio would separate an
 input from the artifacts derived from it.
 
+The migrations later moved to `packages/db/migrations/`, when `@littleorgans/db` began shipping
+them. The package and every repository gate read that one directory, so what is verified is what
+ships. `db/` keeps the desired state and the Drizzle artifact.
+
 `db/schema.sql` cannot live inside `db/migrations/`. Atlas owns that directory, checksums it in
 `atlas.sum`, and treats every `.sql` file in it as a versioned migration. Adding the desired state
 there fails `atlas migrate validate` with a checksum mismatch. Re-hashing to clear that error is
@@ -212,9 +216,10 @@ policies, roles and grants are dropped from a diff silently, and the command exi
 misreports the same objects in the other direction: it drops the `USING` expression from SELECT
 policies, so a policy that scopes rows renders in the artifact as though it scopes nothing.
 
-Everything Atlas cannot model therefore lives in a hand-written migration under `db/migrations/`,
-which Atlas leaves alone: with the dev URL pinned to `search_path=public`, the `app` schema and the
-policies appear on neither side of a re-diff, so no drift is planned and `atlas migrate lint` passes.
+Everything Atlas cannot model therefore lives in a hand-written migration in the migrations
+directory, which Atlas leaves alone: with the dev URL pinned to `search_path=public`, the `app`
+schema and the policies appear on neither side of a re-diff, so no drift is planned and
+`atlas migrate lint` passes.
 
 Because both generated artifacts misrepresent the security model without failing, neither can be
 reviewed for it. `moon.yml` `tasks.rls-verify` applies the migrations to a real Postgres and asserts

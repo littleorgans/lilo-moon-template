@@ -21,7 +21,7 @@ fileGroups:
     - "packages/**/*"
     - "services/**/*"
     - "scripts/**/*"
-    - "db/migrations/**/*"
+    - "packages/db/migrations/**/*"
     - "db/schema.sql"
     # Generated and installed files must not invalidate source task caches.
     - "!.moon/cache/**/*"
@@ -243,7 +243,7 @@ tasks:
     toolchains: "system"
     script: >-
       atlas migrate apply
-      --dir "file://db/migrations"
+      --dir "file://packages/db/migrations"
       --url "${DATABASE_URL:?set DATABASE_URL}"
     checks:
       - check: "condition"
@@ -269,7 +269,7 @@ tasks:
     type: "test"
     command: "node scripts/drizzle-schema.mjs check"
     inputs:
-      - "db/migrations/**/*"
+      - "packages/db/migrations/**/*"
       - "db/schema.sql"
       - "db/drizzle/_generated/**/*"
       - "scripts/drizzle-schema.mjs"
@@ -294,7 +294,7 @@ tasks:
     type: "test"
     command: "node scripts/rls-verify.mjs"
     inputs:
-      - "db/migrations/**/*"
+      - "packages/db/migrations/**/*"
       - "db/schema.sql"
       - "scripts/rls-verify.mjs"
       - "scripts/lib/postgres-container.mjs"

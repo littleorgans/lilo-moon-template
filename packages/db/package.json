@@ -10,7 +10,9 @@
   },
   "files": [
     "dist",
-    "src"
+    "src",
+    "migrations",
+    "grants"
   ],
   "type": "module",
   "sideEffects": false,
@@ -21,7 +23,9 @@
       "@littleorgans/source": "./src/index.ts",
       "import": "./dist/index.js",
       "default": "./dist/index.js"
-    }
+    },
+    "./migrations/*": "./migrations/*",
+    "./grants/*": "./grants/*"
   },
   "publishConfig": {
     "access": "public"
