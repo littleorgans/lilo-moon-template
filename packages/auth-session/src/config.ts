@@ -79,8 +79,9 @@ function cookieKeyFrom(name: string, password: string): Buffer {
  *
  * A comma-separated list rather than one variable per key, so a rotation that overlaps another
  * needs no new name. Whitespace around each entry is dropped so `a, b` means what it looks like,
- * `openssl rand -base64 32` needs no escaping. A JSON array preserves passwords containing commas
- * or surrounding whitespace, which were valid current passwords before rotation was supported.
+ * and `openssl rand -base64 32` output needs no escaping. A value starting with `[` is a JSON array
+ * of exact strings instead, for passwords containing commas or surrounding whitespace, which 0.1.0
+ * accepted as current passwords and must stay listable here.
  * Unset or empty means no previous keys, which is every deployment that has never rotated.
  *
  * Each password meets the same floor as the current one, and none may repeat another: a duplicate

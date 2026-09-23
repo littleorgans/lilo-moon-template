@@ -4,7 +4,8 @@
 ---
 
 Rotate the session cookie password without signing anyone out. `WORKOS_COOKIE_PASSWORD_PREVIOUS`
-takes retired passwords, comma-separated. Every cookie is still sealed with
+takes retired passwords, comma-separated, or as a JSON array of exact strings for a password
+containing a comma or surrounding whitespace. Every cookie is still sealed with
 `WORKOS_COOKIE_PASSWORD` only. A cookie is opened with that key first, then with each previous key
 in order, and it moves to the current key at its next token refresh. Each previous password must be
 at least 32 characters, must not be empty, repeated or equal to the current one, and errors name it

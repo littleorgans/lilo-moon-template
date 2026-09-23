@@ -68,21 +68,23 @@ opens with the new key. With them, nobody is signed out.
    access tokens last 300 seconds by default. A cookie is not rewritten merely because an old key
    opened it. A rewrite of an unchanged token pair can land after a concurrent request's refresh
    and put the spent refresh token back in the browser.
-4. **Wait** until at least _T_ + _L_. _T_ is when the last old-key writer has stopped and its
-   in-flight responses have drained. Restart the wait if a rollback writes that key again.
-   Use _L_ = min(_C_, max(_S_, _A_ + _D_)):
-   - _C_ is the longest cookie `Max-Age` issued under that key (one year in this package).
-   - _S_ bounds the total WorkOS lifetime of every session held in those cookies. Account for
-     earlier settings and later extensions; today's dashboard value alone is not proof of that bound.
-   - _A_ bounds the access-token duration in those cookies, and _D_ covers verifier clock tolerance
-     (five seconds by default) plus deployment clock skew. Tokens are verified locally and may
-     still pass after the provider session ends. Normally _S_ is much longer than _A_ + _D_, so
-     this reduces to min(_C_, _S_).
+4. **Wait** until at least _T_ + _L_.
+   - _T_ is when the last instance sealing with the old password stopped serving and its in-flight
+     responses were delivered, which is the end of the step 3 rollout. A rollback that seals with
+     the old password again restarts the wait.
+   - _L_ is, in practice, the application's **Maximum session length** in the WorkOS dashboard
+     (Applications, Sessions), capped at the cookie's one-year `Max-Age`. Take the longest value
+     the setting has held while the old password was current, not only today's. If you cannot
+     establish that, wait the full year.
 
-   Every old-key cookie was written by _T_. By _T_ + _L_, either the browser has expired it or both
-   its provider session and its locally accepted access token have expired. If the provider/token
-   bounds cannot be established, wait the full _C_. Cookie `Max-Age` is a browser retention limit,
-   not a cryptographic expiry for a copied cookie; removal stops accepting such copies under this key.
+   Precisely, _L_ = min(_C_, max(_S_, _A_ + _D_)). _C_ is the cookie `Max-Age` (one year). _S_ is
+   the longest any session sealed under the old key can last. _A_ is the access token duration, and
+   _D_ is the verifier's clock tolerance (five seconds by default) plus clock skew between instances.
+   The _A_ + _D_ term covers a session that ends while its access token still verifies locally.
+   With any real settings _S_ is far longer, which is why the practical rule is min(_C_, _S_). Every
+   cookie sealed with the old key was delivered by _T_. By _T_ + _L_, either the browser has
+   discarded it, or its session and its access token have both expired, so removing the key takes
+   nothing away from anyone.
 
 5. **Remove** only that old password from `WORKOS_COOKIE_PASSWORD_PREVIOUS` and deploy. Keep all
    other keys whose waits have not elapsed. A cookie still carrying the removed key is anonymous.
