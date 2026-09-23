@@ -5,6 +5,7 @@
   "fixed": [
     [
       "@littleorgans/auth",
+      "@littleorgans/auth-http",
       "@littleorgans/auth-session",
       "@littleorgans/auth-tanstack",
       "@littleorgans/auth-workos",
