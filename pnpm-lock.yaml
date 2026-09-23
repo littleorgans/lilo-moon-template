@@ -91,6 +91,8 @@ catalogs:
 overrides:
   '@esbuild-kit/core-utils>esbuild': 0.25.12
 
+pnpmfileChecksum: sha256-XxFK3+o17J+CBhyLkYRfjnpbXuPaPD+Mn1MRMZb611M=
+
 importers:
 
   .:
