@@ -79,7 +79,7 @@ function serviceOrigin(entry: ServiceOrigin): string {
     if (url.protocol !== "https:" && !(url.protocol === "http:" && LOOPBACK.has(url.hostname))) {
       throw new Error(
         `Service origin ${value} must use HTTPS except on localhost. List a service on a network ` +
-          `you trust as { origin: "${value}", insecure: true }.`,
+          `you trust as { origin: "${url.origin}", insecure: true }.`,
       );
     }
   } else if (!isTrue(entry.insecure)) {
