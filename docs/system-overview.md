@@ -439,7 +439,7 @@ TypeScript project references are written by `moon sync` (`typescript.syncProjec
 | Database behavior           | Real Postgres 17 in Docker        | `root:rls-verify` (7 assertions), `root:drizzle-check`, `root:atlas-lint`                         |
 | Service against Postgres    | Real Postgres 17, real listener   | `services/api/tests/integration/database.test.js`: shipped migrations and grant, tenant isolation |
 | Repository scripts          | `node --test`                     | `scripts/tests/**` (Moon task shape, hooks, pins, fixed version group, licenses)                  |
-| Workspace consumer          | Snapshot build, HTTP probes       | `root:published-shape`: gate negative proofs, route status codes, CSS utilities, packed tarballs  |
+| Published shape             | Snapshot build, HTTP probes, npm  | `root:published-shape`: gate negative proofs, route status codes, CSS utilities, packed tarballs  |
 
 Tests reach the security logic through the seams listed above, not through mocks of framework
 internals. `published-shape` also proves that the gates fail. It plants a type error, a failing
@@ -453,8 +453,10 @@ browser or a live WorkOS environment. The `measured against the live API` commen
 `.github/workflows/ci.yml` runs one job on `vars.CI_RUNNER || ubuntu-latest`. It checks out full
 history, installs pnpm, Node 24.19.0 and the Moon toolchain from `.prototools`, then runs
 `pnpm install --frozen-lockfile` and `moon ci` with `MOON_BASE` and `MOON_HEAD` set for affected
-detection. Tasks marked `runInCI: "always"` run on every change. These include `published-shape`,
-`lint`, `format-check`, `secrets`, `audit`, `rls-verify` and `drizzle-check`.
+detection. Tasks marked `runInCI: "always"` run on every change. These include `lint`,
+`format-check`, `secrets`, `audit`, `rls-verify` and `drizzle-check`. `published-shape` runs when
+its inputs change: apps, packages, services, scripts, `.moon`, the root manifests, the lockfile or
+`moon.yml`. A documentation-only change skips it.
 
 `.github/workflows/release.yml` runs Changesets on pushes to `main`. It opens or updates a Version
 Packages pull request, and it publishes only when `vars.NPM_PUBLISH_ENABLED == 'true'`. The publish

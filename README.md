@@ -95,9 +95,13 @@ Docker enables the real Postgres checks. CI requires those checks when a schema 
 
 `root:published-shape` copies this workspace into a disposable repository, builds the reference app,
 proves its typecheck, test, lint and format gates reject deliberate violations, and verifies HTTP
-and CSS behavior. It repeats the check with the libraries packed and installed outside their source
-workspace, including on `db`'s lowest peer versions, and runs a service against the packed
-`auth-http` and `db`, applying the shipped migrations and login grant to a real Postgres.
+and CSS behavior. It packs every library and runs `publint` and `attw` on each tarball, then
+repeats the app check with the tarballs installed outside their source workspace, including on
+`db`'s lowest peer versions. A separate npm consumer with its own dependency versions imports every
+exported entry point and typechecks it with TypeScript 5 and `skipLibCheck: false`. The same
+consumer runs a service against the packed `auth-http` and `db`, applying the shipped migrations
+and login grant to a real Postgres. A drizzle-orm release below `db`'s peer range must fail the
+install. CI runs it only when code, manifests, the lockfile or Moon configuration change.
 
 Postgres containers and their default ports are derived from the checkout path. `just clean`
 removes only that checkout's container and Moon cache. Change `LILO_PG_PORT` if a port is occupied.
