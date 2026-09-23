@@ -1,6 +1,6 @@
 // Plain JavaScript for the same reason as packages/db's integration test: it reuses the repo's one
 // Postgres container helper from outside this project. It calls main() in-process so coverage sees
-// the command line; root:consumer-check runs the packed bin.
+// the command line; root:published-shape runs the packed bin.
 
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";

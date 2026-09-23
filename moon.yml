@@ -58,18 +58,32 @@ tasks:
       cache: false
       runInCI: false
 
-  consumer-check:
-    description: "Build and run a snapshot of this workspace, then repeat with packed libraries"
+  published-shape:
+    description: "Prove the gates on a workspace snapshot, then install and check every packed library"
     type: "test"
-    command: "node scripts/consumer-check.mjs"
+    command: "node scripts/published-shape.mjs"
+    # CI runs it when anything that is built, packed, installed or gated changes, and skips it for
+    # documentation alone. sources covers apps, packages, services, scripts, .moon and the root
+    # manifests; the rest is what the snapshot's gates and pnpm pack read from the root.
     inputs:
       - "@globs(sources)"
-      - "scripts/**/*"
       - "pnpm-lock.yaml"
+      - "moon.yml"
+      - ".pnpmfile.*"
+      - ".gitignore"
+      - ".npmignore"
+      - ".gitattributes"
+      - ".editorconfig"
+      - "LICENSE"
+      - ".npmrc"
+      - ".prototools"
+      - ".oxlintrc.json"
+      - ".oxfmtrc.json"
+      - "vitest.config.ts"
     options:
       shell: false
       cache: false
-      runInCI: "always"
+      runInCI: true
 
   tsgolint-lockstep:
     description: "Verify repository TypeScript and type aware lint pins agree"
@@ -261,7 +275,7 @@ tasks:
       - "pnpm-lock.yaml"
       - "pnpm-workspace.yaml"
     # The generic checks come from @littleorgans/db-tools's build, like any consumer's. A project
-    # edge rather than a named target: consumer-check's packed copy has no packages to build.
+    # edge rather than a named target: published-shape's packed copy has no packages to build.
     deps:
       - "^:build"
     checks:

@@ -61,10 +61,13 @@ catalogs:
     vite: "^8.0.0"
   # packages/db exports Drizzle types, so a second drizzle-orm copy breaks consumer typechecks
   # (TS2345 on tx.execute). drizzle-orm is 0.x and breaks in minors, so the caret holds one minor;
-  # consumer-check installs the floor. pg is used only through Pool, but the named ESM import
+  # published-shape installs the floor. pg is used only through Pool, but the named ESM import
   # (`import { Pool } from "pg"`) needs the ESM wrapper pg added in 8.15.0; earlier releases throw
   # "Named export 'Pool' not found" at load time.
+  # db's ScopedTransaction is Drizzle's NodePgDatabase, whose execute() results are pg's types.
+  # Without @types/pg they widen to `any` without an error, so db requires the types beside pg.
   db-peer:
+    "@types/pg": "^8.15.0"
     drizzle-orm: "^0.45.0"
     pg: "^8.15.0"
   # packages/ui imports tailwindcss from CSS; a nested copy can differ from the one the consumer's

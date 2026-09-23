@@ -42,7 +42,7 @@ published from a previous build. Formatting inputs cover the files and configura
 
 The repository is a reference implementation and the source of published packages, not a
 template. Projects depend on the packages rather than copying this tree, so fixes reach them
-through upgrades; [the direction](direction.md) records why. `root:consumer-check` exercises a
+through upgrades; [the direction](direction.md) records why. `root:published-shape` exercises a
 snapshot of this workspace and packed package consumption in disposable workspaces.
 
 ## One linter, one formatter
@@ -233,6 +233,14 @@ Publishable libraries export `dist` under `types`, `import`, and `default`. The 
 condition `@littleorgans/source` points at `src` for Vite `serve` only. Applications add that
 condition in `vite.config.ts` when `command === "serve"`. They do not add it to the production
 build.
+
+The condition stays in the workspace. Each library's `publishConfig.exports` repeats `exports`
+without it, because an application that installs the packages and runs `vite dev` through
+`@littleorgans/vite-config` would otherwise resolve them to `src` inside `node_modules`.
+`root:published-shape` rejects any tarball whose `exports` use a condition other than `types`,
+`import` and `default`, or differ from the workspace `exports` in anything but that condition.
+The exception is `vite-config`'s root entry: the check requires its explicit `src/index.ts` to
+`dist/index.js` and `dist/index.d.ts` redirect. Other entries follow the equality rule.
 
 Node's standard conditions, including `development` and `production`, must not select source. A
 consumer who installs the package, or a moon task that runs against `dist`, would otherwise execute
