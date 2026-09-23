@@ -33,6 +33,7 @@ The baseline makes these choices, recorded in `docs/decisions.md`:
 ```text
 .
 ├── apps/web/               Reference TanStack Start application (the only app)
+├── services/api/           Reference HTTP service: Hono, auth-http, db under RLS, container build
 ├── packages/
 │   ├── auth/               Token verification and the Principal: jose only, no vendor SDK
 │   ├── auth-workos/        WorkOS SDK wrapper, error translation, organization provisioning
@@ -77,6 +78,10 @@ graph LR
   auth-tanstack --> auth
   auth-session --> auth
   auth-session --> auth-workos
+  api[services/api] --> auth-http
+  api --> auth
+  api --> db
+  api --> hono
   auth-http -. peer .-> auth
   auth-http -. optional peer .-> hono
   auth-workos --> sdk["@workos-inc/node"]
@@ -93,17 +98,18 @@ graph LR
 Each seam is a narrow structural interface. Tests use it to exercise the security logic without a
 live framework, provider or database.
 
-| Seam                             | Declared in                                                                   | Implemented by                                    | Purpose                                                       |
-| -------------------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------- | ------------------------------------------------------------- |
-| `Verifier` / `Principal`         | `packages/auth/src/verify.ts`, `principal.ts`                                 | `createVerifier` (jose + JWKS)                    | Vendor-neutral identity: `userId`, `orgId`, roles, and more   |
-| `WorkOSClient`                   | `packages/auth-workos/src/client.ts`                                          | `@workos-inc/node` `WorkOS`                       | The exact SDK slice used; tests inject a recording client     |
-| `CookieJar`                      | `packages/auth-session/src/cookies.ts`                                        | `packages/auth-tanstack/src/cookies.ts`           | Keeps session logic free of any web framework                 |
-| `Access` union                   | `packages/auth-session/src/access.ts`                                         | `readAccess`                                      | Five session states the app branches on, never an exception   |
-| `UserAccess` / `UserFetch`       | `packages/auth-session/src/delegate.ts`                                       | `readUserAccess`, `AuthRuntime.asUser`            | Calls a service as the person without exposing their token    |
-| `ScopedClient` / `ScopedRunner`  | `packages/db/src/scoped.ts`, `apps/web/src/features/workspace/server/rows.ts` | `pg` client, `Database.withPrincipal`             | The only way claims enter Postgres                            |
-| `ThemeTarget`                    | `packages/theme/src/apply.ts`                                                 | `element.style`                                   | Applies data themes without DOM types                         |
-| `@littleorgans/source` condition | every library `package.json` `exports`                                        | `packages/vite-config/src/index.ts`               | Dev resolves `src`, builds and Node resolve `dist`            |
-| Composition root                 | `apps/web/src/server/*.ts`                                                    | `createAuthRuntime`, `getDatabase`, theme adapter | Application policy (paths, provider, org policy) in one place |
+| Seam                             | Declared in                                                                   | Implemented by                                    | Purpose                                                        |
+| -------------------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------- | -------------------------------------------------------------- |
+| `Verifier` / `Principal`         | `packages/auth/src/verify.ts`, `principal.ts`                                 | `createVerifier` (jose + JWKS)                    | Vendor-neutral identity: `userId`, `orgId`, roles, and more    |
+| `WorkOSClient`                   | `packages/auth-workos/src/client.ts`                                          | `@workos-inc/node` `WorkOS`                       | The exact SDK slice used; tests inject a recording client      |
+| `CookieJar`                      | `packages/auth-session/src/cookies.ts`                                        | `packages/auth-tanstack/src/cookies.ts`           | Keeps session logic free of any web framework                  |
+| `Access` union                   | `packages/auth-session/src/access.ts`                                         | `readAccess`                                      | Five session states the app branches on, never an exception    |
+| `UserAccess` / `UserFetch`       | `packages/auth-session/src/delegate.ts`                                       | `readUserAccess`, `AuthRuntime.asUser`            | Calls a service as the person without exposing their token     |
+| `ScopedClient` / `ScopedRunner`  | `packages/db/src/scoped.ts`, `apps/web/src/features/workspace/server/rows.ts` | `pg` client, `Database.withPrincipal`             | The only way claims enter Postgres                             |
+| `ThemeTarget`                    | `packages/theme/src/apply.ts`                                                 | `element.style`                                   | Applies data themes without DOM types                          |
+| `@littleorgans/source` condition | every library `package.json` `exports`                                        | `packages/vite-config/src/index.ts`               | Dev resolves `src`, builds and Node resolve `dist`             |
+| Composition root                 | `apps/web/src/server/*.ts`                                                    | `createAuthRuntime`, `getDatabase`, theme adapter | Application policy (paths, provider, org policy) in one place  |
+| Service composition root         | `services/api/src/server/*.ts`                                                | `createApp`, `startService`                       | Auth, database, logging and shutdown for the reference service |
 
 ### Application layout
 
@@ -279,7 +285,10 @@ There is no accessor for the raw token. `user.fetch` sets `Authorization: Bearer
 caller set under any spelling, and sends only to an `http` or `https` URL whose origin is listed in
 the runtime's `serviceOrigins` option. The scheme is checked as well as the origin because a `blob:`
 URL reports the origin it was minted under. The list is empty by default, entries must be HTTPS
-except on localhost, and a path in an entry is refused rather than read as a restriction. Anything
+except on localhost, and a path in an entry is refused rather than read as a restriction. A
+service reachable only over plain http, such as one inside the same cluster, is listed on its own
+as `{ origin: "http://api:3000", insecure: true }`. There is no setting that allows http
+everywhere, and the flag is refused on an https origin. Anything
 else rejects before a request is made. Apart from the headers, `init` reaches `fetch` as given, so
 `signal`, `redirect` and undici's `dispatcher` behave as they would on a plain call. A redirect to
 another origin drops the header, per the Fetch standard; a test in
@@ -288,7 +297,18 @@ it to that. The token exists only in that function's closure: `JSON.stringify` o
 the status and the Principal, and seroval, which Start uses to serialise loader and server-function
 results, throws on the function rather than encoding it. The token is fixed for the request that
 read it, so do not hold the result beyond that request. The reference app calls no service yet, so
-it configures no origins; `services/api` will be the first.
+it configures no origins. `services/api` is the service it would call.
+
+### The reference service
+
+`services/api` is a Hono app on `@hono/node-server`. Its `/v1` group installs `requireAuth` from
+`@littleorgans/auth-http/hono` once, with an `authorize` hook that refuses a token without an
+organization (403). Its routes run their queries inside `Database.withPrincipal`, with no tenant
+`WHERE` clause, so the RLS policies below are the only tenancy boundary. Errors use auth-http's
+`{"error": "<code>"}` body: an unreachable database is 503 `unavailable`, and anything unexpected
+is 500 `internal`. The service logs JSON lines of selected fields, never a request or an error
+object. On SIGTERM it drains in-flight requests for up to 10 seconds, then closes the pool.
+`services/api/README.md` lists the endpoints, variables, error codes and log records.
 
 ### Data access and row level security
 
@@ -354,12 +374,13 @@ different localhost ports therefore keep separate preferences.
 
 Moon owns every command. `justfile` holds aliases only. Tasks come from layered files:
 
-| File                               | Inherited by                              | Tasks                                                                                     |
-| ---------------------------------- | ----------------------------------------- | ----------------------------------------------------------------------------------------- |
-| `.moon/tasks/node.yml`             | every JavaScript project                  | `typecheck`, `test`, `test-coverage`, `test-watch`                                        |
-| `.moon/tasks/node-library.yml`     | JavaScript projects with `layer: library` | `build` (clean `dist`, emit JS, emit declarations)                                        |
-| `.moon/tasks/node-application.yml` | JavaScript applications tagged `web-app`  | `build` (`vite build`), `dev`, `preview` (both load `/.env.local`)                        |
-| `moon.yml`                         | the root project only                     | lint, format, secrets, audit, lockstep, project refs, Atlas, Drizzle, RLS, consumer check |
+| File                               | Inherited by                                  | Tasks                                                                                        |
+| ---------------------------------- | --------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `.moon/tasks/node.yml`             | every JavaScript project                      | `typecheck`, `test`, `test-coverage`, `test-watch`                                           |
+| `.moon/tasks/node-library.yml`     | JavaScript projects with `layer: library`     | `build` (clean `dist`, emit JS, emit declarations)                                           |
+| `.moon/tasks/node-application.yml` | JavaScript applications tagged `web-app`      | `build` (`vite build`), `dev`, `preview` (both load `/.env.local`)                           |
+| `.moon/tasks/node-service.yml`     | JavaScript applications tagged `node-service` | `build` (`tsc` to `dist`), `dev` (`node --watch src/main.ts`), `start` (`node dist/main.js`) |
+| `moon.yml`                         | the root project only                         | lint, format, secrets, audit, lockstep, project refs, Atlas, Drizzle, RLS, consumer check    |
 
 ```mermaid
 graph LR
@@ -388,14 +409,15 @@ TypeScript project references are written by `moon sync` (`typescript.syncProjec
 
 ## Testing strategy
 
-| Layer                       | Tooling                           | Location and examples                                                                           |
-| --------------------------- | --------------------------------- | ----------------------------------------------------------------------------------------------- |
-| Unit                        | Vitest, shared `vitest.config.ts` | `packages/*/tests/*.test.ts`, `apps/web/tests/features/**`                                      |
-| Composition and integration | Vitest under `tests/integration/` | `apps/web/tests/integration/auth-wiring.test.ts` (real SDK, no network), `routes.test.tsx`      |
-| Coverage floor              | V8, per file: 80/75/80/80         | `vitest.config.ts` lines 14–23                                                                  |
-| Database behavior           | Real Postgres 17 in Docker        | `root:rls-verify` (7 assertions), `root:drizzle-check`, `root:atlas-lint`                       |
-| Repository scripts          | `node --test`                     | `scripts/tests/**` (Moon task shape, hooks, pins, fixed version group, licenses)                |
-| Workspace consumer          | Snapshot build, HTTP probes       | `root:consumer-check`: gate negative proofs, route status codes, CSS utilities, packed tarballs |
+| Layer                       | Tooling                           | Location and examples                                                                             |
+| --------------------------- | --------------------------------- | ------------------------------------------------------------------------------------------------- |
+| Unit                        | Vitest, shared `vitest.config.ts` | `packages/*/tests/*.test.ts`, `apps/web/tests/features/**`                                        |
+| Composition and integration | Vitest under `tests/integration/` | `apps/web/tests/integration/auth-wiring.test.ts` (real SDK, no network), `routes.test.tsx`        |
+| Coverage floor              | V8, per file: 80/75/80/80         | `vitest.config.ts` lines 14–23                                                                    |
+| Database behavior           | Real Postgres 17 in Docker        | `root:rls-verify` (7 assertions), `root:drizzle-check`, `root:atlas-lint`                         |
+| Service against Postgres    | Real Postgres 17, real listener   | `services/api/tests/integration/database.test.js`: shipped migrations and grant, tenant isolation |
+| Repository scripts          | `node --test`                     | `scripts/tests/**` (Moon task shape, hooks, pins, fixed version group, licenses)                  |
+| Workspace consumer          | Snapshot build, HTTP probes       | `root:consumer-check`: gate negative proofs, route status codes, CSS utilities, packed tarballs   |
 
 Tests reach the security logic through the seams listed above, not through mocks of framework
 internals. `consumer-check` also proves that the gates fail. It plants a type error, a failing

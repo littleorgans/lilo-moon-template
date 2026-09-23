@@ -37,6 +37,9 @@
     },
     {
       "path": "./packages/vite-config"
+    },
+    {
+      "path": "./services/api"
     }
   ],
   "compilerOptions": {

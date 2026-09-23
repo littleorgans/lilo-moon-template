@@ -1,0 +1,46 @@
+language: "typescript"
+layer: "application"
+tags: ["node-service"]
+dependsOn:
+  - "auth"
+  - "auth-http"
+  - "db"
+
+tasks:
+  # The service's port, like apps/web's preview port, belongs to the service.
+  dev:
+    env:
+      PORT: "8787"
+  start:
+    env:
+      PORT: "8787"
+  # A runtime image from the deployed service: `pnpm deploy` writes dist, the manifest's `files`, and
+  # production dependencies to out/, copying workspace libraries in as their built dist. Injection is
+  # enabled for this one command; the workspace itself keeps linking packages.
+  container:
+    type: "run"
+    script: >-
+      rm -rf out &&
+      pnpm --config.inject-workspace-packages=true --filter @littleorgans/api deploy --prod out &&
+      docker build --file Dockerfile --tag littleorgans-api:local out
+    deps:
+      - "~:build"
+    options:
+      cache: false
+      runInCI: false
+  # The integration test applies the shipped migrations and grant to a real Postgres through the
+  # shared container helper. The database is not a file input, so never reuse a cached pass.
+  test:
+    inputs:
+      - "/packages/db/migrations/**/*"
+      - "/packages/db/grants/**/*"
+      - "/scripts/lib/postgres-container.mjs"
+    options:
+      cache: false
+  test-coverage:
+    inputs:
+      - "/packages/db/migrations/**/*"
+      - "/packages/db/grants/**/*"
+      - "/scripts/lib/postgres-container.mjs"
+    options:
+      cache: false
