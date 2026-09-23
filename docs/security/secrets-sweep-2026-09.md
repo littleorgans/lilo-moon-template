@@ -1,14 +1,14 @@
 # Secrets sweep, September 2026
 
 Phase 1 task 1.4. The sweep ran on 2026-09-23, before the first npm publish of `@littleorgans/*`,
-against `origin/main` at `2a91cdd`. No values appear here. A redacted value shows its type, its
-location and at most its first four characters.
+against `origin/main` at `2a91cdd`, then reviewed after rebasing onto `a66f0bd` (#103).
+No credential values appear here.
 
 ## Verdict
 
-No real secret was found in any public ref, any local ref, reflog or unreachable object, any
-packed tarball, the shipped docs, or the GitHub issue and pull request text. Nothing needs rotating
-and nothing needs a history rewrite.
+The scans found no real secret in the surfaces listed below. This is a detector-based finding,
+not proof that every credential format is covered. No rotation or history rewrite is recommended
+from these results. No credentials were verified against a provider.
 
 ## Tools
 
@@ -41,21 +41,21 @@ Anyone repeating this with gitleaks should do the same and check the `commits sc
 
 Every finding is a fixture or a false positive.
 
-| Commits                                                             | File                                                                        | Rule                                    | Classification | Reasoning                                                                                                                                                                                                  |
-| ------------------------------------------------------------------- | --------------------------------------------------------------------------- | --------------------------------------- | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `b6efcff` (main), `b3104c4` (PR 68)                                 | `apps/web/tests/config.test.ts:9`, `apps/web/tests/wiring.test.ts:32`       | gitleaks `generic-api-key`              | Fixture        | `WORKOS_COOKIE_PASSWORD`, value `0123…`, 32 characters. Checked by exact comparison: it is the 16-character hex alphabet written twice, to meet the 32-character minimum. A test file, not in any tarball. |
-| `657a8af` (main), `b90e81c` (PR 69)                                 | `packages/auth-session/tests/services.test.ts:10`                           | gitleaks `generic-api-key`              | Fixture        | The same value.                                                                                                                                                                                            |
-| `588d4e7` (main), `b1895e7` (PR 70)                                 | `packages/auth-tanstack/tests/runtime.test.ts:13`                           | gitleaks `generic-api-key`              | Fixture        | The same value.                                                                                                                                                                                            |
-| `e139199` (main), `68ec43d` (PR 85)                                 | `.moon/templates/application/tests/wiring.test.ts.tera:32`                  | gitleaks `generic-api-key`              | Fixture        | The same value, in the generator template. The blob scan found it in 22 blobs in all, including an older `auth-wiring.test.ts`; every one is this value.                                                   |
-| `7cfdb01` (main), `49d7eb8` (PR 64)                                 | `.env.example:50` (now `:55`)                                               | trufflehog `Postgres`                   | Fixture        | A `postgres` URL with user `user`, password `pass…` (8 lowercase letters) and host `host`. A placeholder in the example env file.                                                                          |
-| `2729a45`, `1edabaf` (main), `01c1d36` (PR 93), `7719f49` (PR 94)   | `scripts/tests/projects.test.mjs:228`                                       | trufflehog `URI`                        | Fixture        | An `https` URL with user `user`, password `pass…` and host `example.test`, a reserved domain. A test input for credential stripping.                                                                       |
-| `5c459c2` (main), `4782f1d` (PR 100)                                | `packages/auth-http/tests/authenticate.test.ts:339`                         | trufflehog `URI`                        | Fixture        | An `https` URL with user `svc`, password `secr…` and host `logs.internal`, inside a test that an error message holding credentials is not echoed.                                                          |
-| `22326c7` (main), `246a7ce` (PR 51); reported by the blob scan only | `.github/workflows/release.yml:34`, and `:30` in an unreachable local draft | trufflehog `Github` (filesystem mode)   | False positive | `pnpm/action-setup@0977…`, 40 hex characters: the pinned action commit SHA, not a token.                                                                                                                   |
-| none; an unreachable local blob, never pushed                       | a draft `packages/db/README.md:89`                                          | secretlint `database-connection-string` | False positive | A `postgres` URL with user `orders_api`, password `<pas…` and host `db.example.com`: a literal angle-bracket placeholder in a README draft, on a reserved domain. The blob is not in the GitHub mirror.    |
+| Commits                                                             | File                                                                        | Rule                                    | Classification | Reasoning                                                                                                                                                                                                                    |
+| ------------------------------------------------------------------- | --------------------------------------------------------------------------- | --------------------------------------- | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `b6efcff` (main), `b3104c4` (PR 68)                                 | `apps/web/tests/config.test.ts:9`, `apps/web/tests/wiring.test.ts:32`       | gitleaks `generic-api-key`              | Fixture        | `WORKOS_COOKIE_PASSWORD`, 32 characters. Exact comparison confirms a deliberately synthetic test fixture. A test file, not in any tarball.                                                                                   |
+| `657a8af` (main), `b90e81c` (PR 69)                                 | `packages/auth-session/tests/services.test.ts:10`                           | gitleaks `generic-api-key`              | Fixture        | The same value.                                                                                                                                                                                                              |
+| `588d4e7` (main), `b1895e7` (PR 70)                                 | `packages/auth-tanstack/tests/runtime.test.ts:13`                           | gitleaks `generic-api-key`              | Fixture        | The same value.                                                                                                                                                                                                              |
+| `e139199` (main), `68ec43d` (PR 85)                                 | `.moon/templates/application/tests/wiring.test.ts.tera:32`                  | gitleaks `generic-api-key`              | Fixture        | The same value, in the generator template. The blob scan found it in 22 blobs in all, including an older `auth-wiring.test.ts`; every one is this value.                                                                     |
+| `7cfdb01` (main), `49d7eb8` (PR 64)                                 | `.env.example:50` (now `:55`)                                               | trufflehog `Postgres`                   | Fixture        | A `postgres` URL with user `user`, a placeholder password and host `host`. A placeholder in the example env file.                                                                                                            |
+| `2729a45`, `1edabaf` (main), `01c1d36` (PR 93), `7719f49` (PR 94)   | `scripts/tests/projects.test.mjs:228`                                       | trufflehog `URI`                        | Fixture        | An `https` URL with user `user`, a placeholder password and host `example.test`, a reserved domain. A test input for credential stripping.                                                                                   |
+| `5c459c2` (main), `4782f1d` (PR 100)                                | `packages/auth-http/tests/authenticate.test.ts:339`                         | trufflehog `URI`                        | Fixture        | An `https` URL with user `svc`, a synthetic password and host `logs.internal`, inside a test that an error message holding credentials is not echoed.                                                                        |
+| `22326c7` (main), `246a7ce` (PR 51); reported by the blob scan only | `.github/workflows/release.yml:34`, and `:30` in an unreachable local draft | trufflehog `Github` (filesystem mode)   | False positive | The `pnpm/action-setup` pin, 40 hex characters: the pinned action commit SHA, not a token.                                                                                                                                   |
+| none; an unreachable local blob, never pushed                       | a draft `packages/db/README.md:89`                                          | secretlint `database-connection-string` | False positive | A `postgres` URL with user `orders_api`, an angle-bracket password placeholder and host `db.example.com`: a literal angle-bracket placeholder in a README draft, on a reserved domain. The blob is not in the GitHub mirror. |
 
-The tarballs, the shipped working-tree files and the GitHub text produced no findings from any of
-the three tools. Apart from `.env.example`, whose placeholder is covered above, the working tree is
-clean.
+The original tarball and GitHub-text scans produced no findings. Secretlint and gitleaks found
+none in the shipped working-tree selection; trufflehog reported the `.env.example` placeholder
+covered above.
 
 ## Rotation and history
 
@@ -65,9 +65,10 @@ Nothing to rotate. No history rewrite is recommended.
 
 - **Diff scanning: no gitleaks gate added.** `root:secrets` already runs secretlint over the whole
   working tree in every CI run (`runInCI: "always"`), and in the pre-commit hook on every commit
-  where the hooks are installed, so intermediate commits are covered as well as the pull request
-  tip. GitHub secret scanning and push protection are both enabled on the repository, so GitHub
-  rejects a push that carries a supported provider's key. A gitleaks gate would add a non-npm binary
+  where the hooks are installed, but local hooks can be skipped and CI only sees the checked-out tree. GitHub secret scanning
+  and push protection are enabled (reconfirmed through the API), while non-provider patterns and
+  validity checks are disabled. This is not equivalent to scanning every intermediate commit
+  with gitleaks: provider coverage and push-protection bypasses still leave gaps. A gitleaks gate would add a non-npm binary
   pin, or `gitleaks-action`, which needs a license for organization repositories. Across the full
   history its only extra hit was the generic rule on a known fixture.
 - **Tarball scanning: added `root:packed-secrets`.** Both `.gitignore` and `.secretlintignore`
@@ -78,10 +79,45 @@ Nothing to rotate. No history rewrite is recommended.
   between the build and `changeset publish`. `scripts/tests/packed-secrets.test.mjs` proves it
   passes a clean tarball and fails one whose `dist` holds a token assembled at runtime.
 
+## Reviewer reproduction
+
+- Rebased onto `a66f0bd` without conflicts. Gitleaks 8.30.1 with global/system Git config
+  disabled scanned 237 local/reflog commits and reported 7 findings, exactly matching the
+  original local finding tuples (commit, path, line, rule). The public mirror scan processed
+  219 commits and reproduced all 10 tuples in the corrected `gl-public.json`. The original
+  `gl-mirror.json` is the broken-config run and has empty commit fields. The mirror holds 231
+  reachable commits; scanner processed counts differ from graph counts.
+- Repeated the pinned unreachable-history scan: the same 10 generic-key findings. Compared
+  the cookie values directly in their historical files without printing them. Also inspected
+  the 11-character WorkOS-shaped string in an unreachable `auth-http` config test: it is an
+  invalid client-ID input, not a plausible complete provider key. Its provider-like prefix alone
+  would not justify calling a full-length credential a fixture.
+- Repacked all 11 packages after the migration rebase: 314 extracted files, zero gitleaks hits.
+  The packed secretlint gate also passed. The earlier 361-file count belongs to the builder's
+  saved artifacts, not this reproduction. The db tarball now includes the shipped migrations.
+- The packed gate took 6.1 seconds (7.0 seconds wall time including Moon and a db rebuild;
+  ten dependency builds were cached). Packing all packages is the main additional cost.
+- The gate rejects a synthetic token in ignored `dist`, ignores nested `.gitignore`, masks
+  findings, fails on a failed pack or an empty package set, and removes its temporary directory
+  on normal success and exceptions. Process termination such as SIGKILL can still leave a temp
+  directory. Pack and extraction subprocess output is suppressed because it may contain secrets.
+- Three focused tests passed. Mutation checks detected omitted cleanup, disabled masking,
+  forwarded pack stderr, a successful empty-package exit, skipped dist scanning and respected
+  nested ignore files. Mutations were restored before verification.
+- `changeset:publish` waits for the Moon build and packed scan, then uses `&&` to prevent
+  publication on failure. The release workflow calls this command when publishing is enabled.
+  Changesets subsequently packs again: the inspected archives are not the exact uploaded bytes.
+  Current package manifests have no lifecycle scripts; if packaging later becomes stateful or
+  environment-dependent, publish the scanned archives or enforce deterministic packaging.
+- Downloaded and scanned 12 recent completed Release/failed-CI runs out of 296 listed runs,
+  with gitleaks and secretlint: zero findings. This is a sample, not full log coverage.
+
 ## Not scanned
 
-- GitHub Actions run logs (292 runs) and caches. There are no artifacts. GitHub masks registered
-  secrets in logs.
+- Remaining GitHub Actions logs and caches. The builder found no artifacts. Before the first
+  public publish, scanning all retained downloadable logs is worthwhile: masking only registered
+  secrets does not protect arbitrary credentials printed by commands. Never echo raw logs during
+  that review. Deleted/expired logs cannot be assessed.
 - Commits GitHub still serves by SHA after a force push or branch deletion, unless they survive in
   the local object store. The deleted `origin/feat/*` branches were pull request heads, which the
   mirror holds. The `changeset-release/main` tip from before its last force push (`c919af2`)
