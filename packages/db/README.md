@@ -14,10 +14,12 @@ assume, and a grant for the role your service logs in as.
 
 ```sh
 pnpm add @littleorgans/db drizzle-orm pg
+pnpm add -D @types/pg
 ```
 
-`drizzle-orm` (`^0.45.0`) and `pg` (`^8.15.0`) are peer dependencies, so your service and the
-package share one copy of each.
+`drizzle-orm` (`^0.45.0`), `pg` (`^8.15.0`) and `@types/pg` (`^8.15.0`) are peer dependencies, so
+your service and the package share one copy of each. The types are required, not optional: without
+them the query results this package exposes widen to `any` without an error.
 
 ## Use it
 

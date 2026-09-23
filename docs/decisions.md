@@ -276,7 +276,7 @@ came from `github-actions[bot]`, its `CI` run returned `action_required`, and it
 until a maintainer approved the workflow. `release.yml` now prefers `secrets.LILO_GITHUB_PAT` and
 falls back to `GITHUB_TOKEN`, which moves the authorship off the bot and removes the approval when the
 secret is set. Consumer-facing detail is in
-[Set up and operate this repository](how-to-instantiate.md).
+[Maintain this repository](maintaining.md).
 
 ## Left to the consuming repo
 
@@ -315,3 +315,13 @@ wrong and is withdrawn. A token within 20 seconds of expiry is refreshed early, 
 refresh serves the token that still verified rather than ending anything.
 Logout goes through a same-origin POST and then the WorkOS logout URL. Authorization changes take
 effect with a renewed access token.
+
+## Skills are written here, under the `lilo` owner
+
+Decision D4 in [the direction](direction.md#decisions-approved-2026-09-23) puts skills in this
+repository, with reviewed copies synced to the agent-runtimes catalog later. The owner segment is
+`lilo`, chosen when the first skill landed. Skills live at `skills/lilo/<domain>/<skill>/SKILL.md`,
+so `skills/lilo/build/start-project/SKILL.md` has the catalog ID `lilo/build/start-project`. A skill
+teaches judgment and points at the guides and the reference code. It does not repeat their steps.
+Anything checkable belongs in a gate. The catalog sync, and the check that every path a skill cites
+exists at its tag, are phase 2 work.

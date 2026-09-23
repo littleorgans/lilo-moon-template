@@ -66,6 +66,15 @@ personal workspace, while `existing` leaves organization membership unchanged. E
 imports the UI stylesheet and the views source registration in `src/styles.css`, and registers its
 own source directory. Published packages do not scan neighboring repositories.
 
+## Start a project
+
+A new project installs the packages and copies a small amount of glue from this repository at a
+release tag. Follow [Adopt the packages in a web app](docs/guides/adopt-web-app.md) for a TanStack
+Start app, and [Adopt the packages in a service](docs/guides/adopt-service.md) for a TypeScript HTTP
+service, beside a web app or on its own. The `lilo/build/start-project` skill
+([`skills/lilo/build/start-project`](skills/lilo/build/start-project/SKILL.md)) covers the choices
+the guides leave open. Both guides are written for the `0.1.0` release.
+
 ## Start locally
 
 Install just, proto and the Moon version in `.prototools`, then run:
@@ -84,8 +93,8 @@ must match the running app. `DATABASE_URL` is optional. An app without it can st
 moon run web:dev
 ```
 
-The reference app runs on port 5199. [Set up and operate this repository](docs/how-to-instantiate.md)
-covers toolchains, ports, the database and publishing until the adoption guides replace it.
+The reference app runs on port 5199. [Maintain this repository](docs/maintaining.md) covers the
+toolchain, members, the database baseline, the CI runner and publishing.
 
 ## Verification
 

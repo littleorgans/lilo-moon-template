@@ -379,7 +379,7 @@ erDiagram
 
 Schema changes follow Atlas: edit `db/schema.sql`, `moon run root:atlas-diff`, hand-write any
 policy migration, `atlas migrate hash`, and `moon run root:drizzle-generate`. Details are in
-`docs/how-to-instantiate.md` and `docs/user-entity.md`.
+`docs/maintaining.md` and `docs/user-entity.md`.
 
 ### Themes and styling
 
