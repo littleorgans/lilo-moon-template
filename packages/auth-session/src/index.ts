@@ -7,7 +7,7 @@
  *
  * What does not: the steps those operations are made of. `stateMatches`, `dispositionFor`,
  * `readSession` and the rest stay exported from their own modules, because sibling modules and the
- * colocated tests import them by path, and stay out of here, because a barrel that names its own
+ * package tests import them by path, and stay out of here, because a barrel that names its own
  * internals turns every refactor of them into a breaking change.
  */
 export { readAccess } from "./access.js";

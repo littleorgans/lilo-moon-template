@@ -21,23 +21,26 @@ oxfmt, secretlint, and audit live in `devDependencies` in the root `package.json
 `justfile` holds aliases only. Task commands, inputs, outputs, and deps live in moon. Two command
 paths drift. CI runs `moon ci`.
 
-## An application's inside has one seam
+## Application ownership and growth
 
-Every application lays out `src/` the same way, and the layout has one seam: shell against product.
-`routes/` wires, one file per URL, flat dot notation only. `server/` composes what every page
-shares: the identity runtime, the services, the access loader. `components/` holds shell components
-shared across features. Everything a single feature owns, components and server logic together,
-lives in `features/<name>/`, so the files that change together sit together and a dead feature is
-one directory to delete. Layer directories are where growing codebases rot: at five features a
-shared `components/` is a pile in which nothing says what falls together. `apps/web` keeps its task
-board in `features/tasks/` as the exemplar, and anything two applications want moves to
-`packages/`, not to a shared directory inside either.
+The working tree demonstrates the layout described in [Code layout](code-layout.md). Related routes
+use directories, and the `(auth)` group preserves the public callback and session URLs. Standalone
+routes remain files. Grouping carries no implicit authentication policy.
 
-Tests follow the same seam. A test that proves one module takes that module's filename, and once
-`tests/` outgrows a flat listing it mirrors the `src/` paths, so the mapping from test to module
-never needs a search. Suite-level tests that cross modules, the wiring and route-tree proofs, stay
-at the `tests/` root. `server/services.ts` states its own rule in place: it is the composition
-root, one lazy getter per external service and nothing else.
+Routes declare framework wiring. `features/workspace/` owns its page, data contract, provisioning
+queries and loader behavior. `features/tasks/` owns the task board. `server/auth.ts` and
+`server/database.ts` compose shared services; `server/theme.ts` adapts app-wide theme cookies.
+The workspace's account/profile diagnostics belong to the app. The shared views package accepts
+application labels and paths and does not own the app's data model.
+
+Tests mirror feature ownership, with route rendering and package/process composition under
+`tests/integration/`. Shared coverage configuration has no application-specific exclusions. Real
+consumer builds verify the Start server boundary, and integration tests verify route-to-feature wiring.
+
+Vite/Nitro tasks require the `web-app` tag. An untagged JavaScript application can provide another
+runtime without inheriting web commands. The application owns its development and preview ports.
+Library builds clear their declared output before compiling, so deleted source does not remain
+published from a previous build. Formatting inputs cover the files and configuration oxfmt reads.
 
 The repository itself is the maintained baseline. Member generators and their duplicate application
 sources have been removed. Project creation preserves the selected commit and its ancestors, then
@@ -73,8 +76,8 @@ Two pins, one type system. If they diverge, lint and `tsc` disagree.
 
 Renovate groups `typescript` and `oxlint-tsgolint` in `renovate.json` so a routine update lands in
 one PR. Grouping does not fail the build when a person edits one pin, or when a partial merge
-lands. `tasks.tsgolint-lockstep` in `.moon/tasks/tsgolint-lockstep.yml` runs
-`scripts/assert-tsgolint-lockstep.mjs` on every JavaScript project and fails the graph. That is why
+lands. `root:tsgolint-lockstep` in `moon.yml` runs
+`scripts/assert-tsgolint-lockstep.mjs` once for the workspace and fails the graph. That is why
 the lockstep is a gate.
 
 Renovate's regex manager in `renovate.json` reads moon and proto pins in `.prototools`. The

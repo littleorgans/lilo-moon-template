@@ -1,0 +1,157 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+// Compose the real auth packages with an in-memory request cookie adapter.
+// Built consumer HTTP checks cover the file-route wiring separately.
+const cookies = new Map<string, string>();
+const written: { name: string; value: string }[] = [];
+
+vi.mock("@tanstack/react-start/server", () => ({
+  getCookie: (name: string) => cookies.get(name),
+  setCookie: (name: string, value: string) => {
+    written.push({ name, value });
+    cookies.set(name, value);
+  },
+  deleteCookie: (name: string) => {
+    cookies.delete(name);
+  },
+}));
+
+const env = {
+  WORKOS_CLIENT_ID: "client_01M0JSGENAGWJCN0R7JME8JWGM",
+  WORKOS_API_KEY: "sk_not_a_real_key_for_wiring_only",
+  WORKOS_REDIRECT_URI: "http://localhost:5199/callback",
+  WORKOS_COOKIE_PASSWORD: "0123456789abcdef0123456789abcdef",
+};
+
+let saved: NodeJS.ProcessEnv;
+
+beforeEach(() => {
+  saved = { ...process.env };
+  Object.assign(process.env, env);
+  delete process.env["DATABASE_URL"];
+  cookies.clear();
+  written.length = 0;
+  // Reset module-scoped service instances so each test reads its own configuration.
+  vi.resetModules();
+});
+
+afterEach(() => {
+  process.env = saved;
+});
+
+describe("auth runtime wiring", () => {
+  it("the start route builds a real authorization url through the real SDK", async () => {
+    const { auth } = await import("../../src/server/auth.js");
+    const response = auth.startSignIn(null);
+
+    expect(response.status).toBe(302);
+    const location = new URL(response.headers.get("location") ?? "");
+    expect(location.host).toBe("api.workos.com");
+    expect(location.searchParams.get("client_id")).toBe(env.WORKOS_CLIENT_ID);
+    expect(location.searchParams.get("redirect_uri")).toBe(env.WORKOS_REDIRECT_URI);
+    expect(location.searchParams.get("provider")).toBe("GoogleOAuth");
+    // The state in the url is the state that was stored, or the callback compares two unrelated
+    // values. This is the assertion that catches the two halves being wired to different sources.
+    expect(location.searchParams.get("state")).toBe(written[0]?.value);
+  });
+
+  it("the signout route clears the session", async () => {
+    const { auth } = await import("../../src/server/auth.js");
+    const cookieName = `${auth.services().config.cookieNamespace}_lilo_session`;
+    cookies.set(cookieName, "sealed");
+    const origin = new URL(env.WORKOS_REDIRECT_URI).origin;
+    const response = auth.endSession({
+      request: new Request(`${origin}/api/auth/signout`, { method: "POST", headers: { origin } }),
+    });
+
+    expect(response.status).toBe(303);
+    expect(cookies.has(cookieName)).toBe(false);
+  });
+
+  // Reaching the state check through the real wiring proves the callback is connected and that it
+  // refuses before any network call. The mocked request carries a state no cookie matches.
+  it("the callback route refuses a forged state without calling the provider", async () => {
+    const { auth } = await import("../../src/server/auth.js");
+    const response = await auth.completeSignIn({
+      request: new Request("http://localhost:5199/callback?code=abc&state=forged"),
+    });
+
+    expect(response.status).toBe(400);
+    expect(await response.text()).toContain("did not come from here");
+  });
+});
+
+describe("the email routes through the real composition root", () => {
+  // Each refusal fires before any provider call, so the wiring is proven without a network.
+  it("refuses an empty address on the start route", async () => {
+    const { auth } = await import("../../src/server/auth.js");
+    const response = await auth.sendEmailCode({
+      request: new Request("http://localhost:5199/api/auth/email/start", {
+        method: "POST",
+        body: new URLSearchParams({}),
+      }),
+    });
+    expect(response.status).toBe(400);
+  });
+
+  it("refuses a code with no surviving address cookie on the verify route", async () => {
+    const { auth } = await import("../../src/server/auth.js");
+    const response = await auth.verifyEmailCode({
+      request: new Request("http://localhost:5199/api/auth/email/verify", {
+        method: "POST",
+        body: new URLSearchParams({ code: "123456" }),
+      }),
+    });
+    expect(response.status).toBe(400);
+    expect(await response.text()).toContain("Start again");
+  });
+});
+
+describe("the signed-in loader through the real composition root", () => {
+  it("redirects rather than rendering when there is no session", async () => {
+    const { loadWorkspaceOrRedirect } =
+      await import("../../src/features/workspace/server/load-workspace.js");
+    // TanStack's redirect() returns a Response rather than an error, and the loader throws it.
+    const thrown: unknown = await loadWorkspaceOrRedirect().then(
+      () => null,
+      (error: unknown) => error,
+    );
+    expect(thrown).toBeInstanceOf(Response);
+    expect(thrown instanceof Response ? thrown.status : 0).toBe(307);
+  });
+
+  // Exercises liveDeps in both shapes. With no DATABASE_URL there is no scoped runner at all;
+  // with one, a pool is constructed but never connected to, because no session gets that far. Both
+  // redirect, because the mocked request carries no session cookie.
+  it("builds its dependencies with and without a database", async () => {
+    const { loadWorkspaceOrRedirect } =
+      await import("../../src/features/workspace/server/load-workspace.js");
+    await expect(loadWorkspaceOrRedirect()).rejects.toBeInstanceOf(Response);
+
+    process.env["DATABASE_URL"] = "postgres://user:pass@127.0.0.1:5432/postgres";
+    vi.resetModules();
+    const reloaded = await import("../../src/features/workspace/server/load-workspace.js");
+    await expect(reloaded.loadWorkspaceOrRedirect()).rejects.toBeInstanceOf(Response);
+  });
+});
+
+describe("application services", () => {
+  it("constructs every package from configuration, with no database when none is set", async () => {
+    const { auth } = await import("../../src/server/auth.js");
+    const { getDatabase } = await import("../../src/server/database.js");
+    const services = auth.services();
+
+    expect(services.config.clientId).toBe(env.WORKOS_CLIENT_ID);
+    expect(typeof services.auth.getAuthorizationUrl).toBe("function");
+    expect(typeof services.verify).toBe("function");
+    expect(getDatabase()).toBeNull();
+  });
+
+  it("builds the verifier against the derived issuer and JWKS uri", async () => {
+    const { auth } = await import("../../src/server/auth.js");
+    const { config } = auth.services();
+
+    expect(config.issuer).toContain(env.WORKOS_CLIENT_ID);
+    expect(config.jwksUri).toContain(env.WORKOS_CLIENT_ID);
+  });
+});

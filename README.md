@@ -31,9 +31,10 @@ not implemented. Billing design notes describe proposed workflows, not working p
 - `vite-config` discovers packages from an explicitly supplied consumer workspace root.
 - `collections` and `services/ping` demonstrate TypeScript and Rust members.
 
-Application code lives under `apps/<name>/src`: routes wire URLs, server modules compose services,
-shell components span features, and `features/<name>/` owns each product feature. Product components
-may use styles and shared tokens without moving into a shared package.
+Application code lives under `apps/<name>/src`: grouped routes wire URLs, named server modules
+compose services, and `features/<name>/` owns each feature's model, UI and server behavior. The
+workspace example demonstrates that ownership without putting product diagnostics in shared packages.
+See [Code layout](docs/code-layout.md) for the structure to follow when adding features and members.
 
 ## Start locally
 

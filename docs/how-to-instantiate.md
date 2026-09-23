@@ -67,7 +67,8 @@ another scope. Run `just rename-verify` to verify the identity replacements.
 
 ## Claim your ports
 
-Set the application port in `apps/web/vite.config.ts` and register the matching OAuth callback.
+Set the development port in `apps/web/vite.config.ts` and the preview port in `apps/web/moon.yml`.
+Register the matching OAuth callback.
 Choose a distinct port for each additional application.
 
 The Postgres container name and default port are derived from the checkout's absolute path.
@@ -170,8 +171,7 @@ These are the baseline. Removing any of them is a fork, not an instantiation.
 - `moon.yml` at the repository root, including `tasks.lint`, `tasks.format-check`,
   `tasks.project-refs`, `tasks.secrets`, `tasks.audit`, and `inheritedTasks.include`
 - `justfile`
-- `scripts/assert-tsgolint-lockstep.mjs`, `scripts/check-security.mjs`, and
-  `.moon/tasks/tsgolint-lockstep.yml`
+- `scripts/assert-tsgolint-lockstep.mjs`, `scripts/check-security.mjs`, and the root lockstep task
 - `scripts/rls-verify.mjs`, `scripts/drizzle-schema.mjs`, and `scripts/lib/postgres-container.mjs`,
   unless you delete `db/` entirely
 - `pnpm-workspace.yaml` catalogs

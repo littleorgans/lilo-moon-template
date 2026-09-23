@@ -14,9 +14,9 @@ export default defineConfig((env) => ({
   // There is deliberately no `preview` block. Preview is no longer `vite preview`: Nitro builds a
   // server and the task runs `node .output/server/index.mjs`, which reads `NITRO_PORT` then `PORT`
   // from the environment and never opens this file. A `preview` key here would read as though it
-  // pinned the port and would not. That pin lives in `.moon/tasks/node-application.yml`.
+  // pinned the port and would not. That pin lives in this application's `moon.yml`.
   server: { port: 5199, strictPort: true },
   // Resolve, prebundling and the SSR environment's own condition list. Three settings that have to
   // agree, and disagree quietly when they do not, so they live in one place for every application.
-  ...workspaceSourceConfig(env, new URL("../../", import.meta.url)),
+  ...workspaceSourceConfig(env, new URL("../..", import.meta.url)),
 }));

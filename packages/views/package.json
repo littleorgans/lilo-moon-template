@@ -1,7 +1,7 @@
 {
   "name": "@lilo-moon/views",
   "version": "0.0.0",
-  "description": "Reusable product views: composed from the ui building blocks, aware of the product's types.",
+  "description": "Reusable screens composed from UI building blocks, with application-supplied labels and paths.",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -10,8 +10,7 @@
   },
   "files": [
     "dist",
-    "src",
-    "!src/**/*.test.*"
+    "src"
   ],
   "type": "module",
   "sideEffects": [
@@ -30,7 +29,6 @@
     "access": "public"
   },
   "dependencies": {
-    "@lilo-moon/auth": "workspace:*",
     "@lilo-moon/theme": "workspace:*",
     "@lilo-moon/ui": "workspace:*"
   },

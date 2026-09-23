@@ -1,10 +1,10 @@
-# Inherited only by JavaScript applications. Library build tasks belong in
-# node-library.yml. Keep this out of node.yml so libraries do not grow a
-# Vite dev server.
+# Vite and Nitro tasks for JavaScript applications tagged web-app.
+# Other application runtimes declare their own tasks.
 
 inheritedBy:
   toolchains: ["javascript"]
   layers: ["application"]
+  tags: ["web-app"]
 
 tasks:
   build:
@@ -22,12 +22,14 @@ tasks:
     outputs:
       - ".output"
     options:
+      shell: false
       runInCI: "always"
 
   dev:
     type: "run"
     command: "vite"
     options:
+      shell: false
       cache: false
       # Vite reads .env files only to populate `import.meta.env`, and only for names it is told to
       # expose. It never writes `process.env`, which is where the application reads configuration,
@@ -41,14 +43,10 @@ tasks:
   preview:
     type: "run"
     command: "node .output/server/index.mjs"
-    # Preview is a Nitro server, not `vite preview`, so it never reads vite.config.ts. It takes the
-    # port from the environment, which is the only place the pin has any effect. It must match the
-    # dev server so one registered OAuth redirect URI serves both.
-    env:
-      PORT: "5199"
     deps:
       - "~:build"
     options:
+      shell: false
       cache: false
       # Same file as dev, for the same reason. A Nitro server reads process.env and nothing puts
       # .env.local there.

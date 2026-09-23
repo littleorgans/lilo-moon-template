@@ -69,9 +69,9 @@ export interface AuthRuntime {
  * depend on a filled `.env.local`, and a package that demands configuration to be imported is a
  * package nobody can unit test.
  *
- * This is the module you rewrite to move to another framework, in the same way
- * `packages/auth-workos` is the module you rewrite to move to another identity vendor. Everything
- * it composes lives in `@lilo-moon/auth-session` and knows nothing about any of this.
+ * This adapter owns TanStack request context and cookie integration. The session package owns
+ * HTTP sign-in flows and WorkOS configuration; the WorkOS package owns SDK calls. Changing the
+ * framework leaves those session and provider operations intact.
  */
 export function createAuthRuntime(options: AuthRuntimeOptions): AuthRuntime {
   const rawJar = options.cookies ?? requestCookies;
