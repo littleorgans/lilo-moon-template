@@ -15,6 +15,7 @@ import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { dirname, join, relative } from "node:path";
 import { setTimeout } from "node:timers/promises";
+import { fileURLToPath } from "node:url";
 
 import { createProject } from "./lib/create-project.mjs";
 import { dockerIsAvailable, psqlInput, withPostgres } from "./lib/postgres-container.mjs";
@@ -398,12 +399,19 @@ try {
     await granted.withPrincipal(principal(org), (tx) =>
       tx.execute(sql\`INSERT INTO accounts (workos_org_id) VALUES (\${org})\`),
     );
+    await granted.withPrincipal(principal(org), (tx) =>
+      tx.execute(sql\`INSERT INTO profiles (workos_user_id) VALUES (\${principal(org).userId})\`),
+    );
   }
   for (const org of orgs) {
     const seen = await granted.withPrincipal(principal(org), async (tx) =>
       (await tx.execute(sql\`SELECT workos_org_id FROM accounts\`)).rows,
     );
     assert.deepEqual(seen, [{ workos_org_id: org }], \`\${org} must see only its own account\`);
+    const profiles = await granted.withPrincipal(principal(org), async (tx) =>
+      (await tx.execute(sql\`SELECT workos_user_id FROM profiles\`)).rows,
+    );
+    assert.deepEqual(profiles, [{ workos_user_id: principal(org).userId }]);
   }
 } finally {
   await granted.close();
@@ -413,6 +421,14 @@ try {
 const direct = new Client({ connectionString: GRANTED_URL });
 await direct.connect();
 try {
+  const membership = await direct.query(\`SELECT admin_option, inherit_option, set_option
+    FROM pg_auth_members WHERE member = current_user::regrole AND roleid = 'authenticated'::regrole\`);
+  assert.deepEqual(membership.rows, [{ admin_option: false, inherit_option: false, set_option: true }]);
+  const tables = await direct.query(\`SELECT relname, relrowsecurity, relforcerowsecurity
+    FROM pg_class WHERE oid IN ('public.accounts'::regclass, 'public.profiles'::regclass)
+    ORDER BY relname\`);
+  assert.deepEqual(tables.rows, ["accounts", "profiles"].map(relname =>
+    ({ relname, relrowsecurity: true, relforcerowsecurity: true })));
   await assert.rejects(direct.query("SELECT workos_org_id FROM accounts"), { code: "42501" });
 } finally {
   await direct.end();
@@ -448,17 +464,30 @@ async function exerciseServiceDatabase(root, dbName) {
     return;
   }
   const installed = join(root, "node_modules", dbName);
+  const resolveExport = (subpath) =>
+    fileURLToPath(
+      execFileSync(
+        process.execPath,
+        [
+          "--input-type=module",
+          "--eval",
+          "process.stdout.write(import.meta.resolve(process.argv[1]))",
+          `${dbName}/${subpath}`,
+        ],
+        { cwd: root, encoding: "utf8" },
+      ).trim(),
+    );
   await withPostgres("consumer-check", async (databaseUrl) => {
     const migrations = join(installed, "migrations");
     for (const file of readdirSync(migrations)
       .filter((name) => name.endsWith(".sql"))
       .toSorted()) {
       process.stdout.write(`consumer-check: psql -f ${relative(root, join(migrations, file))}\n`);
-      psqlInput(databaseUrl, readFileSync(join(migrations, file)));
+      psqlInput(databaseUrl, readFileSync(resolveExport(`migrations/${file}`)));
     }
     // Roles are cluster-wide, so the pid keeps concurrent runs apart.
     const roles = {
-      granted: `consumer_login_${process.pid}`,
+      granted: `consumer-login-${process.pid}`,
       ungranted: `consumer_ungranted_${process.pid}`,
     };
     const password = randomBytes(16).toString("hex");
@@ -476,9 +505,17 @@ async function exerciseServiceDatabase(root, dbName) {
           { role, password },
         );
       }
-      psqlInput(databaseUrl, readFileSync(join(installed, "grants/login-role.sql")), {
-        login_role: roles.granted,
-      });
+      // Prove re-running also repairs an unsafe existing membership from the same grantor.
+      psqlInput(
+        databaseUrl,
+        'GRANT authenticated TO :"role" WITH ADMIN TRUE, INHERIT TRUE, SET FALSE;',
+        { role: roles.granted },
+      );
+      for (let attempt = 0; attempt < 2; attempt++) {
+        psqlInput(databaseUrl, readFileSync(resolveExport("grants/login-role.sql")), {
+          login_role: roles.granted,
+        });
+      }
       process.stdout.write(`consumer-check: node database.ts as ${roles.granted}\n`);
       execFileSync(process.execPath, ["database.ts"], {
         cwd: root,
