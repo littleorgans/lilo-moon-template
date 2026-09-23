@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { loadAuthConfig } from "../src/config.js";
+import { readSession, seal } from "../src/session.js";
 
 const complete = {
   WORKOS_CLIENT_ID: "client_01M0JSGENAGWJCN0R7JME8JWGM",
@@ -33,6 +34,127 @@ describe("loadConfig", () => {
     expect(loadAuthConfig(complete).cookieKey.equals(same)).toBe(true);
     const changed = loadAuthConfig({ ...complete, WORKOS_COOKIE_PASSWORD: "z".repeat(32) });
     expect(changed.cookieKey.equals(same)).toBe(false);
+  });
+
+  it("has no previous keys when WORKOS_COOKIE_PASSWORD_PREVIOUS is unset or empty", () => {
+    expect(loadAuthConfig(complete).previousCookieKeys).toStrictEqual([]);
+    expect(
+      loadAuthConfig({ ...complete, WORKOS_COOKIE_PASSWORD_PREVIOUS: "" }).previousCookieKeys,
+    ).toStrictEqual([]);
+  });
+
+  describe("a rotation", () => {
+    const retired = complete.WORKOS_COOKIE_PASSWORD;
+    const older = "o".repeat(40);
+    const next = "n".repeat(32);
+    const rotated = {
+      ...complete,
+      WORKOS_COOKIE_PASSWORD: next,
+      WORKOS_COOKIE_PASSWORD_PREVIOUS: `${retired}, ${older}`,
+    };
+
+    it("preserves legacy passwords containing commas, whitespace or a leading bracket", () => {
+      const passwords = [" legacy,password-with-at-least-32-characters ", "[" + "b".repeat(32)];
+      const config = loadAuthConfig({
+        ...rotated,
+        WORKOS_COOKIE_PASSWORD_PREVIOUS: JSON.stringify(passwords),
+      });
+      for (const password of passwords) {
+        const before = loadAuthConfig({ ...complete, WORKOS_COOKIE_PASSWORD: password });
+        const session = { accessToken: "a", refreshToken: "r" };
+        expect(readSession(config, seal(before.cookieKey, session))).toStrictEqual(session);
+      }
+    });
+
+    it.each([
+      ["[]", null],
+      [JSON.stringify([retired, older]), null],
+      [JSON.stringify([next]), "entry 1 is the same as WORKOS_COOKIE_PASSWORD"],
+      [JSON.stringify([retired, retired]), "entry 2 repeats an earlier entry"],
+      [JSON.stringify(["short"]), "entry 1 must be at least 32 characters"],
+      [JSON.stringify([""]), "entry 1 is empty"],
+      [JSON.stringify([retired, 123]), "must be a JSON array of password strings"],
+      [JSON.stringify([retired, null]), "must be a JSON array of password strings"],
+      [`[${retired}`, "must be a valid JSON array of password strings"],
+    ])("validates a JSON key list without exposing its contents (%#)", (list, message) => {
+      const load = () => loadAuthConfig({ ...rotated, WORKOS_COOKIE_PASSWORD_PREVIOUS: list });
+      if (message === null) {
+        expect(load().previousCookieKeys).toHaveLength(list === "[]" ? 0 : 2);
+      } else {
+        expect(load).toThrow(`WORKOS_COOKIE_PASSWORD_PREVIOUS ${message}`);
+        try {
+          load();
+        } catch (error) {
+          expect(String(error)).not.toContain(retired);
+          expect(String(error)).not.toContain(next);
+        }
+      }
+    });
+
+    // A previous key is the key its password derived while it was current, so every cookie written
+    // before the rotation still opens after it.
+    it("derives each previous key exactly as it was derived while current, in order", () => {
+      const config = loadAuthConfig(rotated);
+      expect(config.previousCookieKeys).toHaveLength(2);
+      expect(config.previousCookieKeys[0]?.equals(loadAuthConfig(complete).cookieKey)).toBe(true);
+      const olderKey = loadAuthConfig({ ...complete, WORKOS_COOKIE_PASSWORD: older }).cookieKey;
+      expect(config.previousCookieKeys[1]?.equals(olderKey)).toBe(true);
+    });
+
+    // The mutation check on the config's half of key order: swapping the current and a previous
+    // key, or sealing with the list's first entry, fails here.
+    it("seals with WORKOS_COOKIE_PASSWORD and nothing listed as previous", () => {
+      const config = loadAuthConfig(rotated);
+      const alone = loadAuthConfig({ ...complete, WORKOS_COOKIE_PASSWORD: next }).cookieKey;
+      expect(config.cookieKey.equals(alone)).toBe(true);
+      for (const key of config.previousCookieKeys) expect(key.equals(config.cookieKey)).toBe(false);
+    });
+
+    // Sealed by the published @littleorgans/auth-session@0.1.0 tarball's own `loadAuthConfig` and
+    // `seal`, with this password. Pins the derivation and the sealed format, so a cookie already in a
+    // browser opens before a rotation and after it.
+    it("opens a cookie sealed by 0.1.0, as the current key and as a previous one", () => {
+      const password = "published-0.1.0-cookie-password-fixture";
+      const sealed =
+        "vEfgwWhmyN1bT9Hb5aJGMsITmbUan9FGsZ9SVn4h_8Agv3zWS4TnEvdoOw9MvSBYk0OWv3FGxTDR7Ct5kXGwNza-CCdKaTa9de5o9zoeHo4jH_6BemhnJsE";
+      const tokens = { accessToken: "access-0.1.0", refreshToken: "refresh-0.1.0" };
+      const unrotated = loadAuthConfig({ ...complete, WORKOS_COOKIE_PASSWORD: password });
+      expect(readSession(unrotated, sealed)).toStrictEqual(tokens);
+      const after = loadAuthConfig({
+        ...complete,
+        WORKOS_COOKIE_PASSWORD: next,
+        WORKOS_COOKIE_PASSWORD_PREVIOUS: password,
+      });
+      expect(readSession(after, sealed)).toStrictEqual(tokens);
+    });
+
+    it.each([
+      ["a short entry, by position", `${retired},short`, "entry 2 must be at least 32 characters"],
+      ["an empty entry", `${retired},,${older}`, "entry 2 is empty"],
+      ["a trailing comma", `${retired},`, "entry 2 is empty"],
+      ["the current password", `${older},${next}`, "entry 2 is the same as WORKOS_COOKIE_PASSWORD"],
+      ["a repeated entry", `${retired},${older}, ${retired}`, "entry 3 repeats an earlier entry"],
+    ])("refuses %s", (_name, list, message) => {
+      expect(() => loadAuthConfig({ ...rotated, WORKOS_COOKIE_PASSWORD_PREVIOUS: list })).toThrow(
+        `WORKOS_COOKIE_PASSWORD_PREVIOUS ${message}`,
+      );
+    });
+
+    // Startup errors land in logs and terminals. Naming the entry by position says which one to fix
+    // without printing any of it.
+    it("never puts a password in an error message", () => {
+      const secret = "s".repeat(31);
+      for (const list of [`${retired},${secret}`, `${secret}${secret},${secret}${secret}`, next]) {
+        let message = "";
+        try {
+          loadAuthConfig({ ...rotated, WORKOS_COOKIE_PASSWORD_PREVIOUS: list });
+        } catch (error) {
+          message = String(error);
+        }
+        expect(message).not.toBe("");
+        for (const value of [secret, next, retired]) expect(message).not.toContain(value);
+      }
+    });
   });
 
   it.each([

@@ -34,6 +34,23 @@ describe("signOut", () => {
     expect(cleared).toEqual([SESSION_COOKIE, STATE_COOKIE, EMAIL_COOKIE]);
   });
 
+  // Sign-out reads the session only to find the provider session to end, and must find it in a
+  // cookie from before a rotation, or the provider session would outlive the local one.
+  it("routes through provider logout for a cookie sealed with a previous key", () => {
+    const previous = randomBytes(32);
+    const { jar } = jarWith({
+      [SESSION_COOKIE]: seal(previous, {
+        accessToken: new UnsecuredJWT({ sid: "session-1", exp: 1 }).encode(),
+        refreshToken: "r",
+      }),
+    });
+    const response = signOut({ request: request() }, jar, {
+      ...deps,
+      previousCookieKeys: [previous],
+    });
+    expect(response.headers.get("location")).toBe(deps.logoutUrl("session-1"));
+  });
+
   it.each([
     undefined,
     "broken",

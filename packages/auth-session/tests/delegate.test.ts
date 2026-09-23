@@ -336,7 +336,7 @@ describe("an expired token", () => {
 
     expect(calls).toStrictEqual([{ refreshToken: "refresh-1" }]);
     expect(sent[0]?.authorization).toBe(`Bearer ${RENEWED}`);
-    expect(readSession(cookieKey, written[0]?.value)).toStrictEqual({
+    expect(readSession({ cookieKey }, written[0]?.value)).toStrictEqual({
       accessToken: RENEWED,
       refreshToken: "refresh-2",
     });
@@ -606,7 +606,7 @@ describe("a token near its expiry", () => {
 
     expect(calls).toHaveLength(1);
     expect(sent[0]?.authorization).toBe(`Bearer ${renewed.accessToken}`);
-    expect(readSession(cookieKey, request.written[0]?.value)?.accessToken).toBe(
+    expect(readSession({ cookieKey }, request.written[0]?.value)?.accessToken).toBe(
       renewed.accessToken,
     );
   });

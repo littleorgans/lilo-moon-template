@@ -13,8 +13,13 @@ export interface AuthConfig {
   readonly cookieNamespace: string;
   readonly apiKey: string;
   readonly redirectUri: string;
-  /** Derived from the cookie password, never the password itself. */
+  /** Derived from the cookie password, never the password itself. Seals every cookie written. */
   readonly cookieKey: Buffer;
+  /**
+   * Derived from `WORKOS_COOKIE_PASSWORD_PREVIOUS`, in the order listed, and empty when it is unset.
+   * Only ever tried when opening a cookie, after `cookieKey`, so a rotation signs nobody out.
+   */
+  readonly previousCookieKeys: readonly Buffer[];
   /** Derived from the client id rather than configured, so the two cannot disagree. */
   readonly issuer: string;
   readonly jwksUri: string;
@@ -60,13 +65,61 @@ function assertComplete(
  * binds the key to this one use: the same password used for another purpose derives a different
  * key, so a value sealed for one cannot be unsealed by the other.
  */
-function cookieKeyFrom(password: string): Buffer {
+function cookieKeyFrom(name: string, password: string): Buffer {
   if (password.length < MINIMUM_COOKIE_PASSWORD) {
     throw new Error(
-      `WORKOS_COOKIE_PASSWORD must be at least ${MINIMUM_COOKIE_PASSWORD} characters, got ${password.length}.`,
+      `${name} must be at least ${MINIMUM_COOKIE_PASSWORD} characters, got ${password.length}.`,
     );
   }
   return Buffer.from(hkdfSync("sha256", password, "lilo-moon-session", "session-cookie-v1", 32));
+}
+
+/**
+ * Turns the retired passwords into keys that open cookies and never seal one.
+ *
+ * A comma-separated list rather than one variable per key, so a rotation that overlaps another
+ * needs no new name. Whitespace around each entry is dropped so `a, b` means what it looks like,
+ * and `openssl rand -base64 32` output needs no escaping. A value starting with `[` is a JSON array
+ * of exact strings instead, for passwords containing commas or surrounding whitespace, which 0.1.0
+ * accepted as current passwords and must stay listable here.
+ * Unset or empty means no previous keys, which is every deployment that has never rotated.
+ *
+ * Each password meets the same floor as the current one, and none may repeat another: a duplicate
+ * is harmless to the cipher but almost always means a rotation was half done, such as a new
+ * password left in both variables. The errors name the entry by position and never its value.
+ */
+function previousCookieKeysFrom(current: string, list: string | undefined): Buffer[] {
+  if (list === undefined || list.trim().length === 0) return [];
+  const name = "WORKOS_COOKIE_PASSWORD_PREVIOUS";
+  let passwords: string[];
+  if (list.trimStart().startsWith("[")) {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(list);
+    } catch {
+      // JSON.parse errors may quote the input, which here contains cookie passwords.
+      throw new Error(`${name} must be a valid JSON array of password strings.`);
+    }
+    if (!Array.isArray(parsed) || !parsed.every((entry: unknown) => typeof entry === "string")) {
+      throw new Error(`${name} must be a JSON array of password strings.`);
+    }
+    passwords = parsed;
+  } else {
+    passwords = list.split(",").map((entry) => entry.trim());
+  }
+  const seen = new Set([current]);
+  return passwords.map((password, index) => {
+    const entry = `${name} entry ${index + 1}`;
+    if (password.length === 0) throw new Error(`${entry} is empty. Remove the empty entry.`);
+    if (password === current) {
+      throw new Error(
+        `${entry} is the same as WORKOS_COOKIE_PASSWORD. A key is current or previous, not both.`,
+      );
+    }
+    if (seen.has(password)) throw new Error(`${entry} repeats an earlier entry.`);
+    seen.add(password);
+    return cookieKeyFrom(entry, password);
+  });
 }
 
 export function loadAuthConfig(env: NodeJS.ProcessEnv = process.env): AuthConfig {
@@ -99,7 +152,11 @@ export function loadAuthConfig(env: NodeJS.ProcessEnv = process.env): AuthConfig
       .slice(0, 16),
     apiKey: values.WORKOS_API_KEY,
     redirectUri,
-    cookieKey: cookieKeyFrom(values.WORKOS_COOKIE_PASSWORD),
+    cookieKey: cookieKeyFrom("WORKOS_COOKIE_PASSWORD", values.WORKOS_COOKIE_PASSWORD),
+    previousCookieKeys: previousCookieKeysFrom(
+      values.WORKOS_COOKIE_PASSWORD,
+      env["WORKOS_COOKIE_PASSWORD_PREVIOUS"],
+    ),
     issuer: `https://api.workos.com/user_management/${clientId}`,
     jwksUri: `https://api.workos.com/sso/jwks/${clientId}`,
     // A Secure cookie is silently dropped over plain http, which localhost is.

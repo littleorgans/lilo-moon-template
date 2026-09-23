@@ -181,7 +181,9 @@ same fragile rebase (U1).
 **U5. The session secret has no rotation path.** One `WORKOS_COOKIE_PASSWORD` derives one key
 (`config.ts` lines 63–70). Rotating it makes every existing cookie unreadable, which signs everyone
 out. The session cookie lives a year (`session.ts` line 84). The design is sound, but it leaves no
-room for routine key rotation or incident response without a mass logout.
+room for routine key rotation or incident response without a mass logout. Addressed for rotation
+by `WORKOS_COOKIE_PASSWORD_PREVIOUS` (roadmap item 15); the procedure is in
+`packages/auth-session/README.md`. Incident response still means a mass logout, by design.
 
 **U6. Live provider behavior is untested.** WorkOS behaviors the code depends on include `aud`
 being absent, refresh preserving `org_id`, `external_id_already_used` arriving as a 400 generic

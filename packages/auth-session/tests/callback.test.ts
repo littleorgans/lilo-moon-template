@@ -286,7 +286,7 @@ describe("handleCallback", () => {
     const { jar, written } = jarWith({ [STATE_COOKIE]: issued });
     await handleCallback(request(`?code=the-code&state=${issued}`), jar, callbackDeps(auth));
     const session = written.find((cookie) => cookie.name === SESSION_COOKIE);
-    expect(readSession(key, session?.value)).toStrictEqual({
+    expect(readSession({ cookieKey: key }, session?.value)).toStrictEqual({
       accessToken: "access-with-org",
       refreshToken: "refresh-2",
     });

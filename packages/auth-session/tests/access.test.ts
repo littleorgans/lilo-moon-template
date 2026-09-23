@@ -88,7 +88,9 @@ function depsWith(
   };
 }
 
-const sealed = (accessToken: string) => seal(cookieKey, { accessToken, refreshToken: "refresh-1" });
+const sealedWith = (key: Buffer, accessToken: string) =>
+  seal(key, { accessToken, refreshToken: "refresh-1" });
+const sealed = (accessToken: string) => sealedWith(cookieKey, accessToken);
 
 const rejects =
   (reason: "expired" | "signature" | "claims" | "malformed"): Verifier =>
@@ -125,6 +127,105 @@ describe("readAccess", () => {
   });
 });
 
+describe("a cookie sealed with a previous key", () => {
+  const previous = randomBytes(32);
+  const retired = randomBytes(32);
+  const withPrevious = (verify: Verifier, auth: WorkOSAuth) => {
+    const { deps, logged } = depsWith(verify, auth);
+    return { deps: { ...deps, previousCookieKeys: [retired, previous] }, logged };
+  };
+
+  // Rotation must not sign anyone out, and a cookie opened by any listed key is as good as one
+  // opened by the current key: the signature check below is what decides who is signed in.
+  it("still signs the person in, from any position in the list", async () => {
+    const { deps } = withPrevious(() => Promise.resolve(principal), authDouble().auth);
+    const results = await Promise.all(
+      [previous, retired].map(
+        async (key) =>
+          await readAccess(jarWith({ [SESSION_COOKIE]: sealedWith(key, "access-1") }).jar, deps),
+      ),
+    );
+    expect(results).toStrictEqual([
+      { status: "signed-in", principal },
+      { status: "signed-in", principal },
+    ]);
+  });
+
+  // Not rewritten while the tokens are unchanged: a rewrite of the same pair can land after a
+  // concurrent request's refresh and put the spent refresh token back. See `readSession`.
+  it("is not rewritten while its token still verifies", async () => {
+    const { jar, written, cleared } = jarWith({
+      [SESSION_COOKIE]: sealedWith(previous, "access-1"),
+    });
+    const { deps } = withPrevious(() => Promise.resolve(principal), authDouble().auth);
+    await readAccess(jar, deps);
+    expect(written).toHaveLength(0);
+    expect(cleared).toHaveLength(0);
+  });
+
+  it("does not overwrite refreshed credentials when an older response arrives last", async () => {
+    const present: Record<string, string> = { [SESSION_COOKIE]: sealedWith(previous, "access-1") };
+    const slow = jarWith(present);
+    const renewing = jarWith(present);
+    const { promise, resolve } = Promise.withResolvers<Principal>();
+    const slowDeps = withPrevious(() => promise, authDouble().auth).deps;
+    const pending = readAccess(slow.jar, slowDeps);
+    const renewingDeps = withPrevious(
+      (token) => (token === "access-1" ? rejects("expired")(token) : Promise.resolve(principal)),
+      authDouble().auth,
+    ).deps;
+    expect(await readAccess(renewing.jar, renewingDeps)).toStrictEqual({
+      status: "signed-in",
+      principal,
+    });
+    for (const cookie of renewing.written) present[cookie.name] = cookie.value;
+    resolve(principal);
+    expect(await pending).toStrictEqual({ status: "signed-in", principal });
+    // Deliver the slow response after the refreshing response, as a browser can receive them.
+    for (const cookie of slow.written) present[cookie.name] = cookie.value;
+    expect(readSession({ cookieKey }, present[SESSION_COOKIE])).toStrictEqual({
+      accessToken: "access-2",
+      refreshToken: "refresh-2",
+    });
+    expect(slow.cleared).toHaveLength(0);
+  });
+
+  it("is resealed with the current key when its token is refreshed", async () => {
+    const { jar, written } = jarWith({ [SESSION_COOKIE]: sealedWith(previous, "access-1") });
+    const { deps } = withPrevious(
+      (token) =>
+        token === "access-1"
+          ? Promise.reject(new AuthError("expired", "token expired"))
+          : Promise.resolve(principal),
+      authDouble().auth,
+    );
+
+    expect(await readAccess(jar, deps)).toStrictEqual({ status: "signed-in", principal });
+    expect(readSession({ cookieKey }, written[0]?.value)).toStrictEqual({
+      accessToken: "access-2",
+      refreshToken: "refresh-2",
+    });
+    // The mutation check on key order: a writer that sealed with a previous key would pass the
+    // line above only if it also opened here.
+    for (const key of [previous, retired]) {
+      expect(readSession({ cookieKey: key }, written[0]?.value)).toBeNull();
+    }
+  });
+
+  // The existing disposition for a cookie that will not open, whatever the reason: anonymous, the
+  // cookie left alone, and nothing logged, because there is no token to report on.
+  it("is anonymous like a tampered cookie once its key is no longer listed", async () => {
+    const { jar, written, cleared } = jarWith({
+      [SESSION_COOKIE]: sealedWith(randomBytes(32), "access-1"),
+    });
+    const { deps, logged } = withPrevious(() => Promise.resolve(principal), authDouble().auth);
+    expect(await readAccess(jar, deps)).toStrictEqual({ status: "anonymous" });
+    expect(written).toHaveLength(0);
+    expect(cleared).toHaveLength(0);
+    expect(logged).toHaveLength(0);
+  });
+});
+
 describe("an expired token", () => {
   // Expiry is the common case rather than a failure: the token lives 300 seconds, so a person
   // reading a page for six minutes reaches this path.
@@ -144,7 +245,7 @@ describe("an expired token", () => {
     // against the live provider. Passing one here would be this reader inventing a tenant.
     expect(calls).toStrictEqual([{ refreshToken: "refresh-1" }]);
     expect(seen).toBe(2);
-    expect(readSession(cookieKey, written[0]?.value)).toStrictEqual({
+    expect(readSession({ cookieKey }, written[0]?.value)).toStrictEqual({
       accessToken: "access-2",
       refreshToken: "refresh-2",
     });
@@ -261,7 +362,7 @@ it("keeps rotated refresh credentials when verification is temporarily unavailab
   );
   expect(await readAccess(jar, deps)).toEqual({ status: "unavailable" });
   expect(cleared).toEqual([]);
-  expect(readSession(cookieKey, written[0]?.value)).toEqual({
+  expect(readSession({ cookieKey }, written[0]?.value)).toEqual({
     accessToken: "access-2",
     refreshToken: "refresh-2",
   });
@@ -333,7 +434,7 @@ describe("concurrent refreshes of one session", () => {
     expect(verified.filter((token) => token === "access-2")).toHaveLength(3);
     for (const { written, cleared } of jars) {
       expect(written).toHaveLength(1);
-      expect(readSession(cookieKey, written[0]?.value)).toStrictEqual({
+      expect(readSession({ cookieKey }, written[0]?.value)).toStrictEqual({
         accessToken: "access-2",
         refreshToken: "refresh-2",
       });
@@ -523,7 +624,7 @@ describe("a token near its expiry", () => {
         principal: renewedPrincipal,
       });
       expect(calls).toStrictEqual([{ refreshToken: "refresh-1" }]);
-      expect(readSession(cookieKey, written[0]?.value)).toStrictEqual({
+      expect(readSession({ cookieKey }, written[0]?.value)).toStrictEqual({
         accessToken: renewal.accessToken,
         refreshToken: "refresh-2",
       });
@@ -560,7 +661,7 @@ describe("a token near its expiry", () => {
         principal: renewedPrincipal,
       });
       expect(calls).toHaveLength(1);
-      expect(readSession(cookieKey, written[0]?.value)?.accessToken).toBe(renewal.accessToken);
+      expect(readSession({ cookieKey }, written[0]?.value)?.accessToken).toBe(renewal.accessToken);
       expect(logged).toHaveLength(0);
     });
 
@@ -646,7 +747,7 @@ describe("a token near its expiry", () => {
 
       expect(await readAccess(jar, deps)).toStrictEqual({ status: "signed-in", principal });
       expect(cleared).toHaveLength(0);
-      expect(readSession(cookieKey, written[0]?.value)).toStrictEqual({
+      expect(readSession({ cookieKey }, written[0]?.value)).toStrictEqual({
         accessToken: renewal.accessToken,
         refreshToken: "refresh-2",
       });
@@ -696,7 +797,9 @@ describe("a token near its expiry", () => {
       );
       expect(calls).toHaveLength(1);
       for (const { written } of jars) {
-        expect(readSession(cookieKey, written[0]?.value)?.accessToken).toBe(renewal.accessToken);
+        expect(readSession({ cookieKey }, written[0]?.value)?.accessToken).toBe(
+          renewal.accessToken,
+        );
       }
     });
 

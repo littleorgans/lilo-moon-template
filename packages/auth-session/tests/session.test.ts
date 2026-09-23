@@ -49,11 +49,11 @@ describe("seal and unseal", () => {
 
 describe("readSession", () => {
   it("reads a sealed session back", () => {
-    expect(readSession(key, seal(key, session))).toStrictEqual(session);
+    expect(readSession({ cookieKey: key }, seal(key, session))).toStrictEqual(session);
   });
 
   it("returns null when there is no cookie at all", () => {
-    expect(readSession(key, undefined)).toBeNull();
+    expect(readSession({ cookieKey: key }, undefined)).toBeNull();
   });
 
   // A sealed value we minted is still not automatically a session. Shape is checked after opening,
@@ -65,7 +65,19 @@ describe("readSession", () => {
     ["wrong types", { accessToken: 1, refreshToken: 2 }],
     ["not an object", "just a string"],
   ])("returns null for a sealed value with %s", (_name, value) => {
-    expect(readSession(key, seal(key, value))).toBeNull();
+    expect(readSession({ cookieKey: key }, seal(key, value))).toBeNull();
+  });
+
+  // Every listed key opens, so a rotation signs nobody out, and a cookie no key opens is null
+  // exactly as a tampered one is.
+  it("opens a cookie sealed with the current key or any previous key, and no other", () => {
+    const third = randomBytes(32);
+    const keys = { cookieKey: key, previousCookieKeys: [other, third] };
+    for (const sealedWith of [key, other, third]) {
+      expect(readSession(keys, seal(sealedWith, session))).toStrictEqual(session);
+    }
+    expect(readSession(keys, seal(randomBytes(32), session))).toBeNull();
+    expect(readSession({ cookieKey: key }, seal(other, session))).toBeNull();
   });
 });
 
@@ -117,4 +129,15 @@ it("writes only the token pair even when given a richer authentication result", 
   };
   writeSession(jar, { cookieKey: key, secureCookies: false }, result);
   expect(unseal(key, written[0]?.value ?? "")).toEqual(session);
+});
+
+// The one rule rotation rests on. A cookie sealed with a previous key would be unreadable the moment
+// that key is removed, so writing one would make removing it sign people out.
+it("seals with the current key and never a previous one", async () => {
+  const { writeSession } = await import("../src/session.js");
+  const { jarWith } = await import("./support.js");
+  const { jar, written } = jarWith();
+  writeSession(jar, { cookieKey: key, previousCookieKeys: [other], secureCookies: false }, session);
+  expect(unseal(key, written[0]?.value ?? "")).toEqual(session);
+  expect(unseal(other, written[0]?.value ?? "")).toBeNull();
 });
