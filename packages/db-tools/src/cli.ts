@@ -7,6 +7,7 @@ import { parseArgs } from "node:util";
 import { Client } from "pg";
 
 import { emptyTables, quoteIdentifier, rlsChecks, runChecks } from "./checks.js";
+import type { Queryable } from "./checks.js";
 
 export const exitCodes = {
   /** Every check passed. */
@@ -15,7 +16,7 @@ export const exitCodes = {
   failed: 1,
   /** The command line or environment is wrong. Nothing was run. */
   usage: 2,
-  /** The database could not be reached or prepared, so no check ran to completion. */
+  /** Verification or cleanup could not finish, including unexpected errors. */
   setup: 3,
 } as const;
 
@@ -43,18 +44,31 @@ Options:
 
 Without --disposable the database is only read: every transaction is read-only and rolled back.
 
-Exit codes: 0 verified, 1 a check failed, 2 usage error, 3 database unreachable or setup failed.
+Exit codes: 0 verified, 1 a check failed, 2 usage error, 3 verification or cleanup incomplete.
 `;
 
 /** Where the checks ran, without the password or query parameters that can carry secrets. */
 function describeTarget(url: URL): string {
-  const user = decodeURIComponent(url.username) || "the default user";
+  const user = decode(url.username) || "the default user";
   return `${url.hostname}:${url.port || "5432"}${url.pathname} as ${user}`;
+}
+
+function decode(value: string): string {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
 }
 
 /** Removes every form of the URL's password from a message a driver or server produced. */
 function redact(text: string, url: URL): string {
-  const secrets = [url.href, url.password, decodeURIComponent(url.password)].filter(Boolean);
+  const secrets = [
+    url.href,
+    url.password,
+    decode(url.password),
+    url.searchParams.get("password") ?? "",
+  ].filter(Boolean);
   return secrets.reduce((redacted, secret) => redacted.replaceAll(secret, "***"), text);
 }
 
@@ -88,7 +102,13 @@ function shippedMigrations(): string {
 }
 
 async function connect(url: URL): Promise<Client> {
-  const client = new Client({ connectionString: url.href, application_name: "rls-verify" });
+  const client = new Client({
+    connectionString: url.href,
+    application_name: "rls-verify",
+    connectionTimeoutMillis: 10_000,
+  });
+  // An idle connection failure is reported by the next query, not an uncaught EventEmitter error.
+  client.on("error", () => undefined);
   try {
     await client.connect();
   } catch (error) {
@@ -115,23 +135,63 @@ interface Options {
   readonly role: string;
 }
 
+// Every query, including catalog reads and empty-table diagnostics, runs inside an explicit
+// read-only transaction. A function may change session defaults; rollback and the next BEGIN
+// READ ONLY prevent that from weakening a later query. Catalog lookup never trusts search_path.
+function readOnlyClient(connection: Client): Queryable {
+  let inTransaction = false;
+  let pending: Promise<unknown> = Promise.resolve();
+  const begin = async () => {
+    await connection.query("BEGIN READ ONLY");
+    await connection.query("SET LOCAL search_path = pg_catalog, pg_temp");
+    await connection.query("SET LOCAL statement_timeout = '60s'");
+    await connection.query("SET LOCAL lock_timeout = '5s'");
+  };
+  return {
+    query(text, values) {
+      const execute = async () => {
+        if (text === "BEGIN") {
+          await begin();
+          inTransaction = true;
+          return { rows: [] };
+        }
+        if (text === "ROLLBACK") {
+          inTransaction = false;
+          return await connection.query(text);
+        }
+        if (inTransaction)
+          return await connection.query(text, values === undefined ? undefined : [...values]);
+        try {
+          await begin();
+          return await connection.query(text, values === undefined ? undefined : [...values]);
+        } finally {
+          await connection.query("ROLLBACK");
+        }
+      };
+      const previous = pending;
+      const result = (async () => {
+        await previous;
+        return await execute();
+      })();
+      pending = quietly(result);
+      return result;
+    },
+  };
+}
+
 async function verify(options: Options, io: CliIo, mode: string): Promise<number> {
-  const client = await connect(options.url);
+  const connection = await connect(options.url);
+  const client = readOnlyClient(connection);
   try {
-    // The guarantee behind "only read": Postgres itself refuses any write for the rest of this
-    // session, including from a check.
-    await client.query("SET SESSION CHARACTERISTICS AS TRANSACTION READ ONLY");
-    await client.query("SET statement_timeout = '60s'");
-    await client.query("SET lock_timeout = '5s'");
-    const { rows } = await client.query<{ exists: boolean; can_set: boolean }>(
+    const { rows } = await client.query(
       `SELECT to_regrole($1) IS NOT NULL AS exists,
               to_regrole($1) IS NOT NULL AND pg_has_role(current_user, to_regrole($1), 'SET') AS can_set`,
       [quoteIdentifier(options.role)],
     );
-    if (rows[0]?.exists !== true) {
+    if (rows[0]?.["exists"] !== true) {
       throw new Error(`role ${options.role} does not exist; apply the migrations first`);
     }
-    if (!rows[0].can_set) {
+    if (!rows[0]["can_set"]) {
       throw new Error(
         `the connected user cannot SET ROLE ${options.role}; grant it, for example with @littleorgans/db's grants/login-role.sql`,
       );
@@ -156,7 +216,7 @@ async function verify(options: Options, io: CliIo, mode: string): Promise<number
     io.stdout(`rls-verify: row level security verified, ${checks.length} checks passed.\n`);
     return exitCodes.passed;
   } finally {
-    await quietly(client.end());
+    await quietly(connection.end());
   }
 }
 
@@ -170,19 +230,28 @@ async function verifyDisposable(
 ): Promise<number> {
   const files = sqlFiles(migrations);
   const admin = await connect(options.url);
-  const scratch = `rls_verify_${randomBytes(6).toString("hex")}`;
+  const scratch = `rls_verify_${randomBytes(12).toString("hex")}`;
   try {
-    await admin.query(`CREATE DATABASE ${scratch}`);
+    await admin.query("SET statement_timeout = '60s'");
+    await admin.query("SET lock_timeout = '5s'");
+    await admin.query(`CREATE DATABASE ${quoteIdentifier(scratch)}`);
   } catch (error) {
     await quietly(admin.end());
     throw new Error(`could not create a scratch database: ${messageOf(error)}`, { cause: error });
   }
-  io.stdout(`rls-verify: created scratch database ${scratch}\n`);
+  let result: number = exitCodes.setup;
+  let failure: unknown;
   try {
+    io.stdout(`rls-verify: created scratch database ${scratch}\n`);
     const url = new URL(options.url);
     url.pathname = `/${scratch}`;
     const setup = await connect(url);
     try {
+      const { rows } = await setup.query("SELECT pg_catalog.current_database() AS name");
+      if (rows[0]?.name !== scratch)
+        throw new Error("scratch connection reached the wrong database");
+      await setup.query("SET statement_timeout = '60s'");
+      await setup.query("SET lock_timeout = '5s'");
       for (const file of [...files, ...(seed === undefined ? [] : [seed])]) {
         // Migrations apply in order, each after the one before it.
         // oxlint-disable-next-line no-await-in-loop
@@ -192,17 +261,21 @@ async function verifyDisposable(
       await quietly(setup.end());
     }
     io.stdout(`rls-verify: applied ${files.length} migrations from ${migrations}\n`);
-    return await verify({ ...options, url }, io, "disposable");
-  } finally {
-    try {
-      await admin.query(`DROP DATABASE IF EXISTS ${scratch} WITH (FORCE)`);
-      io.stdout(`rls-verify: dropped scratch database ${scratch}\n`);
-    } catch (error) {
-      io.stderr(`rls-verify: could not drop ${scratch}: ${messageOf(error)}\n`);
-    } finally {
-      await quietly(admin.end());
-    }
+    result = await verify({ ...options, url }, io, "disposable");
+  } catch (error) {
+    failure = error;
   }
+  try {
+    await admin.query(`DROP DATABASE ${quoteIdentifier(scratch)} WITH (FORCE)`);
+    io.stdout(`rls-verify: dropped scratch database ${scratch}\n`);
+  } catch (error) {
+    const prior = failure === undefined ? "" : `${messageOf(failure)}; `;
+    failure = new Error(`${prior}could not drop ${scratch}: ${messageOf(error)}`, { cause: error });
+  } finally {
+    await quietly(admin.end());
+  }
+  if (failure !== undefined) throw failure;
+  return result;
 }
 
 export async function main(argv: readonly string[], io: CliIo): Promise<number> {
@@ -220,8 +293,8 @@ export async function main(argv: readonly string[], io: CliIo): Promise<number> 
         help: { type: "boolean", short: "h" },
       },
     }));
-  } catch (error) {
-    io.stderr(`rls-verify: ${messageOf(error)}\n\n${usage}`);
+  } catch {
+    io.stderr(`rls-verify: invalid command-line options.\n\n${usage}`);
     return exitCodes.usage;
   }
   if (values.help === true) {
@@ -243,6 +316,17 @@ export async function main(argv: readonly string[], io: CliIo): Promise<number> 
     io.stderr("rls-verify: --migrations and --seed write, so they need --disposable.\n");
     return exitCodes.usage;
   }
+  const originalIo = io;
+  const sanitize = (text: string) => {
+    const safe = redact(text, url);
+    const password = io.env["PGPASSWORD"];
+    return password ? safe.replaceAll(password, "***") : safe;
+  };
+  io = {
+    ...io,
+    stdout: (text) => originalIo.stdout(sanitize(text)),
+    stderr: (text) => originalIo.stderr(sanitize(text)),
+  };
   const options = {
     url,
     schemas: values.schema ?? ["public"],

@@ -34,14 +34,25 @@ describe("runChecks", () => {
           name: "raises",
           run: () => Promise.reject(Object.assign(new Error("boom"), { code: "22P02" })),
         },
-        // Something that is not an Error still has to be reported, not crash the run.
-        // oxlint-disable-next-line prefer-promise-reject-errors
-        { name: "rejects oddly", run: () => Promise.reject("odd") },
       ],
       (line) => lines.push(line),
     );
-    expect(failures).toStrictEqual(["raises: threw 22P02 boom", "rejects oddly: threw odd"]);
+    expect(failures).toStrictEqual(["raises: threw 22P02 boom"]);
     expect(lines.join("")).toContain("  FAIL  raises\n        threw 22P02 boom\n");
+  });
+  it.each(["08006", "57014", undefined])("propagates unexpected errors (%s)", async (code) => {
+    await expect(
+      runChecks(
+        answering([]),
+        [
+          {
+            name: "broken",
+            run: () => Promise.reject(Object.assign(new Error("unexpected"), { code })),
+          },
+        ],
+        () => undefined,
+      ),
+    ).rejects.toThrow("broken: threw");
   });
 });
 

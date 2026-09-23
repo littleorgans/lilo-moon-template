@@ -156,4 +156,105 @@ describe.skipIf(!dockerIsAvailable())("rls-verify against Postgres", () => {
       expect(await scratchExists(databaseUrl, output)).toBe(false);
     });
   }, 60_000);
+  it("ignores a hostile search_path that can disable the read-only default", async () => {
+    await withMigrated(async (databaseUrl) => {
+      await sql(
+        databaseUrl,
+        `CREATE TABLE audit (n int);
+        CREATE FUNCTION public.poison() RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER AS $$
+        BEGIN
+          IF current_setting('transaction_read_only') = 'off' THEN
+            INSERT INTO public.audit VALUES (1);
+          END IF;
+          PERFORM set_config('default_transaction_read_only', 'off', false);
+          RETURN false;
+        END $$;
+        CREATE VIEW public.pg_roles AS
+          SELECT rolname, public.poison() OR rolsuper AS rolsuper, rolbypassrls
+          FROM pg_catalog.pg_roles;`,
+      );
+      const url = new URL(databaseUrl);
+      url.searchParams.set("options", "-c search_path=public,pg_catalog");
+      const { code } = await run([], url.href);
+      expect(code).toBe(exitCodes.failed); // audit itself is deliberately unprotected
+      expect((await sql(databaseUrl, "SELECT count(*)::int AS n FROM audit")).rows[0].n).toBe(0);
+    });
+  }, 60_000);
+
+  it("redacts a password raised by a policy, including a query-string password", async () => {
+    await withMigrated(async (databaseUrl) => {
+      const secret = "policy-secret/#";
+      await sql(
+        databaseUrl,
+        `CREATE FUNCTION app.raises() RETURNS boolean LANGUAGE plpgsql AS $$
+        BEGIN RAISE EXCEPTION 'policy-secret/#'; END $$;
+        CREATE POLICY raises ON accounts FOR SELECT USING (app.raises());`,
+      );
+      const url = new URL(databaseUrl);
+      const role = `redaction_${process.pid}`;
+      await sql(
+        databaseUrl,
+        `CREATE ROLE ${role} LOGIN PASSWORD '${secret}'; GRANT authenticated TO ${role}`,
+      );
+      url.username = role;
+      url.searchParams.set("password", secret);
+      try {
+        const { code, output } = await run([], url.href);
+        expect(code).toBe(exitCodes.failed);
+        expect(output).toContain("***");
+        expect(output).not.toContain(secret);
+      } finally {
+        await sql(databaseUrl, `DROP ROLE ${role}`);
+      }
+    });
+  }, 60_000);
+
+  it("verifies several quoted schemas and checks parents and direct partitions", async () => {
+    await withMigrated(async (databaseUrl) => {
+      await sql(
+        databaseUrl,
+        `CREATE SCHEMA "tenant space";
+        CREATE TABLE "tenant space".events (id int) PARTITION BY RANGE (id);
+        CREATE TABLE "tenant space".part PARTITION OF "tenant space".events FOR VALUES FROM (0) TO (10);
+        INSERT INTO "tenant space".events VALUES (1);
+        ALTER TABLE "tenant space".events ENABLE ROW LEVEL SECURITY;
+        ALTER TABLE "tenant space".events FORCE ROW LEVEL SECURITY;
+        ALTER TABLE "tenant space".part ENABLE ROW LEVEL SECURITY;
+        ALTER TABLE "tenant space".part FORCE ROW LEVEL SECURITY;
+        GRANT USAGE ON SCHEMA "tenant space" TO authenticated;
+        GRANT SELECT ON ALL TABLES IN SCHEMA "tenant space" TO authenticated;`,
+      );
+      const args = ["--schema", "public", "--schema", "tenant space"];
+      expect((await run(args, databaseUrl)).code).toBe(exitCodes.passed);
+      await sql(databaseUrl, 'ALTER TABLE "tenant space".events NO FORCE ROW LEVEL SECURITY');
+      expect((await run(args, databaseUrl)).output).toContain('"tenant space".events (not forced)');
+      await sql(
+        databaseUrl,
+        'ALTER TABLE "tenant space".events FORCE ROW LEVEL SECURITY; ALTER TABLE "tenant space".part NO FORCE ROW LEVEL SECURITY',
+      );
+      expect((await run(args, databaseUrl)).output).toContain('"tenant space".part (not forced)');
+    });
+  }, 60_000);
+
+  it("uses disposable mode as a non-superuser with CREATEDB, CREATEROLE and the role grant", async () => {
+    await withPostgres("db-tools-test", async (databaseUrl) => {
+      applyMigrations(databaseUrl); // Provision the shared request role independently of test order.
+      const role = `scratch_owner_${process.pid}`;
+      await sql(
+        databaseUrl,
+        `CREATE ROLE ${role} LOGIN CREATEDB CREATEROLE PASSWORD 'scratch-owner'; GRANT authenticated TO ${role}`,
+      );
+      const url = new URL(databaseUrl);
+      url.username = role;
+      url.password = "scratch-owner";
+      try {
+        const { code, output } = await run(["--disposable"], url.href);
+        expect(output).toContain("(disposable)");
+        expect(code).toBe(exitCodes.passed);
+        expect(await scratchExists(databaseUrl, output)).toBe(false);
+      } finally {
+        await sql(databaseUrl, `DROP ROLE ${role}`);
+      }
+    });
+  }, 60_000);
 });

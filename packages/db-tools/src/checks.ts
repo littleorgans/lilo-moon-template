@@ -32,7 +32,8 @@ export const quoteIdentifier = (name: string): string => `"${name.replaceAll('"'
 
 /**
  * Runs `body` in one transaction as `role`, with `claims` set the way @littleorgans/db sets them,
- * and always rolls back. A check never leaves anything behind, even when what it tried succeeded.
+ * and always rolls back. Callers own connection safety: rollback does not undo nontransactional
+ * effects such as sequence increments or external actions by server functions.
  */
 export async function asRole<T>(
   client: Queryable,
@@ -193,9 +194,8 @@ function describeError(error: unknown): string {
 }
 
 /**
- * Runs each check in order and writes one line per result. A check that throws is a failure and
- * is reported as one: a policy that raises instead of matching nothing is a real defect, and a
- * stack trace would hide which check found it. Returns the failures.
+ * Runs checks in order and returns observed failures. Policy/data errors are check failures;
+ * unexpected errors propagate with the check name so the CLI can distinguish an incomplete run.
  */
 export async function runChecks(
   client: Queryable,
@@ -216,6 +216,12 @@ export async function runChecks(
       }
       detail = outcome;
     } catch (error) {
+      const code = error instanceof Error && "code" in error ? error.code : undefined;
+      // Policy expression errors, denied access, and attempted writes are observed check failures.
+      // Transport failures, timeouts, and programming errors mean verification did not finish.
+      if (typeof code !== "string" || !/^(22[0-9A-Z]{3}|42501|25006|P0001)$/u.test(code)) {
+        throw new Error(`${check.name}: ${describeError(error)}`, { cause: error });
+      }
       detail = describeError(error);
     }
     failures.push(`${check.name}: ${detail}`);

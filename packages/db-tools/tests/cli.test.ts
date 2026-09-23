@@ -37,7 +37,7 @@ describe("rls-verify command line", () => {
   it("rejects an unknown option", async () => {
     const { code, stderr } = await run(["--bogus"], { DATABASE_URL: "postgres://h/d" });
     expect(code).toBe(exitCodes.usage);
-    expect(stderr).toContain("'--bogus'");
+    expect(stderr).toContain("invalid command-line options");
   });
 
   it("rejects a URL that is not Postgres without echoing it", async () => {
