@@ -286,7 +286,7 @@ and the tarball it serves, equal the scanned file's hash.
 falls back to `NODE_AUTH_TOKEN`. The organization token bootstraps packages that do not exist yet,
 since npm attaches a trusted publisher only to an existing package. Once every package trusts
 `release.yml`, the token and its secret are deleted, and no long-lived publish credential remains.
-Only the publish job can mint an OIDC token or read the npm token, and it installs no dependencies.
+Only the publish job can mint an OIDC token or read the npm token, and it installs no workspace dependencies; the pinned npm install disables lifecycle scripts.
 
 Versioning and publishing stay separate steps. While changesets are pending, the workflow only
 opens or updates the Version Packages PR. The publish jobs run on the commit that merges it, and

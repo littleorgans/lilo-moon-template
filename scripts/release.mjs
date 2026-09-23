@@ -6,6 +6,7 @@
 
 import { execFileSync, spawnSync } from "node:child_process";
 import {
+  appendFileSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -70,6 +71,12 @@ function pack(directory) {
     return record;
   });
   writeJson(join(root, RELEASE_MANIFEST), { packages: records });
+  if (process.env.GITHUB_OUTPUT) {
+    appendFileSync(
+      process.env.GITHUB_OUTPUT,
+      `manifest-integrity=${integrityOf(join(root, RELEASE_MANIFEST))}\n`,
+    );
+  }
 }
 
 /**
@@ -110,7 +117,7 @@ function publish(directory) {
     }
     // npm reads the registry, the token and provenance from its configuration. A tarball spec runs
     // no lifecycle scripts, so these bytes are exactly what the registry receives.
-    const result = spawnSync("npm", ["publish", file, "--access", "public"], {
+    const result = spawnSync("npm", ["publish", file, "--access", "public", "--ignore-scripts"], {
       stdio: "inherit",
     });
     if (result.status !== 0) {
@@ -136,7 +143,7 @@ function run(command, args) {
  * origin is kept if it points at `commit` and refused otherwise, so a rerun completes a partial run
  * and never moves a released tag.
  */
-function pushTag(tagName, commit) {
+function checkTag(tagName, commit) {
   const remote = run("git", [
     "ls-remote",
     "--tags",
@@ -152,6 +159,17 @@ function pushTag(tagName, commit) {
         `Release: tag ${tagName} on origin points at ${tagged}, not the released ${commit}`,
       );
     }
+    return true;
+  }
+  const local = probe("git", ["rev-parse", "--quiet", "--verify", `refs/tags/${tagName}`]);
+  if (local.status === 0 && run("git", ["rev-parse", `refs/tags/${tagName}^{commit}`]) !== commit) {
+    throw new Error(`Release: local tag ${tagName} does not point at the released ${commit}`);
+  }
+  return false;
+}
+
+function pushTag(tagName, commit) {
+  if (checkTag(tagName, commit)) {
     log(`Release: tag ${tagName} exists on origin; kept`);
     return;
   }
@@ -159,6 +177,23 @@ function pushTag(tagName, commit) {
   if (local.status !== 0) run("git", ["tag", tagName, "-m", tagName, commit]);
   run("git", ["push", "origin", `refs/tags/${tagName}`]);
   log(`Release: pushed tag ${tagName}`);
+}
+
+// Run before the first upload, and again before tagging. A later main commit cannot continue a
+// partially tagged release and publish more packages before discovering the conflicting tags.
+function preflight(directory) {
+  const tarballs = publishOrder(readReleaseTarballs(directory));
+  const expected = publishedPackages()
+    .map(({ manifest }) => `${manifest.name}@${manifest.version}`)
+    .toSorted();
+  const actual = tarballs.map(({ name, version }) => `${name}@${version}`).toSorted();
+  if (JSON.stringify(expected) !== JSON.stringify(actual)) {
+    throw new Error("Release: tarballs do not match all published workspace packages");
+  }
+  const versions = [...new Set(tarballs.map(({ version }) => version))];
+  if (versions.length !== 1) throw new Error("Release: packages must share one version (D3)");
+  const head = run("git", ["rev-parse", "HEAD"]);
+  for (const tagName of [...actual, `v${versions[0]}`]) checkTag(tagName, head);
 }
 
 /**
@@ -192,6 +227,7 @@ function tag(directory) {
     return `## ${name}\n\n${entry}`;
   });
   const head = run("git", ["rev-parse", "HEAD"]);
+  preflight(directory);
   for (const { name } of tarballs) pushTag(`${name}@${version}`, head);
   const repositoryTag = `v${version}`;
   pushTag(repositoryTag, head);
@@ -342,11 +378,11 @@ function sharedVersion() {
   log(versions[0]);
 }
 
-const commands = { pack, publish, tag, smoke, version: sharedVersion };
+const commands = { pack, publish, preflight, tag, smoke, version: sharedVersion };
 const [command, directory] = process.argv.slice(2);
 if (!Object.hasOwn(commands, command) || (command !== "version" && directory === undefined)) {
   console.error(
-    "Usage: node scripts/release.mjs <pack|publish|tag|smoke> <directory>, or node scripts/release.mjs version",
+    "Usage: node scripts/release.mjs <pack|publish|preflight|tag|smoke> <directory>, or node scripts/release.mjs version",
   );
   process.exit(2);
 }

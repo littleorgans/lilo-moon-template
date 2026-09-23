@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { test } from "node:test";
 
 import { parse } from "yaml";
@@ -11,6 +14,7 @@ await test("release.yml publishes only after the full gate passes on the same ru
   const { version, gate, publish, smoke } = workflow.jobs;
   assert.deepEqual(Object.keys(workflow.jobs), ["version", "gate", "publish", "smoke"]);
   assert.deepEqual(workflow.permissions, {});
+  assert.equal(workflow.concurrency["cancel-in-progress"], false);
 
   assert.equal(
     version.outputs.publish,
@@ -35,9 +39,25 @@ await test("release.yml publishes only after the full gate passes on the same ru
     'node scripts/published-shape.mjs "$RUNNER_TEMP/release"',
   ]);
   assert.match(gate.steps.at(-1).uses, /^actions\/upload-artifact@[0-9a-f]{40}$/);
+  assert.equal(gate.outputs["manifest-integrity"], "${{ steps.pack.outputs.manifest-integrity }}");
+  assert.equal(gate.outputs["artifact-id"], "${{ steps.artifact.outputs.artifact-id }}");
+  assert.equal(gate.steps.at(-1).with.name, "release-tarballs-${{ github.run_attempt }}");
+  for (const job of [publish, smoke]) {
+    assert.equal(
+      job.env.RELEASE_MANIFEST_INTEGRITY,
+      "${{ needs.gate.outputs.manifest-integrity }}",
+    );
+    const download = job.steps.find((step) => step.uses?.startsWith("actions/download-artifact@"));
+    assert.equal(download.with["artifact-ids"], "${{ needs.gate.outputs.artifact-id }}");
+    assert.equal(download.with["merge-multiple"], true);
+    assert.equal(job.steps[0].with["persist-credentials"], false);
+  }
+  const preflight = publish.steps.findIndex((step) => step.run?.includes("release.mjs preflight"));
+  const uploadIndex = publish.steps.findIndex((step) => step.run?.includes("release.mjs publish"));
+  assert.ok(preflight >= 0 && preflight < uploadIndex);
 
   assert.equal(publish.needs, "gate");
-  assert.equal(smoke.needs, "publish");
+  assert.deepEqual(smoke.needs, ["gate", "publish"]);
   for (const job of [gate, publish, smoke]) {
     assert.ok(!("continue-on-error" in job));
     for (const step of job.steps) {
@@ -58,10 +78,39 @@ await test("release.yml publishes only after the full gate passes on the same ru
 });
 
 await test("release.yml pins an npm with trusted publishing", () => {
-  const pin = /npm install --global npm@(\d+)\.(\d+)\.(\d+)\n/.exec(
+  const pin = /npm install --global npm@(\d+)\.(\d+)\.(\d+) --ignore-scripts\n/.exec(
     readFileSync(".github/workflows/release.yml", "utf8"),
   );
   assert.ok(pin, "release.yml must pin an exact npm");
   const [major, minor] = pin.slice(1).map(Number);
   assert.ok(major > 11 || (major === 11 && minor >= 5), "trusted publishing needs npm >= 11.5");
+});
+
+await test("the version probe distinguishes a missing tag from a failed remote lookup", (t) => {
+  const root = mkdtempSync(join(tmpdir(), "release-remote-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  for (const [name, script] of Object.entries({
+    node: "#!/bin/sh\necho 0.1.0\n",
+    git: '#!/bin/sh\nexit "$REMOTE_STATUS"\n',
+  })) {
+    writeFileSync(join(root, name), script);
+    chmodSync(join(root, name), 0o755);
+  }
+  const workflow = parse(readFileSync(".github/workflows/release.yml", "utf8"));
+  const script = workflow.jobs.version.steps.find((step) => step.id === "released").run;
+  for (const status of [0, 2, 128]) {
+    const output = join(root, "output");
+    writeFileSync(output, "");
+    const result = spawnSync("bash", ["-e", "-c", script], {
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        PATH: `${root}:${process.env.PATH}`,
+        GITHUB_OUTPUT: output,
+        REMOTE_STATUS: String(status),
+      },
+    });
+    assert.equal(result.status, status === 128 ? 128 : 0);
+    assert.equal(readFileSync(output, "utf8"), status === 128 ? "" : `released=${status === 0}\n`);
+  }
 });

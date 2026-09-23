@@ -189,7 +189,7 @@ work; the green run proves the valid state.
   `pnpm-workspace.yaml`. GitHub Actions versions and `actions/setup-node`'s
   `node-version` come from the github-actions manager. Regex managers cover the Node
   and pnpm pins in `.moon/toolchains.yml`. Moon is pinned in `.prototools`, the workspace
-  constraint and the release installer. Renovate groups those three updates, and
+  constraint. CI and release read .prototools. Renovate groups those two updates, and
   `root:scripts-test` checks agreement. Proto itself is not pinned.
 
 ## Do not

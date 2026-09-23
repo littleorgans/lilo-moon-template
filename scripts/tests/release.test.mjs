@@ -75,6 +75,17 @@ await test("pack records every published package once, and nothing private", (t)
   for (const { file, integrity } of tarballs) assert.equal(integrityOf(file), integrity);
 });
 
+await test("pack exports the manifest digest outside the artifact", (t) => {
+  const root = workspace(t);
+  const output = join(root, "job-output");
+  const result = node(root, ["pack", "release"], { GITHUB_OUTPUT: output });
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(
+    readFileSync(output, "utf8"),
+    `manifest-integrity=${integrityOf(join(root, "release/release.json"))}\n`,
+  );
+});
+
 await test("pack refuses a directory that already holds files", (t) => {
   const { root } = packed(t);
   const again = node(root, ["pack", "release"]);
@@ -161,6 +172,23 @@ const published = (root) =>
     ? readFileSync(join(root, "published.log"), "utf8").trim().split("\n")
     : [];
 
+await test("replacing both a tarball and release.json cannot bypass the gate output", (t) => {
+  const { root, directory } = packed(t);
+  const manifest = join(directory, "release.json");
+  const expected = integrityOf(manifest);
+  const record = JSON.parse(readFileSync(manifest, "utf8"));
+  const file = join(directory, record.packages[0].file);
+  appendFileSync(file, "tampered");
+  record.packages[0].integrity = integrityOf(file);
+  writeFileSync(manifest, JSON.stringify(record));
+  const env = { ...fakeNpm(root, {}), RELEASE_MANIFEST_INTEGRITY: expected };
+  const result = node(root, ["publish", directory], env);
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /release.json differs from the gate/);
+  assert.deepEqual(published(root), []);
+  assert.throws(() => readReleaseTarballs(directory, ""), /differs from the gate/);
+});
+
 await test("publish uploads in order, skips versions already up and prints New tag lines", (t) => {
   const { root, directory } = packed(t);
   const tarballs = publishOrder(readReleaseTarballs(directory));
@@ -175,7 +203,7 @@ await test("publish uploads in order, skips versions already up and prints New t
   );
   assert.deepEqual(
     published(root),
-    tarballs.slice(1).map(({ file }) => `${file} --access public`),
+    tarballs.slice(1).map(({ file }) => `${file} --access public --ignore-scripts`),
   );
 });
 
@@ -301,6 +329,36 @@ await test("tag refuses a released tag that points at another commit", (t) => {
   const result = node(root, ["tag", "release"], env);
   assert.equal(result.status, 1);
   assert.match(result.stderr, /tag v0\.1\.0 on origin points at [0-9a-f]{40}, not the released/);
+  assert.equal(
+    git(root, ["ls-remote", "--tags", "origin"]).split("\n").length,
+    2,
+    "a conflict must be detected before any package tag is pushed",
+  );
+  const beforePublish = node(root, ["preflight", "release"], env);
+  assert.equal(beforePublish.status, 1);
+  assert.match(beforePublish.stderr, /not the released/);
+});
+
+await test("a stale local tag is never pushed to origin", (t) => {
+  const { root, origin, env } = tagFixture(t);
+  git(root, ["tag", "@fixture/app@0.1.0", "-m", "old"]);
+  git(root, ["commit", "--quiet", "--allow-empty", "-m", "later"]);
+  const result = node(root, ["tag", "release"], env);
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /local tag .* does not point at the released/);
+  assert.equal(git(origin, ["tag", "-l"]), "");
+});
+
+await test("preflight rejects an incomplete artifact before any upload", (t) => {
+  const { root, directory, env } = tagFixture(t);
+  const manifest = join(directory, "release.json");
+  const record = JSON.parse(readFileSync(manifest, "utf8"));
+  const removed = record.packages.pop();
+  rmSync(join(directory, removed.file));
+  writeFileSync(manifest, JSON.stringify(record));
+  const result = node(root, ["preflight", "release"], env);
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /do not match all published workspace packages/);
 });
 
 await test("tag refuses a missing changelog entry or mixed versions before pushing anything", (t) => {
