@@ -97,13 +97,14 @@ async function rowsWithoutClaims(
 ): Promise<Outcome> {
   const tables = (await listTables(client, schemas, role)).filter((table) => table.readable);
   const visible = await asRole(client, role, null, async () => {
-    const found = await Promise.all(
-      tables.map(async (table) => {
-        const { rows } = await client.query(`SELECT 1 FROM ${table.qualified} LIMIT 1`);
-        return rows.length > 0 ? [table.qualified] : [];
-      }),
-    );
-    return found.flat();
+    const found: string[] = [];
+    for (const table of tables) {
+      // One connection, one query at a time, including for callers using a raw pg Client.
+      // oxlint-disable-next-line no-await-in-loop
+      const { rows } = await client.query(`SELECT 1 FROM ${table.qualified} LIMIT 1`);
+      if (rows.length > 0) found.push(table.qualified);
+    }
+    return found;
   });
   return visible.length === 0 || `rows visible without claims in ${visible.join(", ")}`;
 }
@@ -179,13 +180,13 @@ export async function emptyTables(
   const user = rows[0];
   if (user?.["bypasses"] !== true) return null;
   const tables = await listTables(client, schemas, String(user["rolname"]));
-  const empty = await Promise.all(
-    tables.map(async (table) => {
-      const { rows: found } = await client.query(`SELECT 1 FROM ${table.qualified} LIMIT 1`);
-      return found.length === 0 ? [table.qualified] : [];
-    }),
-  );
-  return empty.flat();
+  const empty: string[] = [];
+  for (const table of tables) {
+    // oxlint-disable-next-line no-await-in-loop
+    const { rows: found } = await client.query(`SELECT 1 FROM ${table.qualified} LIMIT 1`);
+    if (found.length === 0) empty.push(table.qualified);
+  }
+  return empty;
 }
 
 function describeError(error: unknown): string {
