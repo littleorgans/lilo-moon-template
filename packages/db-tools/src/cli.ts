@@ -242,13 +242,24 @@ async function verify(options: Options, io: CliIo, mode: string): Promise<number
 // block that could be made writable instead. So the connection to the original database becomes
 // writable for exactly one of those statements at a time, and read-only again straight after.
 // Neither fires the original database's event triggers or writes its tables.
-async function writableFor(admin: Client, statement: string): Promise<void> {
+// A restoration error is returned only after the statement succeeded. In particular, a caller
+// must still drop a successfully created database even when restoring the session then fails.
+async function writableFor(admin: Client, statement: string): Promise<Error | undefined> {
   await admin.query("SET default_transaction_read_only = off");
+  let restoreFailure: Error | undefined;
   try {
     await admin.query(statement);
   } finally {
-    await quietly(admin.query("SET default_transaction_read_only = on"));
+    try {
+      await admin.query("SET default_transaction_read_only = on");
+    } catch (error) {
+      restoreFailure = new Error(
+        `could not restore read-only after ${statement}: ${messageOf(error)}`,
+        { cause: error },
+      );
+    }
   }
+  return restoreFailure;
 }
 
 async function verifyDisposable(
@@ -260,11 +271,12 @@ async function verifyDisposable(
   const files = sqlFiles(migrations);
   const admin = await connect(readOnlyAtStartup(options.url));
   const scratch = `rls_verify_${randomBytes(12).toString("hex")}`;
+  let createRestoreFailure: Error | undefined;
   try {
     // Startup keeps the original database's login triggers read-only. No migration runs here.
     await admin.query("SET statement_timeout = '60s'");
     await admin.query("SET lock_timeout = '5s'");
-    await writableFor(admin, `CREATE DATABASE ${quoteIdentifier(scratch)}`);
+    createRestoreFailure = await writableFor(admin, `CREATE DATABASE ${quoteIdentifier(scratch)}`);
   } catch (error) {
     await quietly(admin.end());
     throw new Error(`could not create a scratch database: ${messageOf(error)}`, { cause: error });
@@ -273,6 +285,7 @@ async function verifyDisposable(
   let failure: unknown;
   try {
     io.stdout(`rls-verify: created scratch database ${scratch}\n`);
+    if (createRestoreFailure !== undefined) throw createRestoreFailure;
     const url = new URL(options.url);
     url.pathname = `/${scratch}`;
     const setup = await connect(readOnlyAtStartup(url));
@@ -297,8 +310,15 @@ async function verifyDisposable(
     failure = error;
   }
   try {
-    await writableFor(admin, `DROP DATABASE ${quoteIdentifier(scratch)} WITH (FORCE)`);
+    const dropRestoreFailure = await writableFor(
+      admin,
+      `DROP DATABASE ${quoteIdentifier(scratch)} WITH (FORCE)`,
+    );
     io.stdout(`rls-verify: dropped scratch database ${scratch}\n`);
+    if (dropRestoreFailure !== undefined) {
+      const prior = failure === undefined ? "" : `${messageOf(failure)}; `;
+      failure = new Error(`${prior}${dropRestoreFailure.message}`, { cause: dropRestoreFailure });
+    }
   } catch (error) {
     const prior = failure === undefined ? "" : `${messageOf(failure)}; `;
     failure = new Error(`${prior}could not drop ${scratch}: ${messageOf(error)}`, { cause: error });

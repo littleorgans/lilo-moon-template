@@ -10,6 +10,8 @@ const state = vi.hoisted(() => ({
   queries: [] as string[],
   onOriginal: [] as string[],
   fault: "",
+  originalWritable: false,
+  originalEnded: false,
 }));
 vi.mock("pg", () => ({
   Client: class {
@@ -19,10 +21,25 @@ vi.mock("pg", () => ({
     }
     on() {}
     async connect() {}
-    async end() {}
+    async end() {
+      if (this.database === "original") state.originalEnded = true;
+    }
     async query(sql: string) {
       state.queries.push(sql);
-      if (this.database === "original") state.onOriginal.push(sql);
+      if (this.database === "original") {
+        const previous = state.onOriginal.at(-1);
+        state.onOriginal.push(sql);
+        if (sql === "SET default_transaction_read_only = off") state.originalWritable = true;
+        if (sql === "SET default_transaction_read_only = on") {
+          if (
+            (state.fault === "restore-create" && previous?.startsWith("CREATE DATABASE")) ||
+            (state.fault === "restore-drop" && previous?.startsWith("DROP DATABASE"))
+          ) {
+            throw new Error("restoring read-only was cancelled");
+          }
+          state.originalWritable = false;
+        }
+      }
       if (sql.startsWith("CREATE DATABASE") && state.fault === "collision")
         throw new Error("already exists");
       if (sql.startsWith("DROP DATABASE") && state.fault === "drop")
@@ -48,6 +65,8 @@ beforeEach(() => {
   state.queries = [];
   state.onOriginal = [];
   state.fault = "";
+  state.originalWritable = false;
+  state.originalEnded = false;
 });
 
 async function run() {
@@ -69,12 +88,16 @@ it("reports failed cleanup as setup failure even when verification passed", asyn
   const { code, output } = await run();
   expect(output).toContain("could not drop rls_verify_");
   expect(code).toBe(3);
+  expect(state.originalWritable).toBe(false);
+  expect(state.originalEnded).toBe(true);
 });
 
 it("does not drop a database when CREATE failed", async () => {
   state.fault = "collision";
   expect((await run()).code).toBe(3);
   expect(state.queries.some((sql) => sql.startsWith("DROP DATABASE"))).toBe(false);
+  expect(state.originalWritable).toBe(false);
+  expect(state.originalEnded).toBe(true);
 });
 
 it("refuses to apply migrations to a redirected scratch connection", async () => {
@@ -102,3 +125,19 @@ it("makes the original database's session writable only for CREATE and DROP DATA
   expect(writable).toBe(false);
   expect(state.onOriginal.join("\n")).not.toContain("READ WRITE");
 });
+
+it.each(["restore-create", "restore-drop"])(
+  "reports %s failure, cleans up and closes the admin connection",
+  async (fault) => {
+    state.fault = fault;
+    const { code, output } = await run();
+    expect(code).toBe(3);
+    expect(output).toContain("restoring read-only was cancelled");
+    expect(state.onOriginal.some((sql) => sql.startsWith("DROP DATABASE"))).toBe(true);
+    expect(state.originalEnded).toBe(true);
+    if (fault === "restore-create") {
+      expect(state.queries).not.toContain("SELECT 'migration marker'");
+      expect(state.originalWritable).toBe(false);
+    }
+  },
+);

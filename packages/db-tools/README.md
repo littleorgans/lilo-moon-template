@@ -79,9 +79,11 @@ CREATE never triggers DROP, and a failed DROP returns exit 3 with the scratch na
 The admin and migration connections also start read-only, protecting login triggers before any
 command runs. The admin connection to the original database is writable only while `CREATE
 DATABASE` or `DROP DATABASE` runs, because Postgres refuses both in a read-only session, and is
-read-only again straight after. Neither statement fires the original database's event triggers or
-writes its tables. The migration connection becomes writable only after its database name has been
-checked. The CLI never starts a container.
+read-only again straight after. Restoration is attempted even when CREATE or DROP fails. If
+restoration itself fails, the CLI returns exit 3 and closes the admin connection; it still attempts
+to drop any scratch database already created. Migrations do not run if the reset after CREATE fails.
+Neither statement fires the original database's event triggers or writes its tables. The migration
+connection becomes writable only after its database name has been checked. The CLI never starts a container.
 
 The login needs `CREATEDB`, permission to `SET ROLE` the checked role, and whatever privileges the
 chosen migrations need. The shipped migrations also need `CREATEROLE` (or a superuser). They create
