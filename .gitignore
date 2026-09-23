@@ -11,7 +11,6 @@ dist/
 build/
 out/
 coverage/
-target/
 *.tsbuildinfo
 
 # environment. .env, .env.local, .env.production, and every other .env* variant.

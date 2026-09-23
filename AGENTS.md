@@ -1,9 +1,9 @@
 # Repository contract
 
 This repository holds a reference web application and the published `@littleorgans/*` packages it
-is built from. Moon owns the task graph for every language. pnpm is only the JavaScript package manager. The `projects` settings in
-`.moon/workspace.yml` define the workspace, and `javascript.packageManager` in
-`.moon/toolchains.yml` selects pnpm.
+is built from. Moon owns the task graph for every language. pnpm is only the JavaScript package
+manager. The `projects` settings in `.moon/workspace.yml` define the workspace, and
+`javascript.packageManager` in `.moon/toolchains.yml` selects pnpm.
 
 Follow this contract for agent and human changes. Keep every rule true as the repository evolves.
 
@@ -116,7 +116,7 @@ work; the green run proves the valid state.
 
 - Put focused tests under `tests/`, mirroring feature directories when the project has them.
   Put tests that exercise package composition, processes, network or storage under `tests/integration/`.
-  Keep native language conventions, such as Rust integration tests under `tests/`.
+  A member in another language keeps that language's native test convention.
 - Name both kinds `*.test.*` or `*.spec.*`. The shared `vitest.config.ts` discovers those names and
   measures every source file under `src/`.
 - The focused `test` task runs locally. CI uses `test-coverage` to avoid executing the same suite twice.

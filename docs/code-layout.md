@@ -77,7 +77,7 @@ placeholder exports and empty extension directories.
 Focused tests live under `tests/` and mirror feature groups. In the web app, workspace tests live
 under `tests/features/workspace/`; router and auth composition tests live under `tests/integration/`.
 Tests that start a build, process, database or network listener belong in `tests/integration/`.
-Rust retains its native integration test directory convention.
+A member in another language keeps that language's native test convention.
 
 Moon discovers workspace members across languages. Generic JavaScript checks apply to JavaScript
 members. Vite/Nitro commands apply only to applications tagged `web-app`; other runtimes declare
