@@ -13,6 +13,13 @@ import type { Throttle, ThrottleStep } from "./throttle.js";
 /** Matches the provider's ten-minute code lifetime. The cookie has no reason to outlive the code. */
 const EMAIL_MAX_AGE_SECONDS = 600;
 
+/**
+ * RFC 5321's limit on a path, so nothing longer can be delivered to. Refused before the throttle
+ * and the provider see it: the address becomes a throttle key, and a store that keeps it verbatim
+ * would otherwise hold whatever length was submitted.
+ */
+const EMAIL_MAX_LENGTH = 254;
+
 /** Reads one field out of a submitted form, collapsing every absent shape to null. */
 async function formField(request: Request, name: string): Promise<string | null> {
   const value = (await request.formData()).get(name);
@@ -70,7 +77,7 @@ export async function startEmailSignIn(
   if (refused !== null) return refused;
 
   const email = await formField(context.request, "email");
-  if (email === null) {
+  if (email === null || email.length > EMAIL_MAX_LENGTH) {
     return failurePage("Enter the email address you want the code sent to.");
   }
 
@@ -129,8 +136,9 @@ export async function completeEmailSignIn(
   const refused = refuseCrossOrigin(context.request, deps.origin);
   if (refused !== null) return refused;
 
+  // The cookie is plain text, so its length is whatever the browser sent, not what start wrote.
   const email = jar.read(EMAIL_COOKIE);
-  if (email === undefined || email.length === 0) {
+  if (email === undefined || email.length === 0 || email.length > EMAIL_MAX_LENGTH) {
     return failurePage("This sign-in has expired. Start again from the sign-in page.");
   }
 

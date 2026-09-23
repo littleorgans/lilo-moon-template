@@ -8,7 +8,8 @@ The email sign-in handlers refuse cross-origin POSTs and ask a throttle before c
 application's own, exactly as sign-out always has, so a page on another site can no longer make a
 visitor's browser send codes. Their deps gain `origin` and a required `throttle`, which is asked
 about the client and the lower-cased address before each provider call; a refusal is a 429 with
-`Retry-After`.
+`Retry-After`. An address over 254 characters, RFC 5321's limit, is refused with 400 before the
+throttle or the provider sees it.
 
 `createAuthRuntime` requires a `throttle` option. The packages ship no rate limiter, because one
 kept in a single process's memory is wrong for any deployment with more than one instance: back it

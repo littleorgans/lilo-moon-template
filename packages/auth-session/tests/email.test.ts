@@ -389,3 +389,42 @@ describe("the throttle is not asked when nothing would reach the provider", () =
     expect(asked).toHaveLength(0);
   });
 });
+
+// RFC 5321 caps a path at 254 octets, so nothing longer is an address a code can be sent to. It is
+// refused before it becomes a throttle key, and the verify cookie is checked too, because it is
+// plain text and so as long as the browser made it.
+const ofLength = (length: number) => `${"a".repeat(length - "@example.com".length)}@example.com`;
+
+describe("an address over 254 characters", () => {
+  it("is refused on start and in the verify cookie before the throttle or the provider", async () => {
+    const { throttle, asked } = throttleDouble();
+    const { auth, calls } = authDouble();
+    const { log } = logSink();
+    const started = await startEmailSignIn(
+      formRequest({ email: ofLength(255) }),
+      jarWith().jar,
+      startDeps(auth, log, throttle),
+    );
+    const verified = await completeEmailSignIn(
+      formRequest({ code: "123456" }),
+      jarWith({ [EMAIL_COOKIE]: ofLength(255) }).jar,
+      verifyDeps(auth, log, throttle),
+    );
+    expect([started.status, verified.status]).toStrictEqual([400, 400]);
+    expect(asked).toHaveLength(0);
+    expect(calls).toHaveLength(0);
+  });
+
+  it("is not what an address of exactly 254 characters is", async () => {
+    const { throttle, asked } = throttleDouble();
+    const { auth } = authDouble();
+    const { log } = logSink();
+    const started = await startEmailSignIn(
+      formRequest({ email: ofLength(254) }),
+      jarWith().jar,
+      startDeps(auth, log, throttle),
+    );
+    expect(started.status).toBe(302);
+    expect(asked).toHaveLength(2);
+  });
+});
