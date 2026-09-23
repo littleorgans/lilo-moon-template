@@ -21,10 +21,16 @@ const secretlintrc = resolve(".secretlintrc.json");
 const workspace = realpathSync(mkdtempSync(join(tmpdir(), "packed-secrets-")));
 try {
   for (const { directory } of packages) {
-    execFileSync("pnpm", ["pack", "--pack-destination", workspace], {
-      cwd: directory,
-      stdio: ["ignore", "ignore", "inherit"],
-    });
+    try {
+      execFileSync("pnpm", ["pack", "--pack-destination", workspace], {
+        cwd: directory,
+        // Lifecycle scripts can echo credentials, including on failure. Never forward their
+        // output or the child-process error (which also contains the captured output).
+        stdio: "ignore",
+      });
+    } catch {
+      throw new Error(`Packed secrets: pack failed in ${directory}; output suppressed`);
+    }
   }
 
   const tarballs = readdirSync(workspace).filter((name) => name.endsWith(".tgz"));
@@ -36,7 +42,13 @@ try {
   for (const tarball of tarballs) {
     const target = join(workspace, tarball.slice(0, -".tgz".length));
     mkdirSync(target);
-    execFileSync("tar", ["-xzf", join(workspace, tarball), "-C", target]);
+    try {
+      execFileSync("tar", ["-xzf", join(workspace, tarball), "-C", target], {
+        stdio: "ignore",
+      });
+    } catch {
+      throw new Error("Packed secrets: extraction failed; output suppressed");
+    }
   }
 
   const result = await run(["**/*", "**/.*", "**/.*/**/*"], {
@@ -45,6 +57,7 @@ try {
     secretlintrc,
     secretlintignore: undefined,
     gitignore: false,
+    maskSecrets: true,
   });
   if (result.stdout !== null) {
     process.stdout.write(result.stdout);
