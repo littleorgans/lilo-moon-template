@@ -39,6 +39,7 @@ The baseline makes these choices, recorded in `docs/decisions.md`:
 │   ├── auth-workos/        WorkOS SDK wrapper, error translation, organization provisioning
 │   ├── auth-session/       Framework-free HTTP sign-in flows, sealed session cookie, access states
 │   ├── auth-tanstack/      TanStack Start adapter: cookie jar, lazy runtime, POST-only handlers
+│   ├── auth-http/          Service bearer auth on Request/Response, Hono adapter, service config
 │   ├── db/                 Pooled Postgres and the one principal-scoped transaction
 │   ├── theme/              Token contract, two themes, validation, generated CSS, preference cookie
 │   ├── ui/                 shadcn primitives plus layout and typography components
@@ -82,6 +83,8 @@ graph LR
   auth-tanstack --> auth
   auth-session --> auth
   auth-session --> auth-workos
+  auth-http -. peer .-> auth
+  auth-http -. optional peer .-> hono
   auth-workos --> sdk["@workos-inc/node"]
   auth --> jose
   db --> auth

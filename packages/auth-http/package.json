@@ -1,0 +1,54 @@
+{
+  "name": "@littleorgans/auth-http",
+  "version": "0.0.0",
+  "description": "Bearer authentication for HTTP services on Fetch Request and Response, with a Hono adapter and a service config loader.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/littleorgans/lilo-moon-template.git",
+    "directory": "packages/auth-http"
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "@littleorgans/source": "./src/index.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./hono": {
+      "types": "./dist/hono.d.ts",
+      "@littleorgans/source": "./src/hono.ts",
+      "import": "./dist/hono.js",
+      "default": "./dist/hono.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "devDependencies": {
+    "@hono/node-server": "catalog:",
+    "@littleorgans/auth": "workspace:*",
+    "@types/node": "catalog:",
+    "hono": "catalog:",
+    "jose": "catalog:"
+  },
+  "peerDependencies": {
+    "@littleorgans/auth": "workspace:^",
+    "hono": "catalog:hono-peer"
+  },
+  "peerDependenciesMeta": {
+    "hono": {
+      "optional": true
+    }
+  },
+  "engines": {
+    "node": ">=24.19.0"
+  }
+}
