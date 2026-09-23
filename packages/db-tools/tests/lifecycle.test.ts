@@ -6,7 +6,11 @@ import { afterAll, beforeEach, expect, it, vi } from "vitest";
 
 import { main } from "../src/cli.js";
 
-const state = vi.hoisted(() => ({ queries: [] as string[], fault: "" }));
+const state = vi.hoisted(() => ({
+  queries: [] as string[],
+  onOriginal: [] as string[],
+  fault: "",
+}));
 vi.mock("pg", () => ({
   Client: class {
     database: string;
@@ -18,6 +22,7 @@ vi.mock("pg", () => ({
     async end() {}
     async query(sql: string) {
       state.queries.push(sql);
+      if (this.database === "original") state.onOriginal.push(sql);
       if (sql.startsWith("CREATE DATABASE") && state.fault === "collision")
         throw new Error("already exists");
       if (sql.startsWith("DROP DATABASE") && state.fault === "drop")
@@ -41,6 +46,7 @@ writeFileSync(join(directory, "001.sql"), "SELECT 'migration marker'");
 afterAll(() => rmSync(directory, { recursive: true, force: true }));
 beforeEach(() => {
   state.queries = [];
+  state.onOriginal = [];
   state.fault = "";
 });
 
@@ -79,4 +85,20 @@ it("refuses to apply migrations to a redirected scratch connection", async () =>
     .find((sql) => sql.startsWith("CREATE DATABASE"))
     ?.slice("CREATE DATABASE ".length);
   expect(state.queries).toContain(`DROP DATABASE ${created} WITH (FORCE)`);
+});
+
+// The session on the original database starts read-only and is writable only while CREATE or
+// DROP DATABASE runs, so anything else sent on it stays read-only.
+it("makes the original database's session writable only for CREATE and DROP DATABASE", async () => {
+  expect((await run()).code).toBe(0);
+  let writable = false;
+  const whileWritable: string[] = [];
+  for (const sql of state.onOriginal) {
+    if (sql === "SET default_transaction_read_only = off") writable = true;
+    else if (sql === "SET default_transaction_read_only = on") writable = false;
+    else if (writable) whileWritable.push(sql.split(" ").slice(0, 2).join(" "));
+  }
+  expect(whileWritable).toStrictEqual(["CREATE DATABASE", "DROP DATABASE"]);
+  expect(writable).toBe(false);
+  expect(state.onOriginal.join("\n")).not.toContain("READ WRITE");
 });

@@ -77,8 +77,11 @@ fails. The database named in the URL hosts only the administrative connection fo
 migrations and seed SQL are sent only after confirming the new connection's database name. A failed
 CREATE never triggers DROP, and a failed DROP returns exit 3 with the scratch name for cleanup.
 The admin and migration connections also start read-only, protecting login triggers before any
-command runs. The admin connection then enables writes for CREATE/DROP; the migration connection
-enables writes only after its database name has been checked. The CLI never starts a container.
+command runs. The admin connection to the original database is writable only while `CREATE
+DATABASE` or `DROP DATABASE` runs, because Postgres refuses both in a read-only session, and is
+read-only again straight after. Neither statement fires the original database's event triggers or
+writes its tables. The migration connection becomes writable only after its database name has been
+checked. The CLI never starts a container.
 
 The login needs `CREATEDB`, permission to `SET ROLE` the checked role, and whatever privileges the
 chosen migrations need. The shipped migrations also need `CREATEROLE` (or a superuser). They create

@@ -238,6 +238,19 @@ async function verify(options: Options, io: CliIo, mode: string): Promise<number
 
 // The only database this writes to is one it created in the same run under a random name, and
 // that is the only database it drops. The URL's own database hosts CREATE and DROP DATABASE.
+// CREATE and DROP DATABASE are refused in a read-only session and cannot run inside a transaction
+// block that could be made writable instead. So the connection to the original database becomes
+// writable for exactly one of those statements at a time, and read-only again straight after.
+// Neither fires the original database's event triggers or writes its tables.
+async function writableFor(admin: Client, statement: string): Promise<void> {
+  await admin.query("SET default_transaction_read_only = off");
+  try {
+    await admin.query(statement);
+  } finally {
+    await quietly(admin.query("SET default_transaction_read_only = on"));
+  }
+}
+
 async function verifyDisposable(
   options: Options,
   migrations: string,
@@ -248,12 +261,10 @@ async function verifyDisposable(
   const admin = await connect(readOnlyAtStartup(options.url));
   const scratch = `rls_verify_${randomBytes(12).toString("hex")}`;
   try {
-    // Startup protects the original database's login triggers. Only these administrative
-    // CREATE/DROP statements need writable transactions; no migration runs on this connection.
-    await admin.query("SET SESSION CHARACTERISTICS AS TRANSACTION READ WRITE");
+    // Startup keeps the original database's login triggers read-only. No migration runs here.
     await admin.query("SET statement_timeout = '60s'");
     await admin.query("SET lock_timeout = '5s'");
-    await admin.query(`CREATE DATABASE ${quoteIdentifier(scratch)}`);
+    await writableFor(admin, `CREATE DATABASE ${quoteIdentifier(scratch)}`);
   } catch (error) {
     await quietly(admin.end());
     throw new Error(`could not create a scratch database: ${messageOf(error)}`, { cause: error });
@@ -286,7 +297,7 @@ async function verifyDisposable(
     failure = error;
   }
   try {
-    await admin.query(`DROP DATABASE ${quoteIdentifier(scratch)} WITH (FORCE)`);
+    await writableFor(admin, `DROP DATABASE ${quoteIdentifier(scratch)} WITH (FORCE)`);
     io.stdout(`rls-verify: dropped scratch database ${scratch}\n`);
   } catch (error) {
     const prior = failure === undefined ? "" : `${messageOf(failure)}; `;
