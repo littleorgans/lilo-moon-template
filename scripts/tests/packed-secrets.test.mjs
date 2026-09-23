@@ -13,7 +13,27 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { test } from "node:test";
 
+import { publishedPackages } from "../lib/published-packages.mjs";
+
 const script = resolve("scripts/check-packed-secrets.mjs");
+
+// Until task 1.8 publishes the scanned archives, Changesets packs a second time. These hooks
+// could change package contents between the scan and upload, so adding one requires that redesign.
+await test("published packages have no lifecycle scripts that can change the scanned contents", () => {
+  const packages = publishedPackages();
+  assert.ok(packages.length > 0, "no published packages found");
+  const hooks = ["prepack", "prepare", "prepublishOnly", "postpack"];
+  const violations = packages.flatMap(({ directory, manifest }) =>
+    hooks
+      .filter((hook) => Object.hasOwn(manifest.scripts ?? {}, hook))
+      .map((hook) => `${directory}/package.json: ${hook}`),
+  );
+  assert.deepEqual(
+    violations,
+    [],
+    "publish the scanned archives (task 1.8) before adding packaging lifecycle scripts",
+  );
+});
 
 // A published package whose dist carries `content`. dist is ignored by root:secrets, so only the
 // packed scan can see it.
