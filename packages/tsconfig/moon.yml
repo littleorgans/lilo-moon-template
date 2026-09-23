@@ -1,0 +1,7 @@
+# Configuration only: nothing to build, typecheck or test here. Every TypeScript project in the
+# workspace extends base.json through the root tsconfig.options.json, so their tasks exercise it.
+language: "json"
+layer: "configuration"
+workspace:
+  inheritedTasks:
+    include: []

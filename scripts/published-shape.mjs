@@ -129,6 +129,26 @@ function checkDbPeerFloors(manifestPath, manifest) {
   process.stdout.write(`published-shape: db loads and typechecks on ${installed.join(", ")}.\n`);
 }
 
+/** The packed consumer's compiler options come from the installed @littleorgans/tsconfig tarball. */
+function checkPackedCompilerOptions() {
+  const { root } = resolvedPackage(packed, "@littleorgans/tsconfig");
+  assert.ok(
+    !root.startsWith(snapshot),
+    `@littleorgans/tsconfig resolved to the workspace at ${root}`,
+  );
+  const { compilerOptions } = JSON.parse(
+    execFileSync(
+      join(packed, "node_modules/.bin/tsc"),
+      ["--project", "apps/web/tsconfig.json", "--showConfig"],
+      { cwd: packed, env, encoding: "utf8" },
+    ),
+  );
+  for (const option of ["noUncheckedIndexedAccess", "exactOptionalPropertyTypes", "composite"]) {
+    assert.equal(compilerOptions[option], true, `the packed web app lost ${option}`);
+  }
+  process.stdout.write(`published-shape: compiler options resolve from ${root}\n`);
+}
+
 function rejectViolation(root, file, content, target, failure) {
   const path = join(root, file);
   writeFileSync(path, content);
@@ -352,31 +372,33 @@ function inspectTarball(artifact) {
     `${manifest.name} publishConfig must preserve every workspace subpath`,
   );
   // publishConfig.exports repeats exports without the workspace source condition, so each packed
-  // entry must be its workspace entry minus that condition. Only vite-config's root entry redirects
-  // src to dist; check both sides explicitly so this exception cannot hide another export's drift.
+  // entry must be its workspace entry minus that condition. Only vite-config's entries redirect src
+  // to dist, because Vite and Vitest load them before any build; check both sides explicitly so this
+  // exception cannot hide another export's drift.
   for (const [subpath, target] of Object.entries(workspace.exports)) {
     let published =
       typeof target === "string"
         ? target
         : Object.fromEntries(Object.entries(target).filter(([key]) => key !== SOURCE_CONDITION));
-    const redirectsSource = workspace.name === "@littleorgans/vite-config" && subpath === ".";
+    const redirectsSource = workspace.name === "@littleorgans/vite-config";
     if (redirectsSource) {
+      const module = subpath === "." ? "index" : subpath.slice(2);
       assert.deepEqual(
         target,
-        { types: "./src/index.ts", default: "./src/index.ts" },
-        `${manifest.name} exports["."] must point at its workspace source entry`,
+        { types: `./src/${module}.ts`, default: `./src/${module}.ts` },
+        `${manifest.name} exports["${subpath}"] must point at its workspace source entry`,
       );
       published = {
-        types: "./dist/index.d.ts",
-        import: "./dist/index.js",
-        default: "./dist/index.js",
+        types: `./dist/${module}.d.ts`,
+        import: `./dist/${module}.js`,
+        default: `./dist/${module}.js`,
       };
     }
     assert.deepEqual(
       manifest.exports[subpath],
       published,
       redirectsSource
-        ? `${manifest.name} publishConfig.exports["."] must point at its built entry`
+        ? `${manifest.name} publishConfig.exports["${subpath}"] must point at its built entry`
         : `${manifest.name} publishConfig.exports["${subpath}"] must equal exports["${subpath}"] without ${SOURCE_CONDITION}`,
     );
   }
@@ -977,7 +999,17 @@ async function checkSnapshot() {
   initializeProject(packed, "test: initialize packed consumer");
   run(packed, "pnpm", ["install"]);
   run(packed, "moon", ["sync"]);
-  run(packed, "moon", ["run", "web:build", "web:typecheck", "web:test"]);
+  // The root's tsconfig.options.json, .oxlintrc.json and vitest.config.ts now resolve the packed
+  // config packages, so these tasks prove them as a consumer installs them.
+  checkPackedCompilerOptions();
+  run(packed, "moon", ["run", "web:build", "web:typecheck", "web:test", "root:lint"]);
+  rejectViolation(
+    packed,
+    "apps/web/src/features/gate-probe.ts",
+    'import { Route } from "../routes/app.tsx";\n\nexport const probe = Route;\n',
+    "root:lint",
+    /no-restricted-imports/,
+  );
   await exercise(packed);
   checkDbPeerFloors(manifestPath, manifest);
   await exerciseConsumer(packages);

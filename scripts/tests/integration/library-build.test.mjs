@@ -17,10 +17,10 @@ await test("library rebuilds remove artifacts whose source was deleted", (t) => 
     'projects:\n  sources:\n    fixture: "."\nvcs:\n  defaultBranch: "main"\n',
   );
   writeFileSync(join(root, ".moon/toolchains.yml"), 'javascript:\n  packageManager: "pnpm"\n');
-  writeFileSync(
-    join(root, ".moon/tasks/node-library.yml"),
-    readFileSync(".moon/tasks/node-library.yml", "utf8"),
-  );
+  // node-library.yml builds on the file groups node.yml declares for every JavaScript project.
+  for (const layer of ["node.yml", "node-library.yml"]) {
+    writeFileSync(join(root, ".moon/tasks", layer), readFileSync(`.moon/tasks/${layer}`, "utf8"));
+  }
   writeFileSync(
     join(root, "moon.yml"),
     'language: "typescript"\nlayer: "library"\nfileGroups:\n  sources: ["src/**/*"]\n',

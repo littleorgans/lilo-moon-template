@@ -33,6 +33,7 @@ catalog:
   jose: "6.2.9"
   lucide-react: "1.33.0"
   nitro: "3.0.260610-beta"
+  oxlint: "1.79.0"
   pg: "8.23.0"
   # shadcn new-york-v4 imports the unified package, not per-component @radix-ui/* entries.
   radix-ui: "1.6.7"
@@ -59,6 +60,10 @@ catalogs:
   # consumer owns the version and a second copy here would be a second Vite in the graph.
   vite-peer:
     vite: "^8.0.0"
+  # vite-config/vitest types its defaults with Vitest's config types. Optional: a project that only
+  # uses the Vite half never installs Vitest.
+  vitest-peer:
+    vitest: "^4.1.0"
   # packages/db exports Drizzle types, so a second drizzle-orm copy breaks consumer typechecks
   # (TS2345 on tx.execute). drizzle-orm is 0.x and breaks in minors, so the caret holds one minor;
   # published-shape installs the floor. pg is used only through Pool, but the named ESM import
@@ -78,6 +83,10 @@ catalogs:
   # The floor is the release the adapter and its integration test run against.
   hono-peer:
     hono: "^4.13.0"
+  # packages/oxlint-config names rules by the oxlint release that defines them; an older oxlint
+  # rejects a rule it does not know. The floor is the release the config is linted with here.
+  oxlint-peer:
+    oxlint: "^1.79.0"
 
 # pnpm 11 reads these from this file. A project .npmrc is auth and registry only.
 autoInstallPeers: false

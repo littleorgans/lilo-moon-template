@@ -16,7 +16,7 @@ tasks:
       - "tsconfig.json"
       - "vite.config.*"
       - "public/**/*"
-      - "/tsconfig.options.json"
+      - "@files(typescript-options)"
     deps:
       - "^:build"
     outputs:

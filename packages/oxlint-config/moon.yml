@@ -1,0 +1,7 @@
+# Configuration only: nothing to build, typecheck or test here. The root .oxlintrc.json extends
+# oxlintrc.json, so root:lint exercises it, and published-shape proves it from the packed tarball.
+language: "json"
+layer: "configuration"
+workspace:
+  inheritedTasks:
+    include: []
