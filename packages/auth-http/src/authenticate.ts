@@ -50,9 +50,10 @@ export interface AuthenticatorOptions {
    * without putting the reason in the response. A 503 in particular needs an alert, not a shrug.
    *
    * It is invoked synchronously, so keep its synchronous work short. Returned promises are not
-   * awaited by authentication. An observer that throws or rejects produces a generic, best-effort
-   * `console.error` diagnostic; failures in this fallback are ignored as well. Observer failures
-   * must not replace an auth rejection with a 500.
+   * awaited by authentication. An observer that throws or rejects produces a best-effort
+   * `console.error` line naming the rejection code and the error's type, never its message;
+   * failures in this fallback are ignored as well. Observer failures must not replace an auth
+   * rejection with a 500.
    */
   readonly onRejection?: (event: RejectionEvent) => void | Promise<void>;
 }
@@ -101,6 +102,23 @@ export function rejectionResponse(rejection: Rejection): Response {
   return new Response(JSON.stringify({ error: rejection.code }), { status, headers });
 }
 
+// Names what failed without repeating it. A message or stack can hold a header or a token, so
+// neither is read. The rejection code is our own vocabulary, and an error's name and errno-style
+// `code` are identifiers, admitted only when they look like one. That is enough to tell a missing
+// logger method (TypeError) from a refused log shipper (ECONNREFUSED).
+function observerFailure(code: RejectionCode, error: unknown): string {
+  const name = error instanceof Error && /^[A-Za-z]{1,64}$/.test(error.name) ? error.name : null;
+  const errno: unknown =
+    typeof error === "object" && error !== null ? Reflect.get(error, "code") : undefined;
+  const kind = [
+    name ?? typeof error,
+    typeof errno === "string" && /^[A-Z][A-Z0-9_]{0,63}$/.test(errno) ? errno : null,
+  ]
+    .filter((part) => part !== null)
+    .join(" ");
+  return `auth-http: onRejection failed while observing ${code} (${kind})`;
+}
+
 /**
  * Builds a function that turns a request into a Principal or a Rejection.
  *
@@ -115,11 +133,10 @@ export function createAuthenticator(options: AuthenticatorOptions): Authenticato
     if (onRejection === undefined) return;
     try {
       await onRejection(event);
-    } catch {
-      // A thrown value can contain the event, headers, or a token. Keep the fallback generic.
+    } catch (error) {
       // A replaced/broken console is another logging failure, not an unhandled rejection.
       try {
-        console.error("auth-http: onRejection failed");
+        console.error(observerFailure(event.code, error));
       } catch {
         // There is no further reporting path that cannot fail in turn.
       }

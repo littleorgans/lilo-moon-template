@@ -151,15 +151,18 @@ lookup; return a boolean rather than throwing an `AuthError` for a denied permis
 response does not wait for it: a synchronous observer runs before the response is returned, but
 an async one is not awaited. Keep synchronous work short: an async function still runs its
 synchronous prefix on the response path, and the library cannot interrupt blocking code.
-A throw or rejected promise produces only the fixed `console.error` message
-`auth-http: onRejection failed`; arbitrary thrown values are not logged because they may contain
-credentials. A throwing fallback reporter is also contained. For a custom error sink, catch and
+A throw or rejected promise produces one `console.error` line such as
+`auth-http: onRejection failed while observing auth_unavailable (Error ECONNREFUSED)`. It names the
+rejection code, the error's class and an errno-style `code`, each only when it looks like an
+identifier. The message, stack and any other thrown value are never logged, because they may
+contain credentials. A throwing fallback reporter is also contained. For a custom error sink, catch and
 report failures inside your observer using the application's redaction policy.
 On a runtime that stops work when the response is sent, hand the logging promise to the runtime's
 own background mechanism. Detached work is best-effort and is not a durable audit log.
 
-Unexpected errors from `verify` or `authorize` propagate to the framework's error handler. The default Hono error handler returns a
-generic 500; a custom handler must avoid returning error messages or stacks.
+Unexpected errors from `verify` or `authorize` propagate to the framework's error handler. The
+default Hono error handler returns a generic 500; a custom handler must avoid returning error
+messages or stacks.
 
 These operations are not constant-time: malformed syntax, signature checks, and JWKS fetches
 take different paths. The response does not distinguish signature, issuer, audience, or claim

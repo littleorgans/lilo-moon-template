@@ -217,7 +217,9 @@ describe("onRejection", () => {
         },
       })(request());
       expect(rejectionOf(result)).toStrictEqual({ code: "missing_token" });
-      expect(error).toHaveBeenCalledExactlyOnceWith("auth-http: onRejection failed");
+      expect(error).toHaveBeenCalledExactlyOnceWith(
+        "auth-http: onRejection failed while observing missing_token (Error)",
+      );
       error.mockRestore();
     });
 
@@ -232,7 +234,9 @@ describe("onRejection", () => {
       })(request());
       expect(rejectionOf(result)).toStrictEqual({ code: "missing_token" });
       await vi.waitFor(() => {
-        expect(error).toHaveBeenCalledExactlyOnceWith("auth-http: onRejection failed");
+        expect(error).toHaveBeenCalledExactlyOnceWith(
+          "auth-http: onRejection failed while observing missing_token (Error)",
+        );
       });
       error.mockRestore();
     });
@@ -318,9 +322,48 @@ it.each(["synchronous", "asynchronous"])(
       expect(rejectionOf(result)).toStrictEqual({ code: "missing_token" });
       // Let detached promise failures surface. Vitest fails the run on an unhandled rejection.
       await new Promise<void>((resolve) => setImmediate(resolve));
-      expect(error).toHaveBeenCalledExactlyOnceWith("auth-http: onRejection failed");
+      expect(error).toHaveBeenCalledExactlyOnceWith(
+        "auth-http: onRejection failed while observing missing_token (Error)",
+      );
     } finally {
       error.mockRestore();
     }
   },
 );
+
+// Enough to debug a broken logger, and nothing a thrown value could smuggle in.
+it.each<[string, unknown, string]>([
+  ["a missing logger method", new TypeError("log.warn is not a function"), "(TypeError)"],
+  [
+    "a refused log shipper",
+    Object.assign(new Error("connect ECONNREFUSED https://svc:secret@logs.internal"), {
+      code: "ECONNREFUSED",
+    }),
+    "(Error ECONNREFUSED)",
+  ],
+  ["a thrown string", "Bearer secret.token.value", "(string)"],
+  ["an object with a credential code", { code: "Bearer secret.token" }, "(object)"],
+  [
+    "an error named after a credential",
+    Object.assign(new Error(), { name: "secret.token" }),
+    "(object)",
+  ],
+])("names %s without repeating it", async (_case, thrown, kind) => {
+  const error = reported();
+  try {
+    await createAuthenticator({
+      verify: async () => {
+        throw new AuthError("unavailable", "JWKS fetch failed");
+      },
+      onRejection: () => {
+        throw thrown;
+      },
+    })(request("Bearer a.b.c"));
+    expect(error).toHaveBeenCalledExactlyOnceWith(
+      `auth-http: onRejection failed while observing auth_unavailable ${kind}`,
+    );
+    expect(JSON.stringify(error.mock.calls)).not.toContain("secret");
+  } finally {
+    error.mockRestore();
+  }
+});
