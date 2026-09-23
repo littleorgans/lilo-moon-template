@@ -3,7 +3,8 @@ packages:
   - "packages/*"
   - "services/*"
 
-# lefthook's npm postinstall is unused. Root prepare runs lefthook install.
+# lefthook's npm postinstall is unused. Root prepare runs scripts/install-hooks.mjs, which runs
+# lefthook install from the main checkout only.
 # pnpm 11 fails the install unless this package is listed here as a boolean.
 allowBuilds:
   esbuild: true

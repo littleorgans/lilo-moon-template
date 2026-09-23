@@ -8,7 +8,7 @@
     "changeset": "changeset",
     "changeset:publish": "moon run :build && changeset publish",
     "changeset:version": "changeset version && pnpm install --lockfile-only",
-    "prepare": "lefthook install"
+    "prepare": "node scripts/install-hooks.mjs"
   },
   "devDependencies": {
     "@changesets/changelog-github": "1.0.0",
