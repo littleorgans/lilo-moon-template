@@ -92,16 +92,18 @@ Nothing to rotate. No history rewrite is recommended.
   the 11-character WorkOS-shaped string in an unreachable `auth-http` config test: it is an
   invalid client-ID input, not a plausible complete provider key. Its provider-like prefix alone
   would not justify calling a full-length credential a fixture.
-- Repacked all 11 packages after the migration rebase: 314 extracted files, zero gitleaks hits.
-  The packed secretlint gate also passed. The earlier 361-file count belongs to the builder's
-  saved artifacts, not this reproduction. The db tarball now includes the shipped migrations.
+- Repacked all 11 packages after the migration rebase with Moon's pinned pnpm and Node:
+  366 extracted files, zero gitleaks or secretlint hits. The earlier 361-file count belongs to
+  the builder's saved artifacts; a shell-toolchain pack produced only 314 files, so it is not
+  the release comparison. The db tarball now includes the shipped migrations.
 - The packed gate took 6.1 seconds (7.0 seconds wall time including Moon and a db rebuild;
   ten dependency builds were cached). Packing all packages is the main additional cost.
 - The gate rejects a synthetic token in ignored `dist`, ignores nested `.gitignore`, masks
   findings, fails on a failed pack or an empty package set, and removes its temporary directory
   on normal success and exceptions. Process termination such as SIGKILL can still leave a temp
   directory. Pack and extraction subprocess output is suppressed because it may contain secrets.
-- Three focused tests passed. Mutation checks detected omitted cleanup, disabled masking,
+- Three focused tests passed. The ignored dist fixture explicitly lists its files because
+  pinned pnpm otherwise omits them during packing. Mutation checks detected omitted cleanup, disabled masking,
   forwarded pack stderr, a successful empty-package exit, skipped dist scanning and respected
   nested ignore files. Mutations were restored before verification.
 - `changeset:publish` waits for the Moon build and packed scan, then uses `&&` to prevent
