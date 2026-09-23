@@ -100,8 +100,17 @@ await test("rename rewrites the scope and the org separately when they differ", 
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /Rename verification passed/);
   assertRenamed(root, { org: "acme", scope: "widgetco", slug: "widget-app" });
-  const leaked = spawnSync("git", ["grep", "-n", "@acme"], { cwd: root, encoding: "utf8" });
-  assert.equal(leaked.stdout, "", "the org must never appear where the scope belongs");
+  // Exit 1 means no match. An empty stdout alone would also pass when git grep itself fails.
+  const leaked = spawnSync("git", ["grep", "-n", "@acme"], {
+    cwd: root,
+    env: projectEnvironment(),
+    encoding: "utf8",
+  });
+  assert.equal(
+    leaked.status,
+    1,
+    `the org must never appear where the scope belongs\n${leaked.stdout}`,
+  );
 });
 
 await test("rename produces one token when the org and the scope are the same", (t) => {
