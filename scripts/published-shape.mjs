@@ -787,7 +787,7 @@ function checkDrizzleSkew(packages) {
   );
   assert.match(
     output,
-    /ERESOLVE/,
+    /^npm (?:error|ERR!) code ERESOLVE\b/m,
     `npm refused drizzle-orm ${older} for another reason:\n${output}`,
   );
   const range = db.manifest.peerDependencies?.["drizzle-orm"];
