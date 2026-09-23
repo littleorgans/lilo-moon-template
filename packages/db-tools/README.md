@@ -40,9 +40,10 @@ diagnostics. Writes from policy functions, including `SECURITY DEFINER` ones, ar
 function that changes session defaults cannot make a later transaction writable. Statements time
 out after 60 seconds, lock waits after 5, and connections after 10.
 
-The startup parameter travels in the connection's `options`. Connect directly rather than through
-a pooler that rejects `options`, such as a PgBouncer that does not list it in
-`ignore_startup_parameters`.
+The startup parameter travels in the connection's `options`, appended after the effective user
+options: the last URL `options` value, or `PGOPTIONS` if that value is empty or absent. Connect
+directly to Postgres. A pooler may reject `options`; configuring it to ignore them silently removes
+the startup protection and is not a supported workaround.
 
 Catalog reads pin `search_path` to `pg_catalog, pg_temp`, so no database object can stand in for a
 catalog the checks read. The claim checks keep the session's `search_path`, so a policy function
@@ -75,7 +76,9 @@ migrations to it in file-name order, runs the seed, verifies it, and drops it, e
 fails. The database named in the URL hosts only the administrative connection for CREATE/DROP;
 migrations and seed SQL are sent only after confirming the new connection's database name. A failed
 CREATE never triggers DROP, and a failed DROP returns exit 3 with the scratch name for cleanup.
-The CLI never starts a container.
+The admin and migration connections also start read-only, protecting login triggers before any
+command runs. The admin connection then enables writes for CREATE/DROP; the migration connection
+enables writes only after its database name has been checked. The CLI never starts a container.
 
 The login needs `CREATEDB`, permission to `SET ROLE` the checked role, and whatever privileges the
 chosen migrations need. The shipped migrations also need `CREATEROLE` (or a superuser). They create

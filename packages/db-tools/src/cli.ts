@@ -67,7 +67,7 @@ function redact(text: string, url: URL): string {
     url.href,
     url.password,
     decode(url.password),
-    url.searchParams.get("password") ?? "",
+    ...url.searchParams.getAll("password"),
   ].filter(Boolean);
   return secrets.reduce((redacted, secret) => redacted.replaceAll(secret, "***"), text);
 }
@@ -105,7 +105,9 @@ function shippedMigrations(): string {
 // including a login event trigger. Appended, so a -c already in the URL cannot switch it back off.
 function readOnlyAtStartup(url: URL): URL {
   const readOnly = new URL(url);
-  const options = [url.searchParams.get("options"), "-c default_transaction_read_only=on"];
+  // Match pg: the last URL value wins, with an empty/missing value falling back to PGOPTIONS.
+  const inherited = url.searchParams.getAll("options").at(-1) || process.env["PGOPTIONS"];
+  const options = [inherited, "-c default_transaction_read_only=on"];
   readOnly.searchParams.set("options", options.filter(Boolean).join(" "));
   return readOnly;
 }
@@ -243,9 +245,12 @@ async function verifyDisposable(
   io: CliIo,
 ): Promise<number> {
   const files = sqlFiles(migrations);
-  const admin = await connect(options.url);
+  const admin = await connect(readOnlyAtStartup(options.url));
   const scratch = `rls_verify_${randomBytes(12).toString("hex")}`;
   try {
+    // Startup protects the original database's login triggers. Only these administrative
+    // CREATE/DROP statements need writable transactions; no migration runs on this connection.
+    await admin.query("SET SESSION CHARACTERISTICS AS TRANSACTION READ WRITE");
     await admin.query("SET statement_timeout = '60s'");
     await admin.query("SET lock_timeout = '5s'");
     await admin.query(`CREATE DATABASE ${quoteIdentifier(scratch)}`);
@@ -259,11 +264,12 @@ async function verifyDisposable(
     io.stdout(`rls-verify: created scratch database ${scratch}\n`);
     const url = new URL(options.url);
     url.pathname = `/${scratch}`;
-    const setup = await connect(url);
+    const setup = await connect(readOnlyAtStartup(url));
     try {
       const { rows } = await setup.query("SELECT pg_catalog.current_database() AS name");
       if (rows[0]?.name !== scratch)
         throw new Error("scratch connection reached the wrong database");
+      await setup.query("SET SESSION CHARACTERISTICS AS TRANSACTION READ WRITE");
       await setup.query("SET statement_timeout = '60s'");
       await setup.query("SET lock_timeout = '5s'");
       for (const file of [...files, ...(seed === undefined ? [] : [seed])]) {

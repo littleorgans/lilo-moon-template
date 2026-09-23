@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { Client } from "pg";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   applyMigrations,
@@ -197,7 +197,8 @@ describe.skipIf(!dockerIsAvailable())("rls-verify against Postgres", () => {
         `CREATE ROLE ${role} LOGIN PASSWORD '${secret}'; GRANT authenticated TO ${role}`,
       );
       url.username = role;
-      url.searchParams.set("password", secret);
+      url.searchParams.append("password", "discarded-password");
+      url.searchParams.append("password", secret);
       try {
         const { code, output } = await run([], url.href);
         expect(code).toBe(exitCodes.failed);
@@ -296,11 +297,13 @@ describe.skipIf(!dockerIsAvailable())("rls-verify against Postgres", () => {
   // Postgres 17 runs login event triggers when the session starts, before any transaction the tool
   // opens. The session is read-only from its startup parameters, so the trigger's write fails and
   // so does the connection, rather than the verification writing a row.
-  it("refuses to connect rather than let a login trigger write", async () => {
-    await withMigrated(async (databaseUrl) => {
-      await sql(
-        databaseUrl,
-        `CREATE TABLE public.audit (what text);
+  it.each([[], ["--disposable"]])(
+    "refuses to connect rather than let a login trigger write (%j)",
+    async (...args) => {
+      await withMigrated(async (databaseUrl) => {
+        await sql(
+          databaseUrl,
+          `CREATE TABLE public.audit (what text);
          CREATE FUNCTION public.on_login() RETURNS event_trigger LANGUAGE plpgsql AS $f$
          BEGIN
            IF current_setting('application_name') = 'rls-verify' THEN
@@ -308,16 +311,18 @@ describe.skipIf(!dockerIsAvailable())("rls-verify against Postgres", () => {
            END IF;
          END $f$;
          CREATE EVENT TRIGGER audit_login ON login EXECUTE FUNCTION public.on_login();`,
-      );
-      // A -c in the URL cannot switch the startup read-only default back off.
-      const url = new URL(databaseUrl);
-      url.searchParams.set("options", "-c default_transaction_read_only=off");
-      const { code, output } = await run([], url.href);
-      expect(output).toContain("read-only transaction");
-      expect(code).toBe(exitCodes.setup);
-      expect((await sql(databaseUrl, "SELECT count(*)::int AS n FROM audit")).rows[0].n).toBe(0);
-    });
-  }, 60_000);
+        );
+        // A -c in the URL cannot switch the startup read-only default back off.
+        const url = new URL(databaseUrl);
+        url.searchParams.set("options", "-c default_transaction_read_only=off");
+        const { code, output } = await run(args, url.href);
+        expect(output).toContain("read-only transaction");
+        expect(code).toBe(exitCodes.setup);
+        expect((await sql(databaseUrl, "SELECT count(*)::int AS n FROM audit")).rows[0].n).toBe(0);
+      });
+    },
+    60_000,
+  );
 
   // Policy functions resolve names with the application's search_path. Pinning the claim checks
   // to pg_catalog would fail this ordinary schema with "relation does not exist".
@@ -379,4 +384,66 @@ describe.skipIf(!dockerIsAvailable())("rls-verify against Postgres", () => {
       expect(code).toBe(exitCodes.passed);
     });
   }, 60_000);
+  it.each(["URL repetitions", "PGOPTIONS"])(
+    "preserves pg's effective startup options from %s",
+    async (source) => {
+      await withMigrated(async (databaseUrl) => {
+        await sql(
+          databaseUrl,
+          `CREATE POLICY startup_marker ON accounts FOR SELECT
+        USING (pg_catalog.current_setting('rls_test.marker', true) IS DISTINCT FROM 'kept');`,
+        );
+        const url = new URL(databaseUrl);
+        const options = "-c rls_test.marker=kept -c default_transaction_read_only=off";
+        if (source === "URL repetitions") {
+          url.searchParams.append("options", "-c rls_test.marker=discarded");
+          url.searchParams.append("options", options);
+        } else {
+          vi.stubEnv("PGOPTIONS", options);
+          // pg falls back to PGOPTIONS for an empty URL value too.
+          url.searchParams.set("options", "");
+        }
+        try {
+          const { code, output } = await run([], url.href);
+          expect(output).toContain("4 checks passed");
+          expect(code).toBe(exitCodes.passed);
+        } finally {
+          vi.unstubAllEnvs();
+        }
+      });
+    },
+    60_000,
+  );
+
+  it.each(["current_setting", "operator"])(
+    "refuses writes from a policy's shadowed %s",
+    async (shadow) => {
+      await withMigrated(async (databaseUrl) => {
+        await sql(
+          databaseUrl,
+          `CREATE SCHEMA effects; CREATE TABLE effects.audit (n int);
+        CREATE FUNCTION public.shadow_setting(text, boolean) RETURNS text LANGUAGE plpgsql SECURITY DEFINER
+        AS $$ BEGIN INSERT INTO effects.audit VALUES (1); RETURN NULL; END $$;
+        CREATE FUNCTION public.shadow_equal(text, text) RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER
+        AS $$ BEGIN INSERT INTO effects.audit VALUES (1); RETURN false; END $$;
+        ALTER FUNCTION public.shadow_setting(text, boolean) RENAME TO current_setting;
+        CREATE OPERATOR public.= (FUNCTION=public.shadow_equal, LEFTARG=text, RIGHTARG=text);
+        SET search_path=public,pg_catalog;
+        CREATE FUNCTION public.policy_probe() RETURNS boolean LANGUAGE sql SECURITY DEFINER AS
+        $f$ SELECT ${shadow === "operator" ? "'left'::text = 'right'::text" : "current_setting('request.jwt.claims', true) IS NOT NULL"} $f$;
+        CREATE POLICY shadowed ON accounts FOR SELECT USING (public.policy_probe());`,
+        );
+        const url = new URL(databaseUrl);
+        url.searchParams.set("options", "-c search_path=public,pg_catalog");
+        const { code, output } = await run([], url.href);
+        expect(output).toContain("read-only transaction");
+        expect(code).toBe(exitCodes.failed);
+        expect(
+          (await sql(databaseUrl, "SELECT pg_catalog.count(*)::int AS n FROM effects.audit"))
+            .rows[0].n,
+        ).toBe(0);
+      });
+    },
+    60_000,
+  );
 });
