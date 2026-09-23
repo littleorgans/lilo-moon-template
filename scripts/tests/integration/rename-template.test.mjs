@@ -7,6 +7,11 @@ import { test } from "node:test";
 
 import { initializeProject, projectEnvironment, writeJson } from "../../lib/project-files.mjs";
 
+process.env.GIT_AUTHOR_NAME = "Baseline verification";
+process.env.GIT_AUTHOR_EMAIL = "baseline@example.invalid";
+process.env.GIT_COMMITTER_NAME = process.env.GIT_AUTHOR_NAME;
+process.env.GIT_COMMITTER_EMAIL = process.env.GIT_AUTHOR_EMAIL;
+
 // The tokens are assembled from fragments, as the script does, so a renamed project keeps a
 // test that still describes the template rather than one the rename rewrote into nonsense.
 const org = ["little", "organs"].join("");
