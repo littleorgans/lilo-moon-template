@@ -1,10 +1,10 @@
-// Plain JavaScript for the same reason as packages/db's integration test: it reuses the repo's one
-// Postgres container helper from outside this project. It calls main() in-process so coverage sees
-// the command line; root:published-shape runs the packed bin.
+// It calls main() in-process so coverage sees the command line; root:published-shape runs the
+// packed bin.
 
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { Client } from "pg";
 import { describe, expect, it, vi } from "vitest";
@@ -12,9 +12,12 @@ import { describe, expect, it, vi } from "vitest";
 import {
   applyMigrations,
   dockerIsAvailable,
+  exitCodes,
+  main,
   withPostgres,
-} from "../../../../scripts/lib/postgres-container.mjs";
-import { exitCodes, main } from "../../src/index.js";
+} from "../../src/index.js";
+
+const shippedMigrations = fileURLToPath(new URL("../../../db/migrations", import.meta.url));
 
 async function run(argv, databaseUrl) {
   let output = "";
@@ -42,7 +45,7 @@ const seeded = "INSERT INTO accounts (workos_org_id) VALUES ('org_a'), ('org_b')
 // A migrated database with rows, so the claim checks are not vacuous.
 async function withMigrated(body) {
   await withPostgres("db-tools-test", async (databaseUrl) => {
-    applyMigrations(databaseUrl);
+    applyMigrations(databaseUrl, shippedMigrations);
     await sql(databaseUrl, seeded);
     await body(databaseUrl);
   });
@@ -239,7 +242,7 @@ describe.skipIf(!dockerIsAvailable())("rls-verify against Postgres", () => {
 
   it("uses disposable mode as a non-superuser with CREATEDB, CREATEROLE and the role grant", async () => {
     await withPostgres("db-tools-test", async (databaseUrl) => {
-      applyMigrations(databaseUrl); // Provision the shared request role independently of test order.
+      applyMigrations(databaseUrl, shippedMigrations); // Provision the shared request role independently of test order.
       const role = `scratch_owner_${process.pid}`;
       await sql(
         databaseUrl,

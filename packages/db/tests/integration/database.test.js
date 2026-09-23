@@ -1,16 +1,19 @@
-// Plain JavaScript on purpose. This file reaches outside the package to reuse the one Postgres
-// container helper the repo already owns, and importing across the project boundary from
-// TypeScript would fight the composite build's rootDir for no benefit. The unit tests next door
-// carry the types; this file exists to prove the pool glue against a real database.
+// Plain JavaScript on purpose. This file reaches outside the package for the Postgres container
+// helper in @littleorgans/db-tools's source, and importing across the project boundary from
+// TypeScript would fight the composite build's rootDir for no benefit. A path, not the package:
+// db-tools already depends on db for its migrations, and a dependency back would be a cycle. The
+// unit tests next door carry the types; this file exists to prove the pool glue against a real
+// database.
+
+import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-import {
-  applyMigrations,
-  dockerIsAvailable,
-  withPostgres,
-} from "../../../../scripts/lib/postgres-container.mjs";
+import { applyMigrations } from "../../../db-tools/src/atlas.ts";
+import { dockerIsAvailable, withPostgres } from "../../../db-tools/src/postgres.ts";
 import { createDatabase } from "../../src/index.js";
+
+const migrations = fileURLToPath(new URL("../../migrations", import.meta.url));
 
 const principal = {
   userId: "user_integration",
@@ -37,7 +40,7 @@ describe("createDatabase configuration", () => {
 describe.skipIf(!dockerIsAvailable())("createDatabase", () => {
   it("scopes caller-owned inserts and reads", async () => {
     await withPostgres("db-test", async (connectionString) => {
-      applyMigrations(connectionString);
+      applyMigrations(connectionString, migrations);
       const database = createDatabase({ connectionString });
       try {
         // A different tenant, inserted out of band, must stay invisible below.
@@ -62,7 +65,7 @@ describe.skipIf(!dockerIsAvailable())("createDatabase", () => {
 
   it("returns the connection to the pool after a failed transaction", async () => {
     await withPostgres("db-test", async (connectionString) => {
-      applyMigrations(connectionString);
+      applyMigrations(connectionString, migrations);
       const database = createDatabase({ connectionString, maxConnections: 1 });
       try {
         await expect(

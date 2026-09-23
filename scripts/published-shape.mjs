@@ -17,6 +17,8 @@ import { basename, dirname, join, relative } from "node:path";
 import { setTimeout } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 
+import { dockerIsAvailable, psqlInput, withPostgres } from "@littleorgans/db-tools";
+
 import {
   CONSUMER_TYPESCRIPT,
   consumerCompilerOptions,
@@ -24,7 +26,6 @@ import {
   entryPoints,
   typecheckConsumer,
 } from "./lib/package-entries.mjs";
-import { dockerIsAvailable, psqlInput, withPostgres } from "./lib/postgres-container.mjs";
 import {
   initializeProject,
   projectEnvironment,
@@ -682,7 +683,48 @@ try {
   );
   run(root, process.execPath, ["service.ts"]);
   process.stdout.write(`published-shape: packed auth-http served 401 and 200 in ${root}\n`);
+  checkBins(root, packages);
   await exerciseServiceDatabase(root, dbName);
+}
+
+// Every packed bin starts from the consumer's install, where only dist and the declared dependencies
+// exist. --help loads the whole command module without needing a database.
+function checkBins(root, packages) {
+  for (const { manifest } of packages) {
+    assert.notEqual(typeof manifest.bin, "string", `${manifest.name} must name its bins`);
+    for (const bin of Object.keys(manifest.bin ?? {})) {
+      const output = succeeded(
+        capture(root, join(root, "node_modules/.bin", bin), ["--help"]),
+        `${bin} --help`,
+      );
+      assert.match(output, new RegExp(`^Usage: ${bin} `), `${bin} --help printed no usage`);
+      process.stdout.write(`published-shape: packed ${bin} --help\n`);
+    }
+  }
+}
+
+// The packed db-tools generating the typed schema from the installed db's migrations: Atlas from
+// PATH and drizzle-kit resolved as db-tools's peer from the consumer's node_modules. --root puts the
+// database in this checkout's container rather than a new one for the scratch directory.
+function generateConsumerSchema(root, installed) {
+  const out = join(root, "db/drizzle/_generated");
+  succeeded(
+    capture(root, join(root, "node_modules/.bin/db-tools"), [
+      "drizzle-generate",
+      "--migrations",
+      join(installed, "migrations"),
+      "--out",
+      out,
+      "--root",
+      source,
+    ]),
+    "db-tools drizzle-generate",
+  );
+  const schema = readFileSync(join(out, "schema.ts"), "utf8");
+  for (const table of ["accounts", "profiles"]) {
+    assert.ok(schema.includes(`pgTable("${table}"`), `the generated schema has no ${table} table`);
+  }
+  process.stdout.write(`published-shape: packed db-tools generated ${relative(root, out)}\n`);
 }
 
 /** The newest release line below `version`: one minor back on 0.x, where minors break. */
@@ -916,6 +958,7 @@ async function exerciseServiceDatabase(root, dbName) {
         stdio: "inherit",
       });
       verifyServiceRls(root, databaseUrl, connectAs(roles.granted), password);
+      generateConsumerSchema(root, installed);
     } finally {
       psqlInput(
         databaseUrl,

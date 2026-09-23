@@ -53,7 +53,9 @@ tasks:
 
   clean:
     type: "run"
-    script: "node scripts/clean.mjs && moon clean"
+    script: "db-tools clean && moon clean"
+    deps:
+      - "^:build"
     options:
       cache: false
       runInCI: false
@@ -80,6 +82,9 @@ tasks:
       - ".oxlintrc.json"
       - ".oxfmtrc.json"
       - "vitest.config.ts"
+    # The script imports the Postgres container helper from @littleorgans/db-tools's build.
+    deps:
+      - "^:build"
     options:
       shell: false
       cache: false
@@ -190,7 +195,9 @@ tasks:
   atlas-diff:
     description: "Generate a versioned migration from db/schema.sql"
     type: "run"
-    command: "node scripts/atlas-dev.mjs diff"
+    command: "db-tools atlas-diff --migrations packages/db/migrations"
+    deps:
+      - "^:build"
     checks:
       - check: "condition"
         script: "test ! -f db/schema.sql"
@@ -202,9 +209,11 @@ tasks:
   atlas-lint:
     description: "Reject unsafe versioned migrations"
     type: "test"
-    # Atlas's docker:// driver publishes to a random host port; scripts/atlas-dev.mjs runs the dev
-    # database on this project's pinned port instead. Skip and CI semantics live in the script.
-    command: "node scripts/atlas-dev.mjs lint"
+    # Atlas's docker:// driver publishes to a random host port; db-tools runs the dev database in
+    # this checkout's container instead. It skips locally without Docker and fails in CI.
+    command: "db-tools atlas-lint --migrations packages/db/migrations"
+    deps:
+      - "^:build"
     checks:
       - check: "condition"
         script: "test ! -f db/schema.sql"
@@ -216,22 +225,23 @@ tasks:
   atlas-apply:
     description: "Apply pending migrations to DATABASE_URL"
     type: "run"
-    toolchains: "system"
-    script: >-
-      atlas migrate apply
-      --dir "file://packages/db/migrations"
-      --url "${DATABASE_URL:?set DATABASE_URL}"
+    command: "db-tools atlas-apply --migrations packages/db/migrations"
+    deps:
+      - "^:build"
     checks:
       - check: "condition"
         script: "test ! -f db/schema.sql"
     options:
+      shell: false
       cache: false
       runInCI: false
 
   drizzle-generate:
     description: "Regenerate Drizzle types from the applied Atlas migrations"
     type: "run"
-    command: "node scripts/drizzle-schema.mjs generate"
+    command: "db-tools drizzle-generate --migrations packages/db/migrations"
+    deps:
+      - "^:build"
     checks:
       - check: "condition"
         script: "test ! -f db/schema.sql"
@@ -243,16 +253,17 @@ tasks:
   drizzle-check:
     description: "Verify Drizzle types match the applied Atlas migrations"
     type: "test"
-    command: "node scripts/drizzle-schema.mjs check"
+    command: "db-tools drizzle-check --migrations packages/db/migrations"
     inputs:
       - "packages/db/migrations/**/*"
+      - "packages/db-tools/src/**/*"
       - "db/schema.sql"
       - "db/drizzle/_generated/**/*"
-      - "scripts/drizzle-schema.mjs"
-      - "scripts/lib/postgres-container.mjs"
       - "package.json"
       - "pnpm-lock.yaml"
       - "pnpm-workspace.yaml"
+    deps:
+      - "^:build"
     checks:
       - check: "condition"
         script: "test ! -f db/schema.sql"
@@ -274,7 +285,6 @@ tasks:
       - "packages/db-tools/src/**/*"
       - "db/schema.sql"
       - "scripts/rls-verify.mjs"
-      - "scripts/lib/postgres-container.mjs"
       - "package.json"
       - "pnpm-lock.yaml"
       - "pnpm-workspace.yaml"

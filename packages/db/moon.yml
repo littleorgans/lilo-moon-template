@@ -3,18 +3,18 @@ layer: "library"
 tags:
   - "ts-library"
 
-# Integration tests use the shared helper. Migration history also reads MOON_BASE (or origin/main),
+# Integration tests use the Postgres container helper from db-tools's source. Migration history also reads MOON_BASE (or origin/main),
 # so do not reuse a cached pass after the base ref changes.
 tasks:
   test:
     inputs:
       - "migrations/**/*"
-      - "/scripts/lib/postgres-container.mjs"
+      - "/packages/db-tools/src/**/*"
     options:
       cache: false
   test-coverage:
     inputs:
       - "migrations/**/*"
-      - "/scripts/lib/postgres-container.mjs"
+      - "/packages/db-tools/src/**/*"
     options:
       cache: false

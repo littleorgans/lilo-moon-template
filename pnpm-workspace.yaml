@@ -75,6 +75,10 @@ catalogs:
     "@types/pg": "^8.15.0"
     drizzle-orm: "^0.45.0"
     pg: "^8.15.0"
+  # db-tools drizzle-generate runs the project's own drizzle-kit, so the project pins the version
+  # its committed artifact was generated with. 0.x breaks in minors, so the caret holds one minor.
+  db-tools-peer:
+    drizzle-kit: "^0.31.0"
   # packages/ui imports tailwindcss from CSS; a nested copy can differ from the one the consumer's
   # @tailwindcss/vite runs. 4.0.0 already parses every directive the package CSS uses.
   tailwind-peer:

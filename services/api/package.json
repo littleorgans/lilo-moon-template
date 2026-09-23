@@ -17,6 +17,7 @@
     "pg": "catalog:"
   },
   "devDependencies": {
+    "@littleorgans/db-tools": "workspace:*",
     "@types/node": "catalog:",
     "@types/pg": "catalog:",
     "jose": "catalog:"

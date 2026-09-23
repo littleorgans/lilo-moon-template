@@ -1,7 +1,7 @@
 {
   "name": "@littleorgans/db-tools",
   "version": "0.1.0",
-  "description": "Prove Postgres row level security holds in your own database, with the rls-verify CLI.",
+  "description": "Database gates for Postgres projects: rls-verify, Atlas and Drizzle wrappers, and a per-checkout Postgres container.",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -9,6 +9,7 @@
     "directory": "packages/db-tools"
   },
   "bin": {
+    "db-tools": "./bin/db-tools.js",
     "rls-verify": "./bin/rls-verify.js"
   },
   "files": [
@@ -41,14 +42,19 @@
     "@littleorgans/db": "workspace:*",
     "@types/node": "catalog:",
     "@types/pg": "catalog:",
+    "drizzle-kit": "catalog:",
     "pg": "catalog:"
   },
   "peerDependencies": {
     "@littleorgans/db": "workspace:^",
+    "drizzle-kit": "catalog:db-tools-peer",
     "pg": "catalog:db-peer"
   },
   "peerDependenciesMeta": {
     "@littleorgans/db": {
+      "optional": true
+    },
+    "drizzle-kit": {
       "optional": true
     }
   },

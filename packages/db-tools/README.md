@@ -1,10 +1,16 @@
 # @littleorgans/db-tools
 
-`rls-verify` proves row level security holds in your own Postgres database. Run it in CI against
-the database your migrations produce, or against a deployed database to check it without
-changing anything.
+The database gates for a project on `@littleorgans/db`, as two commands:
 
-It checks what holds for any schema scoped the way `@littleorgans/db` scopes it:
+- `rls-verify` proves row level security holds in your own Postgres database. Run it in CI against
+  the database your migrations produce, or against a deployed database to check it without
+  changing anything.
+- `db-tools` runs the rest of the schema workflow against a disposable Postgres in Docker: Atlas
+  migration diff, lint and apply, the typed Drizzle schema (`drizzle-generate` writes it,
+  `drizzle-check` fails when it is stale), `rls-verify` against a scratch copy of your migrations,
+  and `clean`. See [The db-tools command](#the-db-tools-command).
+
+`rls-verify` checks what holds for any schema scoped the way `@littleorgans/db` scopes it:
 
 - the request role (`authenticated`) is not a superuser and has no `BYPASSRLS`;
 - every table in the checked schemas has row level security enabled and forced;
@@ -20,11 +26,26 @@ Requires PostgreSQL 16 or later and Node.js 24.19 or later.
 ## Install
 
 ```sh
-pnpm add -D @littleorgans/db-tools pg
+pnpm add -D @littleorgans/db-tools pg drizzle-kit
 ```
 
-`pg` (`^8.15.0`) is a peer dependency. `@littleorgans/db` is an optional peer: install it to use
-its shipped migrations as the default for `--disposable`.
+`pg` (`^8.15.0`) is a peer dependency. `drizzle-kit` (`^0.31.0`) is an optional peer, needed only by
+`db-tools drizzle-generate` and `drizzle-check`. It is a peer rather than a dependency so that your
+project pins the version that generated the committed schema: a different drizzle-kit can print the
+same schema differently, and `drizzle-check` would then fail. `@littleorgans/db` is an optional
+peer: install it to use its shipped migrations as the default for `--disposable`.
+
+Two tools are not npm packages and must be on `PATH`:
+
+- **Docker**, for every `db-tools` command except `atlas-apply`. `rls-verify` itself never starts a
+  container.
+- **Atlas**, for the `atlas-*` and `drizzle-*` commands. It is a Go binary with no npm
+  distribution. Install it from <https://atlasgo.io/getting-started>, or pin it in `.prototools`
+  (`atlas = "1.3.0"` with the plugin line from this repository's `.prototools`) so that
+  `proto install` provides the same version locally and in CI.
+
+A missing tool fails the command at once with exit 3 and a message that names it. It never hangs:
+a Docker daemon that does not answer `docker info` within 20 seconds counts as unavailable.
 
 ## Verify an existing database
 
@@ -133,6 +154,94 @@ rls-verify: 1 of 4 checks failed.
 Output names the host, port, database and user, never the password. The URL is not echoed, even
 when it is rejected.
 
+## The db-tools command
+
+```sh
+pnpm exec db-tools <command> [options]
+```
+
+| Command            | What it does                                                                            | Needs                      |
+| ------------------ | --------------------------------------------------------------------------------------- | -------------------------- |
+| `atlas-diff`       | Writes a versioned migration that brings `--migrations` to the desired schema (`--to`). | Docker, Atlas              |
+| `atlas-lint`       | Lints migrations added since `--git-base` (default `MOON_BASE`), else the latest one.   | Docker, Atlas              |
+| `atlas-apply`      | Applies pending migrations to `DATABASE_URL` (or `--url`).                              | Atlas                      |
+| `drizzle-generate` | Applies the migrations to a scratch database and writes its typed schema to `--out`.    | Docker, Atlas, drizzle-kit |
+| `drizzle-check`    | Generates the schema again and fails if `--out` differs by a byte.                      | Docker, Atlas, drizzle-kit |
+| `rls-verify`       | Runs `rls-verify --disposable` with `--migrations` and `--seed` against the container.  | Docker                     |
+| `clean`            | Removes the checkout's container.                                                       | Docker, if installed       |
+
+Paths are relative to the working directory. The defaults are the layout the adoption guides set
+up:
+
+| Option               | Default                                                        | Used by                 |
+| -------------------- | -------------------------------------------------------------- | ----------------------- |
+| `--migrations <dir>` | `db/migrations`                                                | all but `clean`         |
+| `--to <file>`        | `db/schema.sql`                                                | `atlas-diff`            |
+| `--git-base <ref>`   | `MOON_BASE`, else only the latest migration                    | `atlas-lint`            |
+| `--url <url>`        | `DATABASE_URL`                                                 | `atlas-apply`           |
+| `--out <dir>`        | `db/drizzle/_generated`                                        | `drizzle-*`             |
+| `--seed <file>`      | none                                                           | `rls-verify`            |
+| `--schema`, `--role` | as `rls-verify`                                                | `rls-verify`            |
+| `--root <dir>`       | nearest ancestor with `pnpm-workspace.yaml`, `.moon` or `.git` | every container command |
+| `--port <port>`      | `LILO_PG_PORT`, else derived from `--root`                     | every container command |
+| `--image <image>`    | `postgres:17-alpine`                                           | every container command |
+
+A command refuses an option it does not use, so a misplaced flag is an error, not ignored.
+
+The generated schema starts with a header saying it is generated and that its policies are not a
+faithful record: `drizzle-kit pull` drops the `USING` expression from SELECT policies. `rls-verify`
+is the authority on row level security. Only `schema.ts` is kept; drizzle-kit's SQL snapshot,
+journal and relations are discarded.
+
+### The container
+
+Each checkout owns one container, named `baseline-postgres-<digest>` after the checkout's absolute
+path, with a host port derived from the same digest and bound to `127.0.0.1`. Separate clones and
+worktrees therefore get separate containers and ports. Every command creates its own database
+inside it, named after the command and the process id, and drops it afterwards. A run that was
+killed leaves its database behind; the next run of the same command drops every such database
+whose process no longer exists.
+
+Set `LILO_PG_PORT` (or `--port`) when the derived port is taken. The container keeps the port it
+was created with, so run `db-tools clean` before you change it; a mismatch fails with that advice.
+The superuser password is `postgres`, which is why the port is bound to the loopback address only.
+
+### Checks, CI and exit codes
+
+`atlas-lint`, `drizzle-check` and `rls-verify` are checks. When Docker is unavailable and `CI` is
+not set, they print why and exit 0, so a laptop without Docker can still run the other gates. When
+`CI` is set, they fail with exit 3. The other commands always need what they need.
+
+| Code | Meaning                                                     |
+| ---- | ----------------------------------------------------------- |
+| 0    | Done, or a check skipped locally without Docker.            |
+| 1    | A check failed, or Atlas or drizzle-kit reported a failure. |
+| 2    | Usage error: unknown command or option, or a missing URL.   |
+| 3    | Docker, Atlas or drizzle-kit is missing, or setup failed.   |
+
+### From Moon
+
+Run the commands from root tasks and skip them when the project has no schema:
+
+```yaml
+tasks:
+  drizzle-check:
+    type: "test"
+    command: "db-tools drizzle-check"
+    inputs:
+      - "db/**/*"
+    checks:
+      - check: "condition"
+        script: "test ! -f db/schema.sql"
+    options:
+      shell: false
+      cache: false
+      runInCI: "always"
+```
+
+The database is not a file input, so `cache: false` keeps a cached pass from standing in for a real
+run.
+
 ## Use it from code
 
 ```ts
@@ -172,3 +281,33 @@ as check failures. Other thrown errors propagate with the check name; the CLI ma
 The API runs on the client the caller supplies. `asRole` rolls back but intentionally permits write
 probes, such as testing that an INSERT is rejected by RLS. The CLI's read-only transaction wrapper
 is separate; callers of the API own connection privileges, transaction safety, and output redaction.
+
+The Postgres container is available to tests the same way:
+
+```ts
+import {
+  applyMigrations,
+  dockerIsAvailable,
+  psqlInput,
+  withPostgres,
+} from "@littleorgans/db-tools";
+import { describe, it } from "vitest";
+
+describe.skipIf(!dockerIsAvailable())("against Postgres", () => {
+  it("applies the migrations", async () => {
+    await withPostgres("my-test", async (databaseUrl) => {
+      applyMigrations(databaseUrl, "db/migrations");
+      psqlInput(databaseUrl, "INSERT INTO accounts (workos_org_id) VALUES ('org_a');");
+      // ...connect with pg and assert
+    });
+  });
+});
+```
+
+`withPostgres(label, callback, options?)` hands the callback a superuser URL to a fresh database
+named `<label>_<pid>` in the checkout's container, and drops it afterwards. `startPostgres` returns a
+URL to the container's `postgres` database for tools that create their own. `psqlInput` runs SQL
+through the container's `psql` with `ON_ERROR_STOP` in one transaction, with `--set` variables, so
+no host `psql` is needed. `applyMigrations` runs `atlas migrate apply`. `dockerStatus` says whether
+Docker answers and why not, and `removePostgres` is `db-tools clean`. Each takes the `root`, `port`,
+`image` and `env` options the command line exposes.
