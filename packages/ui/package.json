@@ -39,18 +39,19 @@
     "class-variance-authority": "catalog:",
     "clsx": "catalog:",
     "radix-ui": "catalog:",
-    "tailwind-merge": "catalog:",
-    "tailwindcss": "catalog:"
+    "tailwind-merge": "catalog:"
   },
   "devDependencies": {
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
     "react": "catalog:",
-    "react-dom": "catalog:"
+    "react-dom": "catalog:",
+    "tailwindcss": "catalog:"
   },
   "peerDependencies": {
     "react": "catalog:react-peer",
-    "react-dom": "catalog:react-peer"
+    "react-dom": "catalog:react-peer",
+    "tailwindcss": "catalog:tailwind-peer"
   },
   "engines": {
     "node": ">=24.19.0"

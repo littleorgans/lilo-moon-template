@@ -14,6 +14,7 @@
     "@tanstack/react-router": "catalog:",
     "@tanstack/react-start": "catalog:",
     "drizzle-orm": "catalog:",
+    "pg": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:"
   },
