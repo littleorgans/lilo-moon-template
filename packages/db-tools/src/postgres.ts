@@ -355,7 +355,14 @@ export function psqlInput(
   variables: Readonly<Record<string, string>> = {},
   options: PostgresOptions = {},
 ): void {
-  const target = server(options);
+  const requested = server(options);
+  const url = new URL(databaseUrl);
+  if (url.hostname !== "127.0.0.1" || Number(url.port) !== requested.port) {
+    throw new Error("psqlInput requires a URL from this checkout's Postgres container.");
+  }
+  const existing = inspectContainer(requested);
+  if (existing === null) throw new Error("The checkout's Postgres container does not exist.");
+  const target = { ...requested, container: existing.id };
   execFileSync(
     "docker",
     [
@@ -367,7 +374,7 @@ export function psqlInput(
       "--username",
       "postgres",
       "--dbname",
-      new URL(databaseUrl).pathname.slice(1),
+      decodeURIComponent(url.pathname.slice(1)),
       "--set",
       "ON_ERROR_STOP=1",
       ...Object.entries(variables).flatMap(([name, value]) => ["--set", `${name}=${value}`]),

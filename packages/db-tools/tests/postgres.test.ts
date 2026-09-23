@@ -8,6 +8,7 @@ import {
   dockerStatus,
   findWorkspaceRoot,
   postgresIdentity,
+  psqlInput,
   removePostgres,
   startPostgres,
   withPostgres,
@@ -153,4 +154,20 @@ esac`,
     "run",
     "container",
   ]);
+});
+
+it("psqlInput verifies ownership and uses the inspected ID", () => {
+  const foreign = dockerFixture(undefined);
+  const foreignUrl = `postgres://127.0.0.1:${postgresIdentity(foreign.root).port}/test`;
+  expect(() => psqlInput(foreignUrl, "SELECT 1", {}, foreign)).toThrow("ownership label");
+  expect(readFileSync(foreign.log, "utf8")).not.toMatch(/^exec /m);
+  const owned = dockerFixture("self");
+  const ownedUrl = `postgres://127.0.0.1:${postgresIdentity(owned.root).port}/test`;
+  psqlInput(ownedUrl, "SELECT 1", {}, owned);
+  expect(readFileSync(owned.log, "utf8")).toContain(
+    "exec --interactive immutable-container-id psql",
+  );
+  expect(() => psqlInput("postgres://remote/app", "SELECT 1", {}, owned)).toThrow(
+    "requires a URL from this checkout",
+  );
 });

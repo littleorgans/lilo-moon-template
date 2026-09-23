@@ -24,3 +24,5 @@ Container startup and cleanup require a matching checkout ownership label and us
 Unlabelled containers from the old root scripts must be renamed manually. Scratch database names
 include a random suffix, and stale cleanup requires an ownership marker. Tool diagnostics redact
 connection URLs and passwords, including errors from rejected command arguments.
+
+`psqlInput` verifies container ownership and rejects URLs for another host or port before executing SQL.
