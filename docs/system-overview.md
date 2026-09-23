@@ -381,8 +381,8 @@ detection. Tasks marked `runInCI: "always"` run on every change. These include `
 `.github/workflows/release.yml` runs Changesets on pushes to `main`. It opens or updates a Version
 Packages pull request, and it publishes only when `vars.NPM_PUBLISH_ENABLED == 'true'`. The publish
 command, `pnpm changeset:publish`, builds, scans a packed copy of each published package with
-`root:packed-secrets`, and publishes only if both succeed. Changesets packs again for upload. It does not rerun tests. It relies on protected-branch CI, as
-`docs/decisions.md` explains.
+`root:packed-secrets`, and publishes only if both succeed. Changesets packs again for upload. It
+does not rerun tests. It relies on protected-branch CI, as `docs/decisions.md` explains.
 
 Local hooks in `lefthook.yml` run `format-check`, `lint` and `secrets` on staged files, plus
 commitlint. The root `prepare` script installs them through `scripts/install-hooks.mjs`, which runs
