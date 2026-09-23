@@ -107,8 +107,8 @@ Nothing to rotate. No history rewrite is recommended.
   fails on a failed pack or an empty package set, and removes its temporary directory on normal
   success and exceptions. Process termination such as SIGKILL can still leave a temp directory. Pack
   and extraction subprocess output is suppressed because it may contain secrets.
-- The original three focused tests passed. The ignored dist fixture explicitly lists its files because pinned
-  pnpm otherwise omits them during packing. Mutation checks detected omitted cleanup, disabled
+- The original three focused tests passed. The ignored dist fixture explicitly lists its files
+  because pinned pnpm otherwise omits them during packing. Mutation checks detected omitted cleanup, disabled
   masking, forwarded pack stderr, a successful empty-package exit, skipped dist scanning and
   respected nested ignore files. Mutations were restored before verification.
 - `changeset:publish` waits for the Moon build and packed scan, then uses `&&` to prevent
@@ -127,10 +127,14 @@ Nothing to rotate. No history rewrite is recommended.
   secretlint both reported zero findings. `root:packed-secrets` passed in 4.4 seconds, with ten
   dependency builds cached.
 - All four focused tests passed. The new lifecycle guard was mutation-checked by adding each
-  forbidden hook independently to a published manifest. Each run of
-  `node --test --test-name-pattern="published packages have no lifecycle" scripts/tests/packed-secrets.test.mjs`
-  exited 1 with `publish the scanned archives (task 1.8) before adding packaging lifecycle scripts`.
-  All mutations were restored.
+  forbidden hook independently to a published manifest. Each command below exited 1 with
+  `publish the scanned archives (task 1.8) before adding packaging lifecycle scripts`. All mutations
+  were restored.
+
+  ```sh
+  node --test --test-name-pattern="published packages have no lifecycle" \
+    scripts/tests/packed-secrets.test.mjs
+  ```
 
 ## Not scanned
 
