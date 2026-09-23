@@ -450,6 +450,14 @@ describe("service origins", () => {
 type Handler = (request: IncomingMessage, response: ServerResponse) => void;
 
 /** A loopback HTTP server on a free port, so a redirect can be followed for real. */
+/** Ends kept-alive sockets as well as the listener, so nothing outlives the test that opened it. */
+function close(server: Server): Promise<void> {
+  server.closeAllConnections();
+  return new Promise((resolve, reject) => {
+    server.close((error) => (error === undefined ? resolve() : reject(error)));
+  });
+}
+
 function listen(handle: Handler): Promise<{ server: Server; origin: string }> {
   return new Promise((resolve) => {
     const server = createServer(handle);
@@ -502,8 +510,7 @@ describe("redirects, through the real fetch", () => {
         { at: "other", path: "/landed", bearer: null },
       ]);
     } finally {
-      own.server.close();
-      other.server.close();
+      await Promise.all([close(own.server), close(other.server)]);
     }
   });
 });
