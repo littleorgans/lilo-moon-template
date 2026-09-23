@@ -65,8 +65,9 @@ to the person, and do not patch a copy.
 
 - `pnpm peers check` prints `No peer dependency issues found` after the installs.
 - `moon run <app>:typecheck <app>:build <app>:test` passes before the first `moon ci`.
-- `moon ci` passes with nothing skipped that CI would run. Without Docker, `rls-verify` and the
-  service's database test skip locally, and CI runs them. Say which ones skipped.
+- `moon ci` passes with nothing skipped that CI would run. Without Docker, `atlas-lint`,
+  `drizzle-check`, `rls-verify` and the service's database test skip locally, and CI runs them.
+  Say which ones skipped.
 - With a real database, `pnpm exec rls-verify` passes when connected as the login role.
 
 Report what you could not verify. The usual gaps are the WorkOS callback registration, a real
