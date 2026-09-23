@@ -10,6 +10,7 @@
       "@littleorgans/auth-tanstack",
       "@littleorgans/auth-workos",
       "@littleorgans/db",
+      "@littleorgans/db-tools",
       "@littleorgans/theme",
       "@littleorgans/ui",
       "@littleorgans/views",

@@ -296,6 +296,7 @@ async function exerciseService(artifacts) {
       [`${scope}/auth`]: `file:${artifacts.get(`${scope}/auth`)}`,
       [httpName]: `file:${artifacts.get(httpName)}`,
       [dbName]: `file:${artifacts.get(dbName)}`,
+      [`${scope}/db-tools`]: `file:${artifacts.get(`${scope}/db-tools`)}`,
       "@types/node": installed("packages/auth-http", "@types/node"),
       "@types/pg": installed("packages/db", "@types/pg"),
       "drizzle-orm": installed("packages/db", "drizzle-orm"),
@@ -444,6 +445,50 @@ try {
   await exerciseServiceDatabase(root, dbName);
 }
 
+// The packed db-tools bin, run the way a consumer runs it: against the database the service already
+// set up, as the service's own login role, then against the same database with row level security
+// broken twice over, then in a scratch database built from the installed db's migrations.
+function verifyServiceRls(root, databaseUrl, loginUrl, password) {
+  const rlsVerify = (url, args = []) => {
+    process.stdout.write(`consumer-check: rls-verify ${args.join(" ")}\n`);
+    const result = spawnSync(join(root, "node_modules/.bin/rls-verify"), args, {
+      cwd: root,
+      env: { ...env, DATABASE_URL: url },
+      encoding: "utf8",
+    });
+    const output = `${result.stdout}${result.stderr}`;
+    process.stdout.write(output);
+    assert.ok(!output.includes(password), "rls-verify printed the login role's password");
+    return { status: result.status, output };
+  };
+  assert.equal(rlsVerify(loginUrl).status, 0, "rls-verify must pass on the service's database");
+  for (const [broken, restored, failure] of [
+    [
+      "ALTER TABLE profiles NO FORCE ROW LEVEL SECURITY;",
+      "ALTER TABLE profiles FORCE ROW LEVEL SECURITY;",
+      /unprotected: public\.profiles \(not forced\)/,
+    ],
+    [
+      "CREATE POLICY consumer_open ON accounts FOR SELECT USING (true);",
+      "DROP POLICY consumer_open ON accounts;",
+      /rows visible without claims in public\.accounts/,
+    ],
+  ]) {
+    psqlInput(databaseUrl, broken);
+    try {
+      const { status, output } = rlsVerify(loginUrl);
+      assert.equal(status, 1, `rls-verify accepted: ${broken}`);
+      assert.match(output, failure);
+      process.stdout.write(
+        `consumer-check: negative proof rls-verify, exit ${status}: ${broken}\n`,
+      );
+    } finally {
+      psqlInput(databaseUrl, restored);
+    }
+  }
+  assert.equal(rlsVerify(databaseUrl, ["--disposable"]).status, 0, "disposable rls-verify failed");
+}
+
 // The db README's setup, run from the installed tarball against Postgres 17: the shipped migrations
 // in file-name order, then the shipped grant for one fresh login role and not for another. The
 // service connects as each, never as the superuser that applied the migrations.
@@ -517,6 +562,7 @@ async function exerciseServiceDatabase(root, dbName) {
         },
         stdio: "inherit",
       });
+      verifyServiceRls(root, databaseUrl, connectAs(roles.granted), password);
     } finally {
       psqlInput(
         databaseUrl,

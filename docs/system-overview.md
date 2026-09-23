@@ -24,7 +24,7 @@ The baseline makes these choices, recorded in `docs/decisions.md`:
 | Lint and format | oxlint (type aware) and oxfmt                               | `.oxlintrc.json`, `.oxfmtrc.json`, `moon.yml` `tasks.lint` |
 | Web framework   | TanStack Start on Vite 8 and Nitro                          | `apps/web/vite.config.ts`                                  |
 | Identity        | WorkOS AuthKit: Google OAuth and email codes                | `packages/auth-workos`, `packages/auth-session`            |
-| Persistence     | Postgres, Atlas SQL migrations, Drizzle client, forced RLS  | `db/`, `packages/db`, `scripts/rls-verify.mjs`             |
+| Persistence     | Postgres, Atlas SQL migrations, Drizzle client, forced RLS  | `db/`, `packages/db`, `packages/db-tools`                  |
 | UI              | React 19, Tailwind 4, shadcn/Radix components, typed themes | `packages/ui`, `packages/views`, `packages/theme`          |
 | Delivery        | GitHub Actions running `moon ci`, Changesets, Renovate      | `.github/workflows/`, `.changeset/`, `renovate.json`       |
 
@@ -393,7 +393,7 @@ TypeScript project references are written by `moon sync` (`typescript.syncProjec
 | Unit                        | Vitest, shared `vitest.config.ts` | `packages/*/tests/*.test.ts`, `apps/web/tests/features/**`                                      |
 | Composition and integration | Vitest under `tests/integration/` | `apps/web/tests/integration/auth-wiring.test.ts` (real SDK, no network), `routes.test.tsx`      |
 | Coverage floor              | V8, per file: 80/75/80/80         | `vitest.config.ts` lines 14–23                                                                  |
-| Database behavior           | Real Postgres 17 in Docker        | `root:rls-verify` (6 assertions), `root:drizzle-check`, `root:atlas-lint`                       |
+| Database behavior           | Real Postgres 17 in Docker        | `root:rls-verify` (7 assertions), `root:drizzle-check`, `root:atlas-lint`                       |
 | Repository scripts          | `node --test`                     | `scripts/tests/**` (Moon task shape, hooks, pins, fixed version group, licenses)                |
 | Workspace consumer          | Snapshot build, HTTP probes       | `root:consumer-check`: gate negative proofs, route status codes, CSS utilities, packed tarballs |
 

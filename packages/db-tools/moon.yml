@@ -1,0 +1,16 @@
+language: "typescript"
+layer: "library"
+tags:
+  - "ts-library"
+
+# The docker-backed tests import the shared container helper from outside this project and apply
+# @littleorgans/db's shipped migrations, so both are inputs or a change there replays a stale pass.
+tasks:
+  test:
+    inputs:
+      - "/scripts/lib/postgres-container.mjs"
+      - "/packages/db/migrations/**/*"
+  test-coverage:
+    inputs:
+      - "/scripts/lib/postgres-container.mjs"
+      - "/packages/db/migrations/**/*"
