@@ -26,7 +26,8 @@ Every package below is publishable, and none is published yet. They release toge
 version (the Changesets `fixed` group), because their internal dependencies are exact pins.
 
 - `auth` verifies tokens and maps claims to a `Principal`.
-- `auth-workos` wraps the WorkOS SDK. `auth-session` handles WorkOS browser sessions.
+- `auth-workos` wraps the WorkOS SDK. `auth-session` handles WorkOS browser sessions and calls
+  services as the signed-in person without handing out their token.
 - `auth-tanstack` binds sessions to TanStack Start requests.
 - `auth-http` authenticates bearer tokens for services on Fetch `Request` and `Response`, with a
   Hono adapter and a service config loader.

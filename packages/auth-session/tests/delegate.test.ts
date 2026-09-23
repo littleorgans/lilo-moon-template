@@ -221,6 +221,19 @@ describe("fetch as the signed-in person", () => {
     expect(sent).toHaveLength(0);
   });
 
+  // A blob URL carries the origin it was minted under, so `blob:https://api.example.com/...` has
+  // the service's origin and none of its reachability. Only the two schemes a service listens on
+  // may carry the token, whatever origin the URL reports.
+  it("refuses a URL whose scheme is not http or https, even under the service origin", async () => {
+    const { deps, sent } = depsWith(valid);
+    const user = signedIn(await readUserAccess(session().jar, deps));
+    const blob = `blob:${service}/2f3a9c0e-6b1d-4c7e-9b1a-0d3f5e7a9c1b`;
+    expect(new URL(blob).origin).toBe(service);
+
+    await expect(user.fetch(blob)).rejects.toThrow("services are http or https");
+    expect(sent).toHaveLength(0);
+  });
+
   it("refuses every call when no service origins are configured", async () => {
     const { deps, sent } = depsWith(valid, authDouble().auth, []);
     const user = signedIn(await readUserAccess(session().jar, deps));

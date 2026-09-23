@@ -65,6 +65,13 @@ function userFetch(accessToken: string, origins: ReadonlySet<string>, send: type
   const fetchAsUser: UserFetch = async (url, init) => {
     // No base, so a relative URL throws here rather than resolving against something unintended.
     const target = new URL(url);
+    // Checked before the origin, because a `blob:` URL reports the origin it was minted under, so
+    // `blob:https://api.example.com/...` would pass the origin check with a scheme no service has.
+    if (target.protocol !== "https:" && target.protocol !== "http:") {
+      throw new Error(
+        `Refusing to send the access token to a ${target.protocol} URL: services are http or https.`,
+      );
+    }
     if (!origins.has(target.origin)) {
       throw new Error(
         `Refusing to send the access token to ${target.origin}: it is not in serviceOrigins.`,
