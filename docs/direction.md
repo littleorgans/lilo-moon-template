@@ -21,6 +21,8 @@ Settled inputs:
 - No downstream projects exist, so nothing needs migrating and template-only machinery can be
   deleted.
 - `HELIOY_PAT` is an org-level token. It is not a personal credential and not a blocker.
+- Decisions D1–D10 were approved on 2026-09-23 (see [Decisions](#decisions-approved-2026-09-23)).
+  Two items remain open: creating the npm org and confirming WorkOS refresh-token reuse behavior.
 
 ## a) Where each part goes
 
@@ -49,8 +51,8 @@ Destinations:
 | `packages/collections`    | Delete                | An example with one caller, the task board. Real packages now demonstrate library shape.                                                                                                        |
 | new `packages/auth-http`  | Pkg (phase 1)         | Service seam: a Fetch-standard `Request` → `Principal` bearer authenticator with `AuthError` → 401/503 mapping, plus a small Node adapter.                                                      |
 | new `packages/db-tools`   | Pkg (phase 1 minimal) | CLI. Phase 1: `rls-verify` (generic: every `public` table has RLS enabled and forced, and absent claims return nothing). Phase 2: Atlas and Drizzle wrappers and the Postgres container helper. |
-| new `packages/create-app` | Pkg (phase 2)         | `pnpm create @<scope>/app` scaffolder (see [e](#e-scaffolding)).                                                                                                                                |
-| new config packages       | Shared (phase 2)      | `@<scope>/tsconfig` (from `tsconfig.options.json`), `@<scope>/oxlint-config` (from `.oxlintrc.json`, if oxlint package `extends` works [I]), and Vitest defaults in `vite-config`.              |
+| new `packages/create-app` | Pkg (phase 2)         | `pnpm create @littleorgans/app` scaffolder (see [e](#e-scaffolding)).                                                                                                                           |
+| new config packages       | Shared (phase 2)      | `@littleorgans/tsconfig` (from `tsconfig.options.json`), `@littleorgans/oxlint-config` (from `.oxlintrc.json`, if oxlint package `extends` works [I]), and Vitest defaults in `vite-config`.    |
 | `apps/web`                | Ref                   | The reference frontend. Scaffold sources come from here. Delete the task board, the Principal dump and the demo title (B10). Keep `/theme` as a documented reference page.                      |
 | `services/ping`           | Delete                | The Rust example. Rust returns in phase 3 with a real service.                                                                                                                                  |
 | new `services/api`        | Ref (phase 1)         | A reference TypeScript service using `auth-http` and `db`. It is the scaffold source for services.                                                                                              |
@@ -78,7 +80,7 @@ Destinations:
 | `.moon/tasks/node.yml`, `node-library.yml`, `node-application.yml`, `rust.yml`                                                                             | Scaffold (phase 1), Shared (phase 2) | Phase 2 shares them through Moon's remote `extends` if it holds up [I]. Add a `node-service` layer for services. `rust.yml` returns in phase 3.                                                                                                                             |
 | `pnpm-workspace.yaml`                                                                                                                                      | Scaffold                             | Supply-chain policy plus a catalog with the package versions.                                                                                                                                                                                                               |
 | `.npmrc`                                                                                                                                                   | Scaffold                             | Public npm needs no scope or token lines for consumers.                                                                                                                                                                                                                     |
-| `tsconfig.options.json`                                                                                                                                    | Shared `@<scope>/tsconfig`           | TypeScript supports `extends` from a package [I]. Root `tsconfig.json` stays Moon-generated per project.                                                                                                                                                                    |
+| `tsconfig.options.json`                                                                                                                                    | Shared `@littleorgans/tsconfig`      | TypeScript supports `extends` from a package [I]. Root `tsconfig.json` stays Moon-generated per project.                                                                                                                                                                    |
 | `vitest.config.ts`                                                                                                                                         | Shared (via `vite-config`)           | The `inline` regex names the scope. Rename it with the scope decision.                                                                                                                                                                                                      |
 | `.oxlintrc.json`                                                                                                                                           | Shared (phase 2), Scaffold (phase 1) | Add `no-restricted-imports` rules that make layout mechanical (features must not import routes).                                                                                                                                                                            |
 | `.oxfmtrc.json`, `.secretlintrc.json`, `.secretlintignore`, `.editorconfig`, `.vscode/*`, `.gitignore`, `lefthook.yml`, `commitlint.config.js`, `justfile` | Scaffold                             | Small files. Sharing them would cost more than it saves.                                                                                                                                                                                                                    |
@@ -87,7 +89,7 @@ Destinations:
 | `.changeset/config.json`, `.changeset/*.md`                                                                                                                | Ref                                  | Add a `fixed` group (see [Versioning](#versioning-policy)).                                                                                                                                                                                                                 |
 | `.template/`                                                                                                                                               | Delete                               | Template identity and the consumer registry.                                                                                                                                                                                                                                |
 | `db/schema.sql`, `db/migrations/*.sql`, `atlas.sum`                                                                                                        | Pkg (`db` ships the SQL) + Scaffold  | Projects get the identity migrations copied into their own `db/migrations/` once. Add a documented `GRANT authenticated TO <login role>` step. Without it `SET LOCAL ROLE` fails for a non-superuser [V].                                                                   |
-| `db/drizzle/_generated/`                                                                                                                                   | Delete or Ref                        | Depends on the Drizzle decision (B1).                                                                                                                                                                                                                                       |
+| `db/drizzle/_generated/`                                                                                                                                   | Ref, adopted (D7)                    | Becomes the typed schema that `packages/db` passes to `drizzle(client, { schema })`. Queries such as `rows.ts` move to typed Drizzle. `drizzle-check` keeps it in sync. The policy misreporting stays documented; `rls-verify` remains the RLS authority.                   |
 
 ### Workflows
 
@@ -148,7 +150,7 @@ Cross-cutting findings:
   rewrites `workspace:*` to exact versions [V]. Exact internal pins mean the family must be
   released together. That fits a fixed version (below).
 - **Engines.** Every package requires `node >=24.19.0`. That floor becomes a consumer
-  requirement. It is decision D8.
+  requirement. Decided (D8): Node 24, with the `>=24.19.0` floor kept.
 - **`HELIOY_PAT` release flow (U7).** It is org-level. It only authors the Version Packages pull
   request. Publishing authenticates to npm separately, so it is not a blocker.
 - **Secrets.** `secretlint` over every unpacked tarball found nothing [V]. A regex sweep of all 88
@@ -158,7 +160,7 @@ Cross-cutting findings:
 
 ### Registry
 
-**Recommendation: public npm.** GitHub Packages' npm registry requires an auth token to install
+**Decided: public npm.** GitHub Packages' npm registry requires an auth token to install
 even public packages. Every consumer, laptop and CI job would carry token configuration that
 public npm removes. Public npm also offers trusted publishing with provenance [I].
 
@@ -169,10 +171,11 @@ Claiming the scope:
 - Whether an npm **org** named `lilo-moon` or `littleorgans` exists is unverified. `npm org ls`
   requires `npm login`, which this environment does not have. The unauthenticated
   `/-/org/<name>/package` endpoint returned 404 for both, which is suggestive but not conclusive.
-- Creating a free npm org for public packages claims the scope. **Decision D1:** keep
-  `@lilo-moon`, or use an org-level scope such as `@littleorgans`. Renaming later costs a
-  deprecation cycle, so decide before the first publish. The scope also names the
-  `@<scope>/source` export condition and the Vitest inline regex.
+- **Decided (D1): `@littleorgans`.** Creating the free npm org `littleorgans` claims the scope.
+  That is still **open**: the user creates it. Renaming `@lilo-moon/*` to `@littleorgans/*` is a
+  phase 1 task (1.1). It covers package names, imports, the `@littleorgans/source` export
+  condition, the Vitest inline regex, `.changeset/*.md` and `pnpm-lock.yaml`. Nothing has been
+  published, so the rename needs no deprecation.
 
 `publishConfig`: every library already sets `"access": "public"` [V]. `.changeset/config.json`
 already has `"access": "public"` [V]. Keep both. Add `"provenance": true` only if publishing
@@ -208,7 +211,7 @@ Every later package, such as `auth-http` or `db-tools`, repeats step 1 once.
 4. Add a post-publish smoke job. In an empty directory, `npm install` the just-published versions
    from the public registry and typecheck a sample importing each entry point.
 5. `HELIOY_PAT` keeps authoring the Version Packages pull request. No change.
-6. `.changeset/config.json`: add the `fixed` group. Keep `@<scope>/web` and the reference service
+6. `.changeset/config.json`: add the `fixed` group. Keep `@littleorgans/web` and the reference service
    private and unversioned, and switch `privatePackages.version` to `false`.
 
 ### Consumer check changes
@@ -230,8 +233,8 @@ Every later package, such as `auth-http` or `db-tools`, repeats step 1 once.
 
 - Semantic versioning, starting at `0.1.0`. During `0.x`, a minor bump may break and a patch may
   not. Go to `1.0.0` once two projects run the packages in production.
-- **One fixed version for every published package** (Changesets `fixed`). The recommendation is
-  decision D3. Internal dependencies are exact pins [V], so independent versions would force
+- **One fixed version for every published package** (Changesets `fixed`). Decided
+  (D3). Internal dependencies are exact pins [V], so independent versions would force
   duplicate copies on consumers. A single number also makes "upgrade to 0.4.0" one instruction.
 - Every change to a published package needs a changeset. CI enforces it with
   `changeset status --since=origin/main`.
@@ -257,7 +260,7 @@ What a standalone TypeScript service can use today, outside the TanStack Start a
 | HTTP framework seam, auth middleware      | **Missing.** There is no bearer extraction or error-to-status mapping. Every service would hand-roll the handler above.                                                                                                                                                                                                          |
 | Moon task layer for services              | **Missing.** Only `web-app` applications inherit `build`, `dev` and `preview` (`.moon/tasks/node-application.yml`). A service gets `typecheck` and tests only.                                                                                                                                                                   |
 | Service reference and scaffold            | **Missing.** `services/` holds only the Rust `ping`.                                                                                                                                                                                                                                                                             |
-| Service-to-service (machine) identity     | **Missing and undecided.** Out of phase 1 unless a waiting project needs it (D10).                                                                                                                                                                                                                                               |
+| Service-to-service (machine) identity     | **Missing, deferred (D10).** Out of phase 1.                                                                                                                                                                                                                                                                                     |
 
 Gap size, about 8–9 days:
 
@@ -270,8 +273,8 @@ Gap size, about 8–9 days:
 | `node-service` Moon layer and `services/api` reference with tests                                  | 2.5  |
 | `adopt-service` guide                                                                              | 0.5  |
 
-The HTTP framework is decision D5. The recommendation is a framework-neutral Fetch `Request`
-core plus one adapter, because Start routes already use `Request` and `Response`.
+Decided (D5): a framework-neutral Fetch `Request`/`Response` core plus one adapter, because
+Start routes already use `Request` and `Response`.
 
 ## c) What this makes obsolete
 
@@ -296,7 +299,7 @@ Still applies, in phase order:
 | 4    | **U3 must ship before the first publish.** Refresh is package code, and a spurious sign-out would reach every consumer.                                                                                     |
 | 5    | License. It blocks publishing.                                                                                                                                                                              |
 | 6    | Delete `docs/auth-proposal.md` rather than update it.                                                                                                                                                       |
-| 9    | Drizzle schema, used or dropped (D7).                                                                                                                                                                       |
+| 9    | Adopt the typed Drizzle schema (D7): pass it to `drizzle(client, { schema })` and move queries to typed Drizzle.                                                                                            |
 | 10   | `countVisibleRows` split. It is the example projects copy.                                                                                                                                                  |
 | 11   | 503 for outages and email log kind. Package behavior.                                                                                                                                                       |
 | 12   | Duplicate `dependsOn`. This repo only.                                                                                                                                                                      |
@@ -344,7 +347,7 @@ anything checkable becomes a gate instead.
 The domain skills sit beside the `tm/sdlc/*` process skills. `tm/sdlc` and `tm/frontend` would
 select them, ideally as one `lilo/build-core` bundle.
 
-### Where they live (decision D4)
+### Where they live (decided: D4)
 
 - **(A) Author in the agent-runtimes catalog** under a new owner. This follows the existing model
   directly. Skill text is versioned apart from the code it describes.
@@ -354,7 +357,9 @@ select them, ideally as one `lilo/build-core` bundle.
 - **(C) Ship inside npm packages.** Versioned exactly with the code, but runtimes do not read
   `node_modules`.
 
-Recommendation: (B), with a check that cited paths exist at the tag the skill names.
+Decided (D4): (B). Skills are written in this repository and synced to the catalog, with a check
+that cited paths exist at the tag the skill names. The owner name (`lilo` is a placeholder) is
+chosen when the first skill lands.
 
 ## e) Scaffolding
 
@@ -369,7 +374,7 @@ Generated on day one:
     the package version), `.npmrc`, `.prototools`, `justfile`;
   - `.moon/workspace.yml`, `.moon/toolchains.yml`, `.moon/tasks/*.yml`, root `moon.yml` (generic
     gates);
-  - `tsconfig.options.json` (or `extends` of `@<scope>/tsconfig`), `.oxlintrc.json`,
+  - `tsconfig.options.json` (or `extends` of `@littleorgans/tsconfig`), `.oxlintrc.json`,
     `.oxfmtrc.json`, `.secretlintrc.json`, `lefthook.yml`, `commitlint.config.js`;
   - `renovate.json` (extends the preset), `.editorconfig`, `.vscode/`, `.gitignore`,
     `.env.example`;
@@ -390,7 +395,7 @@ Generated on day one:
   - `tests/`.
 - **Database** (either app type):
   - `db/schema.sql`;
-  - `db/migrations/` with the identity migrations copied from `@<scope>/db` and a role-grant
+  - `db/migrations/` with the identity migrations copied from `@littleorgans/db` and a role-grant
     migration template;
   - `atlas.sum`.
 
@@ -400,7 +405,7 @@ Invocation, both ways:
   `docs/guides/adopt-*.md`, which lists exact files to copy from the tagged reference app and the
   `pnpm add` lines. It costs nothing to build and unblocks waiting projects. It is also the least
   deterministic option.
-- **Phase 2: `pnpm create @<scope>/app --web|--service|--db`** (`packages/create-app`), with the
+- **Phase 2: `pnpm create @littleorgans/app --web|--service|--db`** (`packages/create-app`), with the
   skill invoking it. The CLI does the deterministic writing. The skill handles the judgment calls:
   organization policy, ports, whether a database is needed. The CLI's templates are generated from
   the reference app at release time and tested in `published-shape`, so they cannot drift from
@@ -411,57 +416,58 @@ Invocation, both ways:
 The sizes assume one engineer who knows the code. Items marked ∥ can run in parallel with other
 work.
 
-### Phase 1a: publish the web stack (about 7 working days)
+### Phase 1a: publish the web stack (about 7–8 working days)
 
-| #   | Item                                                                                                                                  | Days | Depends on          | Open decisions |
-| --- | ------------------------------------------------------------------------------------------------------------------------------------- | ---- | ------------------- | -------------- |
-| 1.1 | Claim the npm scope and org. Choose the license.                                                                                      | 0.25 | —                   | D1, D2         |
-| 1.2 | **B3:** Origin check and throttle hook on email start and verify. Package helper for the `/api/theme` Origin check.                   | 1    | —                   | —              |
-| 1.3 | **U3:** single-flight refresh, with reuse-rejection handling. Includes a 0.5-day WorkOS spike to confirm rotation behavior.           | 1.5  | Staging credentials | —              |
-| 1.4 | **Secrets sweep:** full-history gitleaks, tarball secretlint, rotate anything found.                                                  | 0.5  | ∥                   | —              |
-| 1.5 | Manifest hygiene: peers (`drizzle-orm`, `pg`, `tailwindcss`), caret peer ranges, LICENSE per package, version `0.1.0`, `fixed` group. | 1    | 1.1                 | D3, D8         |
-| 1.6 | Delete template machinery (see [a](#a-where-each-part-goes)), `collections`, `ping` and demo residue. Rewrite README and AGENTS.      | 1    | ∥                   | D6             |
-| 1.7 | `published-shape`: fresh consumer, skew case, TypeScript 5.x, `publint` and `attw`.                                                   | 1    | 1.5                 | —              |
-| 1.8 | Release: gate publishing on tests, bootstrap-publish `0.1.0`, attach trusted publishers, post-publish smoke.                          | 1    | 1.2–1.5, 1.7        | D9             |
-| 1.9 | `docs/guides/adopt-web-app.md` with copy list, env and ports, plus a thin `lilo/build/start-project` skill.                           | 1    | 1.6                 | D4             |
+| #   | Item                                                                                                                                                                                                                                       | Days | Depends on                | Decisions        |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---- | ------------------------- | ---------------- |
+| 1.1 | Rename the scope `@lilo-moon` → `@littleorgans` (D1) across manifests, imports, the source export condition, Vitest config, changesets and lockfile. Add MIT `LICENSE` per package (D2). The npm org itself is created by the user (open). | 0.75 | npm org exists before 1.8 | D1, D2 (decided) |
+| 1.2 | **B3:** Origin check and throttle hook on email start and verify. Package helper for the `/api/theme` Origin check.                                                                                                                        | 1    | —                         | —                |
+| 1.3 | **U3:** single-flight refresh, with reuse-rejection handling. Includes a 0.5-day WorkOS spike to confirm rotation behavior.                                                                                                                | 1.5  | Staging credentials       | —                |
+| 1.4 | **Secrets sweep:** full-history gitleaks, tarball secretlint, rotate anything found.                                                                                                                                                       | 0.5  | ∥                         | —                |
+| 1.5 | Manifest hygiene: peers (`drizzle-orm`, `pg`, `tailwindcss`), caret peer ranges, LICENSE per package, version `0.1.0`, `fixed` group.                                                                                                      | 1    | 1.1                       | D3, D8           |
+| 1.6 | Delete template machinery (see [a](#a-where-each-part-goes)) and the examples (D6): `collections`, `services/ping`, the task board and demo residue. Rewrite README and AGENTS.                                                            | 1    | ∥                         | D6               |
+| 1.7 | `published-shape`: fresh consumer, skew case, TypeScript 5.x, `publint` and `attw`.                                                                                                                                                        | 1    | 1.5                       | —                |
+| 1.8 | Release: gate publishing on the full `moon ci` (D9), bootstrap-publish `0.1.0`, attach trusted publishers, post-publish smoke.                                                                                                             | 1    | 1.2–1.5, 1.7              | D9               |
+| 1.9 | `docs/guides/adopt-web-app.md` with copy list, env and ports, plus a thin `lilo/build/start-project` skill.                                                                                                                                | 1    | 1.6                       | D4               |
 
 1.2 through 1.4 come before 1.8. Nothing is published before the security fixes and the sweep.
 The web-stack packages (`auth*`, `db`, `theme`, `ui`, `views`, `vite-config`) are installable at
-the end of 1.8, about day 6 or 7.
+the end of 1.8, about day 7.
 
 ### Phase 1b: services (about 8–9 working days, can overlap 1a after 1.5)
 
-| #    | Item                                                                         | Days | Depends on | Open decisions |
-| ---- | ---------------------------------------------------------------------------- | ---- | ---------- | -------------- |
-| 1.10 | `auth-http` plus the service config loader                                   | 2    | 1.5        | D5             |
-| 1.11 | Token accessor in `auth-session` and `auth-tanstack` for web → service calls | 1    | 1.3        | —              |
-| 1.12 | `db`: ship migrations, role-grant migration and docs                         | 1    | 1.5        | —              |
-| 1.13 | `db-tools` minimal (`rls-verify`)                                            | 1.5  | 1.12       | —              |
-| 1.14 | `node-service` Moon layer and `services/api` reference with tests            | 2.5  | 1.10, 1.12 | D5             |
-| 1.15 | `docs/guides/adopt-service.md`, then publish `0.2.0`                         | 0.5  | 1.13, 1.14 | —              |
+| #    | Item                                                                         | Days | Depends on | Decisions |
+| ---- | ---------------------------------------------------------------------------- | ---- | ---------- | --------- |
+| 1.10 | `auth-http` plus the service config loader                                   | 2    | 1.5        | D5        |
+| 1.11 | Token accessor in `auth-session` and `auth-tanstack` for web → service calls | 1    | 1.3        | —         |
+| 1.12 | `db`: ship migrations, role-grant migration and docs                         | 1    | 1.5        | —         |
+| 1.13 | `db-tools` minimal (`rls-verify`)                                            | 1.5  | 1.12       | —         |
+| 1.14 | `node-service` Moon layer and `services/api` reference with tests            | 2.5  | 1.10, 1.12 | D5        |
+| 1.15 | `docs/guides/adopt-service.md`, then publish `0.2.0`                         | 0.5  | 1.13, 1.14 | —         |
 
-Phase 1 total is about 15–16 engineer-days. With two people it takes about 9 working days: web
+Phase 1 total is about 16 engineer-days. With two people it takes about 9 working days: web
 packages around day 7, services around day 9 or 10.
 
-### Phase 2 (after phase 1, about 20 days)
+### Phase 2 (after phase 1, about 21 days)
 
-| Item                                                                                                  | Days | Depends on | Open decisions |
-| ----------------------------------------------------------------------------------------------------- | ---- | ---------- | -------------- |
-| Full skill set (d), with path-existence check and catalog sync                                        | 4    | 1.9        | D4             |
-| `create-app` CLI, with templates generated from the reference app and tested in `published-shape`     | 4    | 1.15       | —              |
-| Shared config packages (`tsconfig`, `oxlint-config`, Vitest), Renovate preset, reusable `moon-ci.yml` | 3    | 1.6        | —              |
-| `db-tools` full: Atlas and Drizzle wrappers, Postgres container, `clean`                              | 2    | 1.13       | D7             |
-| Assessment carry-overs B1, B2, B4, B6, B10 (items 9–12, 19)                                           | 3    | —          | D7             |
-| WorkOS contract tests and one browser sign-in test (item 14)                                          | 2    | —          | —              |
-| Multiple cookie keys (item 15)                                                                        | 2    | —          | —              |
+| Item                                                                                                   | Days | Depends on | Decisions    |
+| ------------------------------------------------------------------------------------------------------ | ---- | ---------- | ------------ |
+| Full skill set (d), with path-existence check and catalog sync                                         | 4    | 1.9        | D4           |
+| `create-app` CLI, with templates generated from the reference app and tested in `published-shape`      | 4    | 1.15       | —            |
+| Shared config packages (`tsconfig`, `oxlint-config`, Vitest), Renovate preset, reusable `moon-ci.yml`  | 3    | 1.6        | —            |
+| `db-tools` full: Atlas and Drizzle wrappers (typed schema generation, D7), Postgres container, `clean` | 2    | 1.13       | D7 (decided) |
+| Assessment carry-overs: B1 (adopt the typed Drizzle schema, D7), B2, B4, B6, B10 (items 9–12, 19)      | 3    | —          | D7 (decided) |
+| Switch the reference app from workspace source to the published packages (D9)                          | 1    | 1.15       | D9 (decided) |
+| WorkOS contract tests and one browser sign-in test (item 14)                                           | 2    | —          | —            |
+| Multiple cookie keys (item 15)                                                                         | 2    | —          | —            |
 
 ### Later
 
 - Rust crates and PyPI packages: port the `Principal`, verifier and scoped-transaction contracts,
-  which were designed for this ("a second language implementing the same contract", `auth/src/
-errors.ts`). Add per-language release tooling, because Changesets cannot see `Cargo.toml` or
+  which were designed for this ("a second language implementing the same contract",
+  `packages/auth/src/errors.ts`). Add per-language release tooling, because Changesets cannot see `Cargo.toml` or
   `pyproject.toml` (`docs/decisions.md`). Each language is L-sized.
-- Machine-to-machine service identity, if D10 says yes.
+- Machine-to-machine service identity, deferred (D10).
 - `1.0.0` and a support-window policy (item 17).
 
 ## g) Risks: guide plus skills vs template
@@ -488,8 +494,8 @@ What gets worse:
 7. **Day one gets thinner.** A template produced a running, gated system. Phase 1 relies on a
    copy-list guide, which is the least reliable onboarding until the CLI lands.
 8. **The reference app is less representative.** It consumes workspace source, not published
-   tarballs. `published-shape` must carry that weight, or the app must consume published versions
-   (D9).
+   tarballs until phase 2, when it switches to the published packages (D9). Until then
+   `published-shape` carries that weight.
 9. **More release lines to maintain:** packages, scaffold templates, skills and the reusable
    workflow each need a version and a compatibility story. That is a lot for a small team.
 10. **Unproven pieces:**
@@ -502,23 +508,29 @@ What gets better: fixes reach projects through `pnpm update`. There is no rename
 conflicting initialization commit. Package boundaries become real, and the same auth and database
 contracts serve both frontends and services.
 
-## Decisions for the user
+## Decisions (approved 2026-09-23)
 
-| #   | Decision                                                                                                               | Recommendation                                                             |
-| --- | ---------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
-| D1  | npm scope: keep `@lilo-moon` or use an org-level scope such as `@littleorgans`. Create the npm org.                    | Decide before the first publish. Renaming later needs deprecations.        |
-| D2  | License for published packages (manifests say MIT, no file ships).                                                     | Keep MIT and ship `LICENSE` per package.                                   |
-| D3  | Versioning: one fixed version vs independent versions.                                                                 | Fixed during `0.x`.                                                        |
-| D4  | Skill location and owner name: catalog-authored, repo-authored and synced, or in packages.                             | Repo-authored and synced (B).                                              |
-| D5  | Service HTTP framework.                                                                                                | Fetch-standard core plus one adapter.                                      |
-| D6  | Fate of examples: `collections`, `services/ping`, the task board, `/theme`.                                            | Delete the first three. Keep `/theme` as a reference page.                 |
-| D7  | Drizzle: adopt the typed schema or drop the generated artifact and its gates (B1).                                     | Decide with the persistence skill. Either is fine; paying for both is not. |
-| D8  | Node engine floor for consumers (`>=24.19.0` today).                                                                   | Keep it unless a waiting project is on Node 22.                            |
-| D9  | Gate publishing on full `moon ci` (reverses `docs/decisions.md`). Should the reference app consume published versions? | Yes to the gate. Workspace source plus `published-shape` for the app.      |
-| D10 | Is machine-to-machine service identity needed in phase 1?                                                              | No, unless a waiting project calls services without a user.                |
+The user approved all ten on 2026-09-23.
 
-Prerequisite fact, not a decision: WorkOS refresh-token rotation and reuse behavior, needed for
-1.3.
+| #   | Decision                            | Outcome                                                                                                        |
+| --- | ----------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| D1  | npm scope                           | `@littleorgans`. The rename from `@lilo-moon` is phase 1 task 1.1.                                             |
+| D2  | License                             | MIT, with a `LICENSE` file in every published package.                                                         |
+| D3  | Versioning                          | One fixed version for all published packages (Changesets `fixed`).                                             |
+| D4  | Skill location                      | Written in this repository and synced to the agent-runtimes catalog.                                           |
+| D5  | Service HTTP framework              | A Fetch `Request`/`Response` core plus one adapter.                                                            |
+| D6  | Examples                            | Delete `collections`, `services/ping` and the task board. `/theme` stays as a reference page.                  |
+| D7  | Drizzle                             | Adopt the typed schema. Queries move to typed Drizzle, and `drizzle-check` keeps the artifact honest.          |
+| D8  | Node engine floor                   | Node 24 (`>=24.19.0`).                                                                                         |
+| D9  | Publish gate and reference app      | Publish only after the full `moon ci` passes. The reference app switches to the published packages in phase 2. |
+| D10 | Machine-to-machine service identity | Deferred.                                                                                                      |
+
+## Still open
+
+- **Create the npm org `littleorgans`.** A user action. It must exist before the bootstrap
+  publish in task 1.8.
+- **WorkOS refresh-token reuse behavior is unverified.** Task 1.3 (U3) needs it confirmed against
+  a staging environment before the single-flight refresh design is final.
 
 ## Evidence
 
