@@ -1,12 +1,13 @@
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
+import { setTimeout as nextTurn } from "node:timers/promises";
 
 import { AuthError } from "@littleorgans/auth";
 import type { Principal, Verifier } from "@littleorgans/auth";
 import { WorkOSAuthError } from "@littleorgans/auth-workos";
 import type { Authentication, WorkOSAuth } from "@littleorgans/auth-workos";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { readAccess } from "../src/access.js";
+import { readAccess, refreshesInFlight } from "../src/access.js";
 import type { AccessDeps } from "../src/access.js";
 import type { TokenFailure } from "../src/failure.js";
 import { SESSION_COOKIE, readSession, seal } from "../src/session.js";
@@ -262,5 +263,193 @@ it("keeps rotated refresh credentials when verification is temporarily unavailab
   expect(readSession(cookieKey, written[0]?.value)).toEqual({
     accessToken: "access-2",
     refreshToken: "refresh-2",
+  });
+});
+
+/** A refresh that stays in flight until the test settles it, so callers can pile up behind it. */
+function deferred(): {
+  promise: Promise<Authentication>;
+  resolve: (value: Authentication) => void;
+  reject: (error: unknown) => void;
+} {
+  let resolve: (value: Authentication) => void = unavailable;
+  let reject: (error: unknown) => void = unavailable;
+  const promise = new Promise<Authentication>((settle, fail) => {
+    resolve = settle;
+    reject = fail;
+  });
+  return { promise, resolve, reject };
+}
+
+/** One jar per request, each carrying the same expired session, as parallel requests would. */
+function requests(count: number, refreshToken = "refresh-1") {
+  return Array.from({ length: count }, () =>
+    jarWith({ [SESSION_COOKIE]: seal(cookieKey, { accessToken: "access-1", refreshToken }) }),
+  );
+}
+
+const expiredThenValid: Verifier = (token) =>
+  token === "access-1"
+    ? Promise.reject(new AuthError("expired", "token expired"))
+    : Promise.resolve(principal);
+
+const reused = () =>
+  new WorkOSAuthError({ reason: "unauthorized", message: "invalid_grant", cause: undefined });
+
+// WorkOS rotates the refresh token on every use. Parallel requests for one session must spend it
+// once: a loser refused with invalid_grant would otherwise clear the cookie the winner just wrote.
+describe("concurrent refreshes of one session", () => {
+  afterEach(() => {
+    expect(refreshesInFlight()).toBe(0);
+  });
+
+  it("make exactly one provider call and write three identical sessions", async () => {
+    const pending = deferred();
+    const { auth, calls } = authDouble(() => pending.promise);
+    const verified: string[] = [];
+    const { deps, logged } = depsWith((token) => {
+      verified.push(token);
+      return expiredThenValid(token);
+    }, auth);
+    const jars = requests(3);
+
+    const readers = jars.map(({ jar }) => readAccess(jar, deps));
+    // A full turn drains every microtask, so each reader has reached the refresh while the first
+    // call is still in flight. Without sharing, there would be three calls by now.
+    await nextTurn(0);
+    expect(verified).toStrictEqual(["access-1", "access-1", "access-1"]);
+    expect(calls).toHaveLength(1);
+    expect(refreshesInFlight()).toBe(1);
+
+    pending.resolve(refreshed);
+    const results = await Promise.all(readers);
+
+    expect(calls).toStrictEqual([{ refreshToken: "refresh-1" }]);
+    expect(results).toStrictEqual(
+      Array.from({ length: 3 }, () => ({ status: "signed-in", principal })),
+    );
+    // Only the provider call is shared. Each request verifies the result and writes its own cookie.
+    expect(verified.filter((token) => token === "access-2")).toHaveLength(3);
+    for (const { written, cleared } of jars) {
+      expect(written).toHaveLength(1);
+      expect(readSession(cookieKey, written[0]?.value)).toStrictEqual({
+        accessToken: "access-2",
+        refreshToken: "refresh-2",
+      });
+      expect(cleared).toHaveLength(0);
+    }
+    expect(logged).toHaveLength(0);
+  });
+
+  it("reject every waiter when the shared call fails, then let the next request retry", async () => {
+    const pending = deferred();
+    let attempt = 0;
+    const { auth, calls } = authDouble(() => {
+      attempt += 1;
+      return attempt === 1 ? pending.promise : Promise.resolve(refreshed);
+    });
+    const { deps, logged } = depsWith(expiredThenValid, auth);
+    const jars = requests(3);
+
+    const readers = jars.map(({ jar }) => readAccess(jar, deps));
+    await nextTurn(0);
+    expect(refreshesInFlight()).toBe(1);
+    pending.reject(reused());
+
+    // The existing classification holds for every waiter: invalid_grant ends the session.
+    expect(await Promise.all(readers)).toStrictEqual(
+      Array.from({ length: 3 }, () => ({ status: "ended" })),
+    );
+    for (const { cleared, written } of jars) {
+      expect(cleared).toStrictEqual([SESSION_COOKIE]);
+      expect(written).toHaveLength(0);
+    }
+    expect(logged.map((failure) => failure.status)).toStrictEqual(["ended", "ended", "ended"]);
+    expect(calls).toHaveLength(1);
+    expect(refreshesInFlight()).toBe(0);
+
+    // Nothing was remembered: the same token is refreshed afresh rather than failed from memory.
+    const [next] = requests(1);
+    if (next === undefined) throw new Error("no request");
+    expect(await readAccess(next.jar, deps)).toStrictEqual({ status: "signed-in", principal });
+    expect(calls).toHaveLength(2);
+  });
+
+  it("keep every waiter's cookie on a temporary failure", async () => {
+    const pending = deferred();
+    const { auth, calls } = authDouble(() => pending.promise);
+    const { deps } = depsWith(expiredThenValid, auth);
+    const jars = requests(2);
+
+    const readers = jars.map(({ jar }) => readAccess(jar, deps));
+    await nextTurn(0);
+    expect(refreshesInFlight()).toBe(1);
+    pending.reject(
+      new WorkOSAuthError({ reason: "unavailable", message: "503", cause: undefined }),
+    );
+
+    expect(await Promise.all(readers)).toStrictEqual([
+      { status: "unavailable" },
+      { status: "unavailable" },
+    ]);
+    for (const { cleared } of jars) expect(cleared).toHaveLength(0);
+    expect(calls).toHaveLength(1);
+  });
+
+  it("do not share a call between different sessions", async () => {
+    const { auth, calls } = authDouble();
+    const { deps } = depsWith(expiredThenValid, auth);
+    const jars = [...requests(1, "refresh-a"), ...requests(1, "refresh-b")];
+
+    await Promise.all(jars.map(({ jar }) => readAccess(jar, deps)));
+
+    expect(calls).toStrictEqual([{ refreshToken: "refresh-a" }, { refreshToken: "refresh-b" }]);
+  });
+
+  it("do not merge a later refresh into one that has already settled", async () => {
+    const { auth, calls } = authDouble();
+    const { deps } = depsWith(expiredThenValid, auth);
+    const [first, second] = requests(2);
+    if (first === undefined || second === undefined) throw new Error("no request");
+
+    await readAccess(first.jar, deps);
+    await readAccess(second.jar, deps);
+
+    expect(calls).toHaveLength(2);
+  });
+
+  // A client that throws instead of rejecting must not leave an entry that every later refresh of
+  // this session would join and fail on.
+  it("do not leak an entry when the client throws synchronously", async () => {
+    let attempt = 0;
+    const { auth, calls } = authDouble(() => {
+      attempt += 1;
+      if (attempt === 1) throw new Error("socket closed");
+      return Promise.resolve(refreshed);
+    });
+    const { deps } = depsWith(expiredThenValid, auth);
+    const [first, second] = requests(2);
+    if (first === undefined || second === undefined) throw new Error("no request");
+
+    expect(await readAccess(first.jar, deps)).toStrictEqual({ status: "unavailable" });
+    expect(refreshesInFlight()).toBe(0);
+    expect(await readAccess(second.jar, deps)).toStrictEqual({ status: "signed-in", principal });
+    expect(calls).toHaveLength(2);
+  });
+
+  it("never key the in-flight map by the raw refresh token", async () => {
+    const set = vi.spyOn(Map.prototype, "set");
+    try {
+      const { auth } = authDouble();
+      const { deps } = depsWith(expiredThenValid, auth);
+      const [request] = requests(1, "refresh-secret");
+      if (request === undefined) throw new Error("no request");
+      await readAccess(request.jar, deps);
+      const keys = set.mock.calls.map(([key]) => key);
+      expect(keys).not.toContain("refresh-secret");
+      expect(keys).toContain(createHash("sha256").update("refresh-secret").digest("hex"));
+    } finally {
+      set.mockRestore();
+    }
   });
 });
