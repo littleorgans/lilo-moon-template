@@ -34,8 +34,12 @@ export interface CallbackFailure {
 export interface TokenFailure {
   readonly kind: "token";
   readonly reason: AuthFailure | WorkOSAuthFailure;
-  /** What the person sees: `ended` sends them to sign in again, `broken` says this one is ours. */
-  readonly status: "ended" | "broken" | "unavailable";
+  /**
+   * What the person sees: `ended` sends them to sign in again, `broken` says this one is ours.
+   * `signed-in` is a refresh started before expiry that failed while the token still verified, so
+   * the person was served that token and nothing else changed.
+   */
+  readonly status: "signed-in" | "ended" | "broken" | "unavailable";
   readonly error: unknown;
 }
 
