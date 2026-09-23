@@ -1,4 +1,4 @@
-import { workspaceSourceConfig } from "@lilo-moon/vite-config";
+import { workspaceSourceConfig } from "@littleorgans/vite-config";
 import tailwindcss from "@tailwindcss/vite";
 import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import react from "@vitejs/plugin-react";

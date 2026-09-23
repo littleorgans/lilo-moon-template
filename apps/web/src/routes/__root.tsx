@@ -1,5 +1,5 @@
-import { DEFAULT_PREFERENCE, parseThemePreference } from "@lilo-moon/theme";
-import type { ThemePreference } from "@lilo-moon/theme";
+import { DEFAULT_PREFERENCE, parseThemePreference } from "@littleorgans/theme";
+import type { ThemePreference } from "@littleorgans/theme";
 import { HeadContent, Outlet, Scripts, createRootRoute } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import { getCookie, getRequest } from "@tanstack/react-start/server";

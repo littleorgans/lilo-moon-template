@@ -1,7 +1,7 @@
-import { createVerifier } from "@lilo-moon/auth";
-import type { Verifier } from "@lilo-moon/auth";
-import { createWorkOSAuth } from "@lilo-moon/auth-workos";
-import type { WorkOSAuth } from "@lilo-moon/auth-workos";
+import { createVerifier } from "@littleorgans/auth";
+import type { Verifier } from "@littleorgans/auth";
+import { createWorkOSAuth } from "@littleorgans/auth-workos";
+import type { WorkOSAuth } from "@littleorgans/auth-workos";
 
 import type { AuthConfig } from "./config.js";
 

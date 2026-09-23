@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 
-import { WorkOSAuthError } from "@lilo-moon/auth-workos";
-import type { Authentication, WorkOSAuth, WorkOSAuthFailure } from "@lilo-moon/auth-workos";
+import { WorkOSAuthError } from "@littleorgans/auth-workos";
+import type { Authentication, WorkOSAuth, WorkOSAuthFailure } from "@littleorgans/auth-workos";
 import { describe, expect, it } from "vitest";
 
 import { completeEmailSignIn, startEmailSignIn } from "../src/email.js";

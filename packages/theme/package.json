@@ -1,5 +1,5 @@
 {
-  "name": "@lilo-moon/theme",
+  "name": "@littleorgans/theme",
   "version": "0.0.0",
   "description": "Typed design token contract, product themes, and the CSS generated from them.",
   "license": "MIT",
@@ -21,7 +21,7 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "@lilo-moon/source": "./src/index.ts",
+      "@littleorgans/source": "./src/index.ts",
       "import": "./dist/index.js",
       "default": "./dist/index.js"
     },

@@ -1,18 +1,18 @@
-import { COLOR_TOKENS } from "@lilo-moon/theme";
-import type { ThemePreference } from "@lilo-moon/theme";
-import { Badge } from "@lilo-moon/ui/components/badge";
-import { Button } from "@lilo-moon/ui/components/button";
+import { COLOR_TOKENS } from "@littleorgans/theme";
+import type { ThemePreference } from "@littleorgans/theme";
+import { Badge } from "@littleorgans/ui/components/badge";
+import { Button } from "@littleorgans/ui/components/button";
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@lilo-moon/ui/components/card";
-import { Input } from "@lilo-moon/ui/components/input";
-import { Label } from "@lilo-moon/ui/components/label";
-import { Container, Row, Stack } from "@lilo-moon/ui/components/layout";
-import { Code, CodeBlock, Heading, Text } from "@lilo-moon/ui/components/text";
+} from "@littleorgans/ui/components/card";
+import { Input } from "@littleorgans/ui/components/input";
+import { Label } from "@littleorgans/ui/components/label";
+import { Container, Row, Stack } from "@littleorgans/ui/components/layout";
+import { Code, CodeBlock, Heading, Text } from "@littleorgans/ui/components/text";
 
 import { ThemeSwitcher } from "../theme-switcher/theme-switcher.js";
 

@@ -1,4 +1,4 @@
-import { SignInPanel } from "@lilo-moon/views/sign-in";
+import { SignInPanel } from "@littleorgans/views/sign-in";
 import { createFileRoute } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/")({

@@ -129,6 +129,9 @@ tasks:
     args: ["--test", "scripts/tests/**/*.test.mjs"]
     inputs:
       - "scripts/**/*"
+      - "/LICENSE"
+      - "/{apps,packages,services}/*/LICENSE"
+      - "/{apps,packages,services}/*/package.json"
       - "moon.yml"
       - ".moon/**/*"
       - "renovate.json"
@@ -145,7 +148,7 @@ tasks:
       - "@globs(sources)"
       - ".oxlintrc.json"
     # Type-aware lint needs the workspace packages' declarations, and declarations come from a
-    # build. Without this edge oxlint reads `@lilo-moon/db` as an error type that acts as `any`,
+    # build. Without this edge oxlint reads `@littleorgans/db` as an error type that acts as `any`,
     # then reports it as no-redundant-type-constituents: a message that names a union, not the
     # missing build. It passed locally only because dist was already there from an earlier run,
     # and failed on a clean runner. Tagged rather than listed, so a new library inherits the edge

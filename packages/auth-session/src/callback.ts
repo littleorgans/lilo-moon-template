@@ -1,4 +1,4 @@
-import type { Authentication, WorkOSAuth } from "@lilo-moon/auth-workos";
+import type { Authentication, WorkOSAuth } from "@littleorgans/auth-workos";
 
 import type { CookieJar } from "./cookies.js";
 import { dispositionFor, failurePage, messageFor, reasonFor } from "./failure.js";

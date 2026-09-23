@@ -1,14 +1,14 @@
-import { Badge } from "@lilo-moon/ui/components/badge";
-import { Button } from "@lilo-moon/ui/components/button";
+import { Badge } from "@littleorgans/ui/components/badge";
+import { Button } from "@littleorgans/ui/components/button";
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@lilo-moon/ui/components/card";
-import { Container, Row, Stack } from "@lilo-moon/ui/components/layout";
-import { Code, CodeBlock, Heading, Text } from "@lilo-moon/ui/components/text";
+} from "@littleorgans/ui/components/card";
+import { Container, Row, Stack } from "@littleorgans/ui/components/layout";
+import { Code, CodeBlock, Heading, Text } from "@littleorgans/ui/components/text";
 
 import { TaskBoard } from "../tasks/task-board.js";
 import type { WorkspaceView } from "./model.js";

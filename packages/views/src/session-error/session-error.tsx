@@ -1,6 +1,6 @@
-import { Button } from "@lilo-moon/ui/components/button";
-import { Container, Stack } from "@lilo-moon/ui/components/layout";
-import { Heading, Text } from "@lilo-moon/ui/components/text";
+import { Button } from "@littleorgans/ui/components/button";
+import { Container, Stack } from "@littleorgans/ui/components/layout";
+import { Heading, Text } from "@littleorgans/ui/components/text";
 
 export interface SessionErrorPanelProps {
   /** Shown so somebody reporting the problem has something to quote. */

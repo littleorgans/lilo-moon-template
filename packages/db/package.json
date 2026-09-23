@@ -1,5 +1,5 @@
 {
-  "name": "@lilo-moon/db",
+  "name": "@littleorgans/db",
   "version": "0.0.0",
   "description": "Postgres access scoped to a verified Principal by row level security.",
   "license": "MIT",
@@ -18,7 +18,7 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "@lilo-moon/source": "./src/index.ts",
+      "@littleorgans/source": "./src/index.ts",
       "import": "./dist/index.js",
       "default": "./dist/index.js"
     }
@@ -27,7 +27,7 @@
     "access": "public"
   },
   "dependencies": {
-    "@lilo-moon/auth": "workspace:*",
+    "@littleorgans/auth": "workspace:*",
     "drizzle-orm": "catalog:",
     "pg": "catalog:"
   },

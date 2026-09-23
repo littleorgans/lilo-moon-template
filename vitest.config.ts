@@ -3,7 +3,7 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   test: {
     // Transform shared packages so framework mocks also work against installed tarballs.
-    server: { deps: { inline: [/[/\\]@lilo-moon[/\\]/] } },
+    server: { deps: { inline: [/[/\\]@littleorgans[/\\]/] } },
     include: [
       "tests/**/*.{test,spec}.{js,jsx,mjs,cjs,ts,tsx,mts,cts}",
       "src/**/*.{test,spec}.{js,jsx,mjs,cjs,ts,tsx,mts,cts}",

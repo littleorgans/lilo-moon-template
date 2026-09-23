@@ -1,5 +1,5 @@
-import type { Principal } from "@lilo-moon/auth";
-import type { Access } from "@lilo-moon/auth-tanstack";
+import type { Principal } from "@littleorgans/auth";
+import type { Access } from "@littleorgans/auth-tanstack";
 import { isRedirect } from "@tanstack/react-router";
 import { describe, expect, it } from "vitest";
 
@@ -18,7 +18,7 @@ const principal: Principal = {
   entitlements: [],
 };
 
-// Sessions, cookies and token verification are `@lilo-moon/auth-session`'s to prove. What is left
+// Sessions, cookies and token verification are `@littleorgans/auth-session`'s to prove. What is left
 // here is what this product does once it knows who is calling, and where each state lands.
 const accessOf = (access: Access) => ({ access: () => Promise.resolve(access), runScoped: null });
 const signedIn = accessOf({ status: "signed-in", principal });

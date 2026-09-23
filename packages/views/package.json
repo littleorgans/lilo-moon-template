@@ -1,5 +1,5 @@
 {
-  "name": "@lilo-moon/views",
+  "name": "@littleorgans/views",
   "version": "0.0.0",
   "description": "Reusable screens composed from UI building blocks, with application-supplied labels and paths.",
   "license": "MIT",
@@ -20,7 +20,7 @@
     "./sources.css": "./src/sources.css",
     "./*": {
       "types": "./dist/*/index.d.ts",
-      "@lilo-moon/source": "./src/*/index.ts",
+      "@littleorgans/source": "./src/*/index.ts",
       "import": "./dist/*/index.js",
       "default": "./dist/*/index.js"
     }
@@ -29,8 +29,8 @@
     "access": "public"
   },
   "dependencies": {
-    "@lilo-moon/theme": "workspace:*",
-    "@lilo-moon/ui": "workspace:*"
+    "@littleorgans/theme": "workspace:*",
+    "@littleorgans/ui": "workspace:*"
   },
   "devDependencies": {
     "@types/react": "catalog:",

@@ -1,7 +1,7 @@
-import { AuthError } from "@lilo-moon/auth";
-import type { Principal, Verifier } from "@lilo-moon/auth";
-import { WorkOSAuthError } from "@lilo-moon/auth-workos";
-import type { WorkOSAuth } from "@lilo-moon/auth-workos";
+import { AuthError } from "@littleorgans/auth";
+import type { Principal, Verifier } from "@littleorgans/auth";
+import { WorkOSAuthError } from "@littleorgans/auth-workos";
+import type { WorkOSAuth } from "@littleorgans/auth-workos";
 
 import type { CookieJar } from "./cookies.js";
 import type { TokenFailure } from "./failure.js";

@@ -1,16 +1,16 @@
 {
-  "name": "@lilo-moon/web",
+  "name": "@littleorgans/web",
   "version": "0.0.0",
   "private": true,
   "type": "module",
   "dependencies": {
-    "@lilo-moon/auth": "workspace:*",
-    "@lilo-moon/auth-tanstack": "workspace:*",
-    "@lilo-moon/collections": "workspace:*",
-    "@lilo-moon/db": "workspace:*",
-    "@lilo-moon/theme": "workspace:*",
-    "@lilo-moon/ui": "workspace:*",
-    "@lilo-moon/views": "workspace:*",
+    "@littleorgans/auth": "workspace:*",
+    "@littleorgans/auth-tanstack": "workspace:*",
+    "@littleorgans/collections": "workspace:*",
+    "@littleorgans/db": "workspace:*",
+    "@littleorgans/theme": "workspace:*",
+    "@littleorgans/ui": "workspace:*",
+    "@littleorgans/views": "workspace:*",
     "@tanstack/react-router": "catalog:",
     "@tanstack/react-start": "catalog:",
     "drizzle-orm": "catalog:",
@@ -18,7 +18,7 @@
     "react-dom": "catalog:"
   },
   "devDependencies": {
-    "@lilo-moon/vite-config": "workspace:*",
+    "@littleorgans/vite-config": "workspace:*",
     "@tailwindcss/vite": "catalog:",
     "@types/node": "catalog:",
     "@types/react": "catalog:",

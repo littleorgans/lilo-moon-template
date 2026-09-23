@@ -3,7 +3,7 @@
  *
  * What belongs here: the operations an adapter calls to build the HTTP half of auth, the types
  * naming their arguments and their log payloads, and what a test of such an adapter needs to plant
- * a session and read one back. `@lilo-moon/auth-tanstack` is the reference for that list.
+ * a session and read one back. `@littleorgans/auth-tanstack` is the reference for that list.
  *
  * What does not: the steps those operations are made of. `stateMatches`, `dispositionFor`,
  * `readSession` and the rest stay exported from their own modules, because sibling modules and the

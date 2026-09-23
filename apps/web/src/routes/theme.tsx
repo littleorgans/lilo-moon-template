@@ -1,4 +1,4 @@
-import { ThemeLab } from "@lilo-moon/views/theme-lab";
+import { ThemeLab } from "@littleorgans/views/theme-lab";
 import { createFileRoute, getRouteApi } from "@tanstack/react-router";
 
 // The preference is the root route's loader data: the root already needed it to stamp `<html>`,

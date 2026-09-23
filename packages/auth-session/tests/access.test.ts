@@ -1,9 +1,9 @@
 import { randomBytes } from "node:crypto";
 
-import { AuthError } from "@lilo-moon/auth";
-import type { Principal, Verifier } from "@lilo-moon/auth";
-import { WorkOSAuthError } from "@lilo-moon/auth-workos";
-import type { Authentication, WorkOSAuth } from "@lilo-moon/auth-workos";
+import { AuthError } from "@littleorgans/auth";
+import type { Principal, Verifier } from "@littleorgans/auth";
+import { WorkOSAuthError } from "@littleorgans/auth-workos";
+import type { Authentication, WorkOSAuth } from "@littleorgans/auth-workos";
 import { describe, expect, it } from "vitest";
 
 import { readAccess } from "../src/access.js";

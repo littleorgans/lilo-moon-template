@@ -1,5 +1,5 @@
 {
-  "name": "@lilo-moon/auth",
+  "name": "@littleorgans/auth",
   "version": "0.0.0",
   "description": "Verifies an identity provider access token and maps it to a Principal.",
   "license": "MIT",
@@ -18,7 +18,7 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "@lilo-moon/source": "./src/index.ts",
+      "@littleorgans/source": "./src/index.ts",
       "import": "./dist/index.js",
       "default": "./dist/index.js"
     }

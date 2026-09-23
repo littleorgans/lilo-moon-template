@@ -1,6 +1,6 @@
-import type { AuthFailure } from "@lilo-moon/auth";
-import { WorkOSAuthError } from "@lilo-moon/auth-workos";
-import type { WorkOSAuthFailure } from "@lilo-moon/auth-workos";
+import type { AuthFailure } from "@littleorgans/auth";
+import { WorkOSAuthError } from "@littleorgans/auth-workos";
+import type { WorkOSAuthFailure } from "@littleorgans/auth-workos";
 
 /**
  * What the person is told when a sign-in cannot finish, and what is written down about it.

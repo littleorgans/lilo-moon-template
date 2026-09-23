@@ -1,10 +1,10 @@
-import type { CookieJar } from "@lilo-moon/auth-session";
+import type { CookieJar } from "@littleorgans/auth-session";
 import { deleteCookie, getCookie, setCookie } from "@tanstack/react-start/server";
 
 /**
  * The framework adapter, and the only place this application knows how cookies reach the wire.
  *
- * `CookieJar` is declared in `@lilo-moon/auth-session` so that package stays free of any web
+ * `CookieJar` is declared in `@littleorgans/auth-session` so that package stays free of any web
  * framework. Everything framework-specific about cookies is these eight lines.
  */
 export const requestCookies: CookieJar = {

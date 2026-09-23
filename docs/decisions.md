@@ -231,7 +231,7 @@ Which capabilities stay portable across hosts is
 ## JavaScript library exports
 
 Publishable libraries export `dist` under `types`, `import`, and `default`. The workspace private
-condition `@lilo-moon/source` points at `src` for Vite `serve` only. Applications add that
+condition `@littleorgans/source` points at `src` for Vite `serve` only. Applications add that
 condition in `vite.config.ts` when `command === "serve"`. They do not add it to the production
 build.
 

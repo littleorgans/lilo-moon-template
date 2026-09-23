@@ -27,3 +27,6 @@ lefthook-local.yml
 
 # Machine-specific descendant checkout locations
 .template/local/
+
+# nested git worktrees, so secretlint and other .gitignore readers skip them
+.worktrees/

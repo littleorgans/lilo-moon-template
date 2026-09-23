@@ -1,5 +1,5 @@
-import type { Principal } from "@lilo-moon/auth";
-import type { Access } from "@lilo-moon/auth-tanstack";
+import type { Principal } from "@littleorgans/auth";
+import type { Access } from "@littleorgans/auth-tanstack";
 import { redirect } from "@tanstack/react-router";
 
 import { auth } from "../../../server/auth.js";

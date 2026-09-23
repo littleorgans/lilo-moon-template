@@ -1,4 +1,4 @@
-import type { Principal } from "@lilo-moon/auth";
+import type { Principal } from "@littleorgans/auth";
 
 /**
  * The narrow slice of a Postgres client this package needs.

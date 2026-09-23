@@ -1,5 +1,5 @@
-import { WorkOSAuthError } from "@lilo-moon/auth-workos";
-import type { WorkOSAuthFailure } from "@lilo-moon/auth-workos";
+import { WorkOSAuthError } from "@littleorgans/auth-workos";
+import type { WorkOSAuthFailure } from "@littleorgans/auth-workos";
 import { describe, expect, it } from "vitest";
 
 import { dispositionFor, failurePage, messageFor, reasonFor } from "../src/failure.js";

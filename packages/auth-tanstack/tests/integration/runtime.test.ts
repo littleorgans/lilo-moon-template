@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 
-import type { AuthFailureReport, CookieJar, CookieOptions } from "@lilo-moon/auth-session";
-import { EMAIL_COOKIE, SESSION_COOKIE, STATE_COOKIE, seal } from "@lilo-moon/auth-session";
+import type { AuthFailureReport, CookieJar, CookieOptions } from "@littleorgans/auth-session";
+import { EMAIL_COOKIE, SESSION_COOKIE, STATE_COOKIE, seal } from "@littleorgans/auth-session";
 import { describe, expect, it } from "vitest";
 
 import { createAuthRuntime } from "../../src/runtime.js";
@@ -137,7 +137,7 @@ describe("completeSignIn", () => {
 
 describe("the email handlers through the runtime", () => {
   // Each refusal fires before any provider call, so the wiring is proven without a network. The
-  // handler order itself is @lilo-moon/auth-session's to prove.
+  // handler order itself is @littleorgans/auth-session's to prove.
   it("sendEmailCode refuses an empty form through the real services", async () => {
     const { jar } = jarWith();
     const response = await runtimeWith(jar).sendEmailCode({

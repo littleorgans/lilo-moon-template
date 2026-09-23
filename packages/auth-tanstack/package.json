@@ -1,5 +1,5 @@
 {
-  "name": "@lilo-moon/auth-tanstack",
+  "name": "@littleorgans/auth-tanstack",
   "version": "0.0.0",
   "description": "TanStack Start adapter for the auth session: cookies, runtime, and route options.",
   "license": "MIT",
@@ -18,7 +18,7 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "@lilo-moon/source": "./src/index.ts",
+      "@littleorgans/source": "./src/index.ts",
       "import": "./dist/index.js",
       "default": "./dist/index.js"
     }
@@ -27,9 +27,9 @@
     "access": "public"
   },
   "dependencies": {
-    "@lilo-moon/auth": "workspace:*",
-    "@lilo-moon/auth-session": "workspace:*",
-    "@lilo-moon/auth-workos": "workspace:*"
+    "@littleorgans/auth": "workspace:*",
+    "@littleorgans/auth-session": "workspace:*",
+    "@littleorgans/auth-workos": "workspace:*"
   },
   "devDependencies": {
     "@tanstack/react-start": "catalog:",

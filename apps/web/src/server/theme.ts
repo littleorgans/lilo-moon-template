@@ -4,7 +4,7 @@ import {
   nextPreference,
   parseThemePreference,
   serializeThemePreference,
-} from "@lilo-moon/theme";
+} from "@littleorgans/theme";
 
 /**
  * Where the redirect goes after the cookie is set: back to the page the form was on, so the
