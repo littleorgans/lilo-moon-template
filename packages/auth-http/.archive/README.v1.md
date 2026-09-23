@@ -73,7 +73,7 @@ function loadServiceConfig(env?: Environment): ServiceConfig; // throws ConfigEr
 interface AuthenticatorOptions {
   verify: Verifier; // from createVerifier in @littleorgans/auth
   authorize?: (principal: Principal, request: Request) => boolean | Promise<boolean>;
-  onRejection?: (rejection: Rejection, request: Request) => void | Promise<void>;
+  onRejection?: (rejection: Rejection, request: Request) => void;
 }
 type Authenticator = (request: Request) => Promise<Authentication>;
 type Authentication = { ok: true; principal: Principal } | { ok: false; rejection: Rejection };
@@ -93,21 +93,18 @@ interface AuthEnv {
 
 Every rejection body is `{"error": "<code>"}` with `Content-Type: application/json`. The body never
 contains the verifier's message, the failed check, or a key id. `onRejection` receives the
-`AuthError` cause so the server can log it. The cause is non-enumerable, so serializing or
-spreading the rejection does not copy verifier diagnostics. Explicitly copying or serializing
-`rejection.cause` can still expose details; keep it in trusted server logs and redact credentials.
-`rejectionResponse` sets `Cache-Control: no-store`.
+`AuthError` cause so the server can log it.
 
-| Condition                                                         | Status                                   | `WWW-Authenticate`             | `error`            |
-| ----------------------------------------------------------------- | ---------------------------------------- | ------------------------------ | ------------------ |
-| No Authorization header, or a scheme other than Bearer            | 401                                      | `Bearer`                       | `missing_token`    |
-| Malformed, combined, non-ASCII, or oversized credentials          | 401                                      | `Bearer error="invalid_token"` | `malformed_token`  |
-| Verifier: `malformed`                                             | 401                                      | `Bearer error="invalid_token"` | `malformed_token`  |
-| Verifier: `expired`                                               | 401                                      | `Bearer error="invalid_token"` | `expired_token`    |
-| Verifier: `signature`, `issuer`, `audience`, `claims`             | 401                                      | `Bearer error="invalid_token"` | `invalid_token`    |
-| `authorize` returned false                                        | 403                                      | none                           | `forbidden`        |
-| Verifier: `unavailable` (JWKS or provider down)                   | 503                                      | none                           | `auth_unavailable` |
-| Any other error thrown by `verify`, `authorize`, or `onRejection` | propagates, so the framework answers 500 |                                |                    |
+| Condition                                                 | Status                                   | `WWW-Authenticate`             | `error`            |
+| --------------------------------------------------------- | ---------------------------------------- | ------------------------------ | ------------------ |
+| No Authorization header, or a scheme other than Bearer    | 401                                      | `Bearer`                       | `missing_token`    |
+| Bearer with no token, a non-token68 value, or two headers | 401                                      | `Bearer error="invalid_token"` | `malformed_token`  |
+| Verifier: `malformed`                                     | 401                                      | `Bearer error="invalid_token"` | `malformed_token`  |
+| Verifier: `expired`                                       | 401                                      | `Bearer error="invalid_token"` | `expired_token`    |
+| Verifier: `signature`, `issuer`, `audience`, `claims`     | 401                                      | `Bearer error="invalid_token"` | `invalid_token`    |
+| `authorize` returned false                                | 403                                      | none                           | `forbidden`        |
+| Verifier: `unavailable` (JWKS or provider down)           | 503                                      | none                           | `auth_unavailable` |
+| Any other error thrown by `verify` or `authorize`         | propagates, so the framework answers 500 |                                |                    |
 
 Notes on the table:
 
@@ -120,11 +117,7 @@ Notes on the table:
 
 ### Where the token comes from
 
-Only the `Authorization: Bearer <token>` header is read. The scheme is case-insensitive.
-One or more ASCII spaces separate the scheme and token. Tabs, non-ASCII characters, commas
-(including combined duplicate headers), and headers longer than 8192 characters are rejected
-before verification. Fetch strips leading and trailing HTTP whitespace. A proxy or runtime must
-preserve or reject duplicates: the core cannot recover a header that was already discarded. RFC 6750
+Only the `Authorization: Bearer <token>` header is read. The scheme is case-insensitive. RFC 6750
 also allows an `access_token` query parameter and a form body field. This package reads neither:
 
 - a query parameter leaks into access logs, browser history and `Referer` headers;
@@ -132,20 +125,6 @@ also allows an `access_token` query parameter and a form body field. This packag
   arrive authenticated.
 
 Cookies belong to `@littleorgans/auth-session`, which pairs them with CSRF defences.
-
-`authorize(principal, request)` runs only after verification. It may perform an async policy
-lookup; return a boolean rather than throwing an `AuthError` for a denied permission.
-`onRejection` is awaited and receives the request for correlation. It covers expected auth
-rejections; use the framework's error handler for unexpected failures, including logging-hook
-failures. Those errors propagate and stop the protected handler. The default Hono error handler
-returns a generic 500; a custom handler must avoid returning error messages or stacks.
-
-These operations are not constant-time: malformed syntax, signature checks, and JWKS fetches
-take different paths. The response does not distinguish signature, issuer, audience, or claim
-failures. Apply request and concurrency limits at the service boundary.
-
-Scope `AuthEnv` to protected apps or routes. Its type alone does not install middleware or
-prove that an unprotected route has a principal.
 
 ## Service configuration
 
@@ -172,12 +151,6 @@ Invalid service environment:
 Messages name variables and rules, never values. It follows the same approach as
 `loadAuthConfig` in `@littleorgans/auth-session`: no schema library, and `process.env` is read only
 as a default argument, so tests pass their own environment.
-
-The two WorkOS URL templates currently also appear in `auth-session`. Sharing them through
-`auth` would put provider-specific policy in the provider-neutral verifier; importing
-`auth-workos` would make the lightweight HTTP core depend on the provider SDK. Keep these
-small templates local until there is a lightweight provider-configuration package shared by
-both consumers.
 
 ## Why Hono
 
