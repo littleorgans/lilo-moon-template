@@ -252,6 +252,11 @@ using the application. `readAccess` spends one refresh, verifies the replacement
 token rather than trusting it for having arrived over TLS, and reseals the cookie. The person sees
 nothing, which is what the row promised.
 
+A token with 20 seconds or less left (`REFRESH_MARGIN_SECONDS`) is refreshed the same way, before it
+expires, because a token forwarded to a service with seconds left expires on the way and comes back
+as a 401. That early refresh cannot make things worse than not trying: if it fails, the person is
+served the token that still verified and the cookie is left as it was.
+
 Two provider behaviours this depends on, both measured on 2026-08-25 rather than assumed:
 refreshing **without** an `organizationId` preserves the one already in the token, so a silent
 refresh cannot quietly drop somebody's tenant; and the refresh token that comes back is **the same

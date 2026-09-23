@@ -242,7 +242,9 @@ stateDiagram-v2
   [*] --> verify: cookie opens
   verify --> signed_in: JWT verifies (issuer, exp, sub)
   verify --> refresh: reason = expired
+  verify --> refresh: verifies, but exp within 20 s
   refresh --> signed_in: refresh + verify OK, rewrite cookie
+  refresh --> signed_in: early refresh fails, serve the token that verified
   verify --> ended: signature, issuer, audience, malformed
   refresh --> ended: refresh refused
   verify --> broken: claims, configuration, provider
@@ -263,6 +265,18 @@ the cookie the winner had just written. Separate instances share nothing. A requ
 after the call has settled, or on another instance, relies on WorkOS returning the same rotated pair
 for 30 seconds after the old token's first use.
 
+A token that verifies but expires within `REFRESH_MARGIN_SECONDS` (20) is refreshed as if it had
+expired, because `asUser` forwards it and one with seconds left would expire at the service. `exp`
+is read with jose's `decodeJwt` only after the signature has verified; a token with no numeric `exp`
+is served as verified. If that early refresh fails for any reason, including `invalid_grant`, the
+person is served the token that verified, the failure is logged with outcome `signed-in`, and the
+cookie is left alone, apart from a rotated replacement kept when its verification was unavailable.
+Inside the margin, `invalid_grant` is also what a request carrying a stale cookie gets once the
+reuse window has passed, so ending the session there would clear the newer cookie. A revoked
+session ends at expiry, as it did before. The margin plus the verifier's 5-second clock tolerance
+stays below the 30-second reuse window, so every request that refreshes with the old cookie while
+the old token still verifies gets the same new pair.
+
 ### Calling a service as the signed-in person
 
 `Access` carries the Principal and never the access token, because `Access` is what loaders hand
@@ -277,9 +291,9 @@ const response = await user.fetch(`${serviceUrl}/v1/things`);
 ```
 
 `asUser` returns the same five states as `Access`. The token is read through the same verification
-and the same shared refresh, so an expired one is renewed, and the cookie rewritten, before anything
-is sent. `anonymous`, `ended`, `broken` and `unavailable` carry no `fetch`, so only a verified
-session can call anything, and none of them is thrown.
+and the same shared refresh, so an expired one, or one within 20 seconds of expiring, is renewed,
+and the cookie rewritten, before anything is sent. `anonymous`, `ended`, `broken` and `unavailable`
+carry no `fetch`, so only a verified session can call anything, and none of them is thrown.
 
 There is no accessor for the raw token. `user.fetch` sets `Authorization: Bearer`, replacing any the
 caller set under any spelling, and sends only to an `http` or `https` URL whose origin is listed in
