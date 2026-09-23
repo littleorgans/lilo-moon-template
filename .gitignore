@@ -9,6 +9,8 @@ node_modules/
 dist/
 .output/
 build/
+# Not output: `build` is a skill domain, as in skills/lilo/build/start-project.
+!/skills/*/build/
 out/
 coverage/
 *.tsbuildinfo
