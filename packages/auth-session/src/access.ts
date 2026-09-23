@@ -1,7 +1,9 @@
+import { createHash } from "node:crypto";
+
 import { AuthError } from "@littleorgans/auth";
 import type { Principal, Verifier } from "@littleorgans/auth";
 import { WorkOSAuthError } from "@littleorgans/auth-workos";
-import type { WorkOSAuth } from "@littleorgans/auth-workos";
+import type { Authentication, WorkOSAuth } from "@littleorgans/auth-workos";
 
 import type { CookieJar } from "./cookies.js";
 import type { TokenFailure } from "./failure.js";
@@ -44,6 +46,56 @@ function failureOf(error: unknown): TokenFailure {
   return { kind: "token", reason, status, error };
 }
 
+/**
+ * The refreshes this process is waiting on, keyed by a digest of the refresh token spent.
+ *
+ * WorkOS rotates the refresh token on every use. Parallel requests carrying one expired session,
+ * such as loaders, server functions or a second tab, would each spend the same token. The first
+ * rotates it, and a loser that WorkOS refuses with `invalid_grant` ends here as `ended`, clearing a
+ * cookie the winner just wrote. So concurrent callers share the one provider call. Each still
+ * verifies the result and writes the cookie itself, so every response carries the same new pair.
+ *
+ * A digest rather than the token, so no raw credential is a key in long-lived memory. An entry
+ * lives only while its call is in flight: it is removed when the call settles, success or failure,
+ * and nothing is remembered afterwards. A request that arrives just after, still carrying the old
+ * cookie, relies on WorkOS returning the same rotated pair for 30 seconds after first use.
+ *
+ * This is one process. Instances do not share it, and there is no cross-instance lock: a
+ * deployment with more than one instance relies on that same 30-second window.
+ */
+const inFlight = new Map<string, Promise<Authentication>>();
+
+/** How many refreshes are in flight. For tests, which prove that none outlives its call. */
+export function refreshesInFlight(): number {
+  return inFlight.size;
+}
+
+async function refreshOnce(
+  auth: WorkOSAuth,
+  refreshToken: string,
+  key: string,
+): Promise<Authentication> {
+  try {
+    // Yield before calling, so the caller has stored this promise before the removal below can
+    // run. A client that threw synchronously would otherwise remove the entry before it existed,
+    // and the entry stored after it would never be removed.
+    await Promise.resolve();
+    return await auth.refreshTokens({ refreshToken });
+  } finally {
+    inFlight.delete(key);
+  }
+}
+
+function sharedRefresh(auth: WorkOSAuth, refreshToken: string): Promise<Authentication> {
+  const key = createHash("sha256").update(refreshToken).digest("hex");
+  let pending = inFlight.get(key);
+  if (pending === undefined) {
+    pending = refreshOnce(auth, refreshToken, key);
+    inFlight.set(key, pending);
+  }
+  return pending;
+}
+
 function ended(jar: CookieJar): Access {
   // A cookie that cannot be verified is not a session, so it does not survive the request that
   // discovered that. Leaving it would make every later request repeat this work and this log line.
@@ -59,12 +111,13 @@ function ended(jar: CookieJar): Access {
  * here, once, and the replacement is verified like any other token rather than trusted for having
  * arrived over TLS. Refreshing without an `organizationId` preserves the one already in the token,
  * also measured rather than assumed, so a silent refresh cannot quietly drop somebody's tenant.
+ * Concurrent requests for one session share the provider call; see `inFlight`.
  */
 async function refreshed(jar: CookieJar, deps: AccessDeps, session: Session): Promise<Access> {
   let principal: Principal;
   let renewed;
   try {
-    renewed = await deps.auth.refreshTokens({ refreshToken: session.refreshToken });
+    renewed = await sharedRefresh(deps.auth, session.refreshToken);
     principal = await deps.verify(renewed.accessToken);
   } catch (error) {
     const failure = failureOf(error);

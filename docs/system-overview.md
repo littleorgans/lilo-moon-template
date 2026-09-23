@@ -326,6 +326,14 @@ stateDiagram-v2
   broken --> [*]: redirect /session-error
 ```
 
+WorkOS rotates the refresh token on every use. Concurrent requests that refresh one session share a
+single `refreshTokens` call, held in an in-process map keyed by the SHA-256 of the refresh token and
+removed when the call settles. Each request still verifies the result and writes the cookie itself.
+Without this, a request that lost the race could get `invalid_grant`, count as `ended`, and clear
+the cookie the winner had just written. Separate instances share nothing. A request that arrives
+after the call has settled, or on another instance, relies on WorkOS returning the same rotated pair
+for 30 seconds after the old token's first use.
+
 ### Data access and row level security
 
 `Database.withPrincipal` (`packages/db/src/database.ts`) takes one pooled client and runs

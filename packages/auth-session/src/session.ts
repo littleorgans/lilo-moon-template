@@ -80,7 +80,11 @@ export interface SessionCookieDeps {
   readonly secureCookies: boolean;
 }
 
-/** A year. The refresh token inside outlives it; this is how long the browser keeps the envelope. */
+/**
+ * A year: how long the browser keeps the envelope, not how long the session lasts. The refresh token
+ * inside stops working when the WorkOS session ends, which is set in the dashboard and defaults to
+ * seven days, so the cookie normally outlives what it holds.
+ */
 const SESSION_MAX_AGE_SECONDS = 31_536_000;
 
 /**
