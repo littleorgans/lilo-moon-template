@@ -129,6 +129,9 @@ tasks:
     args: ["--test", "scripts/tests/**/*.test.mjs"]
     inputs:
       - "scripts/**/*"
+      - "/LICENSE"
+      - "/{apps,packages,services}/*/LICENSE"
+      - "/{apps,packages,services}/*/package.json"
       - "moon.yml"
       - ".moon/**/*"
       - "renovate.json"
