@@ -269,8 +269,9 @@ graph TB
 `postHandlers` in `packages/auth-tanstack/src/routes.ts` answers `GET` with 405 on the POST-only
 routes. Every POST route answers 403 unless its `Origin` header equals the origin of
 `WORKOS_REDIRECT_URI`, and a missing `Origin` is refused too (`refuseCrossOrigin` in
-`packages/auth-session/src/origin.ts`; the theme route reaches it through `auth.origin()`). The root route (`routes/__root.tsx`) reads the theme cookie in a server function. It stamps
-`data-mode` and `data-theme` on `<html>` so the first paint uses the chosen theme.
+`packages/auth-session/src/origin.ts`; the theme route reaches it through `auth.origin()`). The
+root route (`routes/__root.tsx`) reads the theme cookie in a server function. It stamps `data-mode`
+and `data-theme` on `<html>` so the first paint uses the chosen theme.
 
 ### Sign-in flows
 
@@ -298,6 +299,7 @@ The email-code path (`packages/auth-session/src/email.ts`) posts the address and
 stores the address in a 10-minute httpOnly cookie, posts the code, then runs the same
 `ensureOrganization` and `establishSession` steps as the callback (`callback.ts` lines 44–86).
 
+An address over 254 characters, in the form or in the email cookie, is refused with 400 first.
 Before either step calls WorkOS it asks the application's `throttle` about two keys: the client and
 the lower-cased address. On verify the address key bounds guesses at one code. A refusal is a 429
 with `Retry-After`. `createAuthRuntime` requires a throttle and the package ships none. The
