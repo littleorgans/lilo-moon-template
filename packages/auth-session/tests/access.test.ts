@@ -163,6 +163,33 @@ describe("a cookie sealed with a previous key", () => {
     expect(cleared).toHaveLength(0);
   });
 
+  it("does not overwrite refreshed credentials when an older response arrives last", async () => {
+    const present: Record<string, string> = { [SESSION_COOKIE]: sealedWith(previous, "access-1") };
+    const slow = jarWith(present);
+    const renewing = jarWith(present);
+    const { promise, resolve } = Promise.withResolvers<Principal>();
+    const slowDeps = withPrevious(() => promise, authDouble().auth).deps;
+    const pending = readAccess(slow.jar, slowDeps);
+    const renewingDeps = withPrevious(
+      (token) => (token === "access-1" ? rejects("expired")(token) : Promise.resolve(principal)),
+      authDouble().auth,
+    ).deps;
+    expect(await readAccess(renewing.jar, renewingDeps)).toStrictEqual({
+      status: "signed-in",
+      principal,
+    });
+    for (const cookie of renewing.written) present[cookie.name] = cookie.value;
+    resolve(principal);
+    expect(await pending).toStrictEqual({ status: "signed-in", principal });
+    // Deliver the slow response after the refreshing response, as a browser can receive them.
+    for (const cookie of slow.written) present[cookie.name] = cookie.value;
+    expect(readSession({ cookieKey }, present[SESSION_COOKIE])).toStrictEqual({
+      accessToken: "access-2",
+      refreshToken: "refresh-2",
+    });
+    expect(slow.cleared).toHaveLength(0);
+  });
+
   it("is resealed with the current key when its token is refreshed", async () => {
     const { jar, written } = jarWith({ [SESSION_COOKIE]: sealedWith(previous, "access-1") });
     const { deps } = withPrevious(

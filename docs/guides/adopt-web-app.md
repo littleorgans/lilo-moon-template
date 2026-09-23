@@ -621,8 +621,9 @@ covers the setup.
 Changing `WORKOS_COOKIE_PASSWORD` on its own signs everyone out. To rotate without that, make the
 new password current and list the old one in `WORKOS_COOKIE_PASSWORD_PREVIOUS`. With more than one
 instance, first deploy the new password as a previous one. Remove the old password only after the
-application's WorkOS **Maximum session length** has passed since the last instance sealing with it
-stopped. The
+retention deadline has passed, measured from the last old-key writer and its drained responses.
+Usually that wait is the shorter of the maximum session lifetime and the cookie's one-year life;
+account for historical settings, token validity and clock tolerance as described below. The
 [auth-session README](../../packages/auth-session/README.md#rotate-the-cookie-password) gives the
 steps and why each is timed as it is. A leaked password is replaced outright, never listed as
 previous.

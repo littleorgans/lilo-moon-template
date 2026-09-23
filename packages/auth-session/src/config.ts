@@ -79,9 +79,9 @@ function cookieKeyFrom(name: string, password: string): Buffer {
  *
  * A comma-separated list rather than one variable per key, so a rotation that overlaps another
  * needs no new name. Whitespace around each entry is dropped so `a, b` means what it looks like,
- * which means a password listed here can hold neither a comma nor surrounding whitespace;
- * `openssl rand -base64 32` prints neither. Unset or empty means no previous keys, which is every
- * deployment that has never rotated.
+ * `openssl rand -base64 32` needs no escaping. A JSON array preserves passwords containing commas
+ * or surrounding whitespace, which were valid current passwords before rotation was supported.
+ * Unset or empty means no previous keys, which is every deployment that has never rotated.
  *
  * Each password meets the same floor as the current one, and none may repeat another: a duplicate
  * is harmless to the cipher but almost always means a rotation was half done, such as a new
@@ -90,11 +90,26 @@ function cookieKeyFrom(name: string, password: string): Buffer {
 function previousCookieKeysFrom(current: string, list: string | undefined): Buffer[] {
   if (list === undefined || list.trim().length === 0) return [];
   const name = "WORKOS_COOKIE_PASSWORD_PREVIOUS";
-  const passwords = list.split(",").map((entry) => entry.trim());
+  let passwords: string[];
+  if (list.trimStart().startsWith("[")) {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(list);
+    } catch {
+      // JSON.parse errors may quote the input, which here contains cookie passwords.
+      throw new Error(`${name} must be a valid JSON array of password strings.`);
+    }
+    if (!Array.isArray(parsed) || !parsed.every((entry: unknown) => typeof entry === "string")) {
+      throw new Error(`${name} must be a JSON array of password strings.`);
+    }
+    passwords = parsed;
+  } else {
+    passwords = list.split(",").map((entry) => entry.trim());
+  }
   const seen = new Set([current]);
   return passwords.map((password, index) => {
     const entry = `${name} entry ${index + 1}`;
-    if (password.length === 0) throw new Error(`${entry} is empty. Remove the extra comma.`);
+    if (password.length === 0) throw new Error(`${entry} is empty. Remove the empty entry.`);
     if (password === current) {
       throw new Error(
         `${entry} is the same as WORKOS_COOKIE_PASSWORD. A key is current or previous, not both.`,

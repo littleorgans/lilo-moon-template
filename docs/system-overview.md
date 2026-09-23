@@ -228,9 +228,10 @@ overwrites that header.
 Cookie names are namespaced by `sha256(clientId:redirectUri)` (`auth-session/src/config.ts`
 `loadAuthConfig`, `auth-tanstack/src/runtime.ts` `nameFor`). The session key comes from
 `WORKOS_COOKIE_PASSWORD` through HKDF-SHA256 and requires at least 32 characters (`config.ts`
-`cookieKeyFrom`). `WORKOS_COOKIE_PASSWORD_PREVIOUS` lists retired passwords, comma-separated, each
-held to the same rules and refused when empty, repeated or equal to the current one. Every cookie
-is sealed with the current key only. A cookie is opened with the current key, then each previous
+`cookieKeyFrom`). `WORKOS_COOKIE_PASSWORD_PREVIOUS` lists read-only passwords, comma-separated or
+as a JSON array preserving exact legacy passwords, each
+held to the same rules and refused when empty, repeated or equal to the current one. Every session cookie
+is sealed with the current key only. State and email cookies are not sealed. A cookie is opened with the current key, then each previous
 key in order (`session.ts` `readSession`), so rotating the password signs nobody out, and a cookie
 opened with a previous key moves to the current one at its next refresh. The rotation procedure and
 the rule for when a previous password can be removed are in the

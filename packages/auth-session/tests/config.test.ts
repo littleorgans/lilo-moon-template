@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { loadAuthConfig } from "../src/config.js";
-import { readSession } from "../src/session.js";
+import { readSession, seal } from "../src/session.js";
 
 const complete = {
   WORKOS_CLIENT_ID: "client_01M0JSGENAGWJCN0R7JME8JWGM",
@@ -52,6 +52,44 @@ describe("loadConfig", () => {
       WORKOS_COOKIE_PASSWORD: next,
       WORKOS_COOKIE_PASSWORD_PREVIOUS: `${retired}, ${older}`,
     };
+
+    it("preserves legacy passwords containing commas, whitespace or a leading bracket", () => {
+      const passwords = [" legacy,password-with-at-least-32-characters ", "[" + "b".repeat(32)];
+      const config = loadAuthConfig({
+        ...rotated,
+        WORKOS_COOKIE_PASSWORD_PREVIOUS: JSON.stringify(passwords),
+      });
+      for (const password of passwords) {
+        const before = loadAuthConfig({ ...complete, WORKOS_COOKIE_PASSWORD: password });
+        const session = { accessToken: "a", refreshToken: "r" };
+        expect(readSession(config, seal(before.cookieKey, session))).toStrictEqual(session);
+      }
+    });
+
+    it.each([
+      ["[]", null],
+      [JSON.stringify([retired, older]), null],
+      [JSON.stringify([next]), "entry 1 is the same as WORKOS_COOKIE_PASSWORD"],
+      [JSON.stringify([retired, retired]), "entry 2 repeats an earlier entry"],
+      [JSON.stringify(["short"]), "entry 1 must be at least 32 characters"],
+      [JSON.stringify([""]), "entry 1 is empty"],
+      [JSON.stringify([retired, 123]), "must be a JSON array of password strings"],
+      [JSON.stringify([retired, null]), "must be a JSON array of password strings"],
+      [`[${retired}`, "must be a valid JSON array of password strings"],
+    ])("validates a JSON key list without exposing its contents (%#)", (list, message) => {
+      const load = () => loadAuthConfig({ ...rotated, WORKOS_COOKIE_PASSWORD_PREVIOUS: list });
+      if (message === null) {
+        expect(load().previousCookieKeys).toHaveLength(list === "[]" ? 0 : 2);
+      } else {
+        expect(load).toThrow(`WORKOS_COOKIE_PASSWORD_PREVIOUS ${message}`);
+        try {
+          load();
+        } catch (error) {
+          expect(String(error)).not.toContain(retired);
+          expect(String(error)).not.toContain(next);
+        }
+      }
+    });
 
     // A previous key is the key its password derived while it was current, so every cookie written
     // before the rotation still opens after it.

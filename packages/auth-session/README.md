@@ -16,19 +16,27 @@ pnpm add @littleorgans/auth-session
 
 `loadAuthConfig(env = process.env)` reads:
 
-| Variable                          | Rule                                                                                                              |
-| --------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `WORKOS_CLIENT_ID`                | Required.                                                                                                         |
-| `WORKOS_API_KEY`                  | Required. Server-only secret.                                                                                     |
-| `WORKOS_REDIRECT_URI`             | Required. HTTPS, except `http` on `localhost`, `127.0.0.1` or `[::1]`.                                            |
-| `WORKOS_COOKIE_PASSWORD`          | Required. Secret, at least 32 characters. Seals every session cookie written.                                     |
-| `WORKOS_COOKIE_PASSWORD_PREVIOUS` | Optional. Retired cookie passwords, comma-separated, each at least 32 characters. Opens cookies, never seals one. |
+| Variable                          | Rule                                                                                                                                |
+| --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `WORKOS_CLIENT_ID`                | Required.                                                                                                                           |
+| `WORKOS_API_KEY`                  | Required. Server-only secret.                                                                                                       |
+| `WORKOS_REDIRECT_URI`             | Required. HTTPS, except `http` on `localhost`, `127.0.0.1` or `[::1]`.                                                              |
+| `WORKOS_COOKIE_PASSWORD`          | Required. Secret, at least 32 characters. Seals every session cookie written.                                                       |
+| `WORKOS_COOKIE_PASSWORD_PREVIOUS` | Optional. Read-only cookie passwords, comma-separated or a JSON array, each at least 32 characters. Opens cookies, never seals one. |
 
 It throws on the first request that needs configuration, naming every missing variable at once.
 Errors name variables and entries by position, never values. A previous password that is empty,
 shorter than 32 characters, the same as `WORKOS_COOKIE_PASSWORD`, or listed twice is refused.
-Whitespace around each previous entry is ignored, so a password used here can contain neither a
-comma nor leading or trailing whitespace. `openssl rand -base64 32` prints one that fits.
+Whitespace around each comma-separated entry is ignored. `openssl rand -base64 32` prints a
+password that fits that format. To preserve existing passwords containing commas or surrounding
+whitespace, use a JSON array of strings instead, for example
+`WORKOS_COOKIE_PASSWORD_PREVIOUS='["the exact old password, including its comma"]'` in a shell.
+A value beginning with `[` is parsed as JSON; use an array for passwords beginning with `[` too.
+JSON strings are used exactly as written, without trimming. An unset or blank variable, or `[]`,
+means no previous keys. Malformed JSON is refused without echoing its contents.
+
+The runtime validates lazily on first use. To fail deployment before accepting traffic, call
+`runtime.services()` during server startup (or call `loadAuthConfig` in your own composition root).
 
 Each password becomes an AES-256-GCM key through HKDF-SHA256. The session cookie holds only the
 access and refresh tokens, sealed with the key from `WORKOS_COOKIE_PASSWORD`. A cookie is opened
@@ -46,27 +54,38 @@ opens with the new key. With them, nobody is signed out.
 
 1. **Generate** a new password: `openssl rand -base64 32`.
 2. **Stage it, if more than one instance serves traffic.** Deploy with the new password added to
-   `WORKOS_COOKIE_PASSWORD_PREVIOUS` and `WORKOS_COOKIE_PASSWORD` unchanged, and wait for the
-   rollout to finish. While a rollout runs, old and new instances serve the same browsers, and an
+   `WORKOS_COOKIE_PASSWORD_PREVIOUS` alongside any retained keys and `WORKOS_COOKIE_PASSWORD`
+   unchanged. Wait for the rollout to finish, including upgrading every 0.1.0 instance to this
+   version. While a rollout runs, old and new instances serve the same browsers, and an
    old instance cannot open a cookie a new one sealed with a key the old one does not know. It would
    treat that request as signed out. A single instance, or a deployment that replaces every
    instance at once, can skip this step.
 3. **Promote it.** Set `WORKOS_COOKIE_PASSWORD` to the new password, list the old one in
-   `WORKOS_COOKIE_PASSWORD_PREVIOUS`, and deploy. Every cookie written from now on is sealed with the
-   new key. Cookies sealed with the old key still open, and each one moves to the new key the next
+   `WORKOS_COOKIE_PASSWORD_PREVIOUS`, retaining any older keys still inside their wait, and deploy.
+   During the rollout either current key may seal; once it finishes, every writer uses the new key.
+   Cookies sealed with the old key still open, and each one moves to the new key the next
    time its tokens are refreshed. That happens within about five minutes of use, because WorkOS
    access tokens last 300 seconds by default. A cookie is not rewritten merely because an old key
    opened it. A rewrite of an unchanged token pair can land after a concurrent request's refresh
    and put the spent refresh token back in the browser.
-4. **Wait** until at least _T_ + _L_. _T_ is when the last instance sealing with the old password
-   stopped serving, which is the end of the step 3 rollout. _L_ is the shorter of the application's
-   **Maximum session length** in the WorkOS dashboard (Applications, Sessions) and the session
-   cookie's one-year `Max-Age`. Read _L_ from the dashboard rather than assuming the default. A
-   cookie sealed with the old key at or before _T_ holds a WorkOS session that started at or before
-   _T_. That session has ended by _T_ + _L_, whether or not anyone used it.
-5. **Remove** the old password from `WORKOS_COOKIE_PASSWORD_PREVIOUS` and deploy. A cookie that
-   still carries the old key now arrives as a signed-out request, which is what its ended session
-   would have become at the next refresh anyway.
+4. **Wait** until at least _T_ + _L_. _T_ is when the last old-key writer has stopped and its
+   in-flight responses have drained. Restart the wait if a rollback writes that key again.
+   Use _L_ = min(_C_, max(_S_, _A_ + _D_)):
+   - _C_ is the longest cookie `Max-Age` issued under that key (one year in this package).
+   - _S_ bounds the total WorkOS lifetime of every session held in those cookies. Account for
+     earlier settings and later extensions; today's dashboard value alone is not proof of that bound.
+   - _A_ bounds the access-token duration in those cookies, and _D_ covers verifier clock tolerance
+     (five seconds by default) plus deployment clock skew. Tokens are verified locally and may
+     still pass after the provider session ends. Normally _S_ is much longer than _A_ + _D_, so
+     this reduces to min(_C_, _S_).
+
+   Every old-key cookie was written by _T_. By _T_ + _L_, either the browser has expired it or both
+   its provider session and its locally accepted access token have expired. If the provider/token
+   bounds cannot be established, wait the full _C_. Cookie `Max-Age` is a browser retention limit,
+   not a cryptographic expiry for a copied cookie; removal stops accepting such copies under this key.
+
+5. **Remove** only that old password from `WORKOS_COOKIE_PASSWORD_PREVIOUS` and deploy. Keep all
+   other keys whose waits have not elapsed. A cookie still carrying the removed key is anonymous.
 
 Rotations may overlap. List every password still inside its wait, newest first, because keys are
 tried in the order listed. The list is normally empty, and during a rotation it holds one password.
@@ -88,5 +107,5 @@ refresh then fails and signs the person out.
 
 For a shorter session with sliding renewal, set both limits in the WorkOS dashboard, not in code.
 The inactivity timeout slides with use, and the maximum length caps it absolutely. Both hold on the
-provider and apply to every client of the session, and the maximum is the _L_ in the rotation rule
-above.
+provider and apply to every client of the session, and the maximum contributes to _S_ in the
+rotation rule above. See [WorkOS session settings](https://workos.com/docs/authkit/sessions) for the provider controls.
