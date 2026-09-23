@@ -188,9 +188,11 @@ work; the green run proves the valid state.
   `package.json`, including `packageManager`, and pnpm catalog pins in
   `pnpm-workspace.yaml`. GitHub Actions versions and `actions/setup-node`'s
   `node-version` come from the github-actions manager. Regex managers cover the Node
-  and pnpm pins in `.moon/toolchains.yml`. Moon is pinned in `.prototools`, the workspace
-  constraint. CI and release read .prototools. Renovate groups those two updates, and
-  `root:scripts-test` checks agreement. Proto itself is not pinned.
+  and pnpm pins in `.moon/toolchains.yml` and the npm pin in `release.yml`. Moon is
+  pinned in `.prototools` and in the `.moon/workspace.yml` version constraint. CI and the
+  release gate install Moon from `.prototools` and set no version of their own. Renovate
+  groups the two Moon updates, and `root:scripts-test` checks that the pins agree and that
+  no workflow sets `moon-version`. Proto itself is not pinned.
 
 ## Do not
 
