@@ -42,6 +42,10 @@ moon --version       # must print 2.5.5
 Finish the proto installer's prompt so that `~/.proto/bin` is on `PATH`. `.moon/workspace.yml`
 pins `versionConstraint: "=2.5.5"`, so Moon refuses to run under any other version.
 
+Moon's Node and pnpm serve its tasks. The `npm pkg` and `pnpm` commands in steps 3, 4 and 6 run
+outside Moon, so a Node `24` with `npm`, and a pnpm `11`, must also be on your `PATH`. Any version
+manager will do. `node --version` and `pnpm --version` must both answer before step 3.
+
 ## 2. Fetch the reference at the release tag
 
 Copy the glue from the tag that matches the package version you install, so that the code and the

@@ -73,7 +73,7 @@ release tag. Follow [Adopt the packages in a web app](docs/guides/adopt-web-app.
 Start app, and [Adopt the packages in a service](docs/guides/adopt-service.md) for a TypeScript HTTP
 service, beside a web app or on its own. The `lilo/build/start-project` skill
 ([`skills/lilo/build/start-project`](skills/lilo/build/start-project/SKILL.md)) covers the choices
-the guides leave open. Both guides target `0.1.0`, which is not published yet.
+the guides leave open. Both guides are written for the `0.1.0` release.
 
 ## Start locally
 
