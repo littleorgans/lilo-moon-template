@@ -18,7 +18,7 @@ The baseline makes these choices, recorded in `docs/decisions.md`:
 
 | Concern         | Choice                                                      | Where                                                      |
 | --------------- | ----------------------------------------------------------- | ---------------------------------------------------------- |
-| Task graph      | Moon 2.5.1 for every language                               | `.moon/workspace.yml`, `.moon/tasks/*.yml`, `moon.yml`     |
+| Task graph      | Moon 2.5.5 for every language                               | `.moon/workspace.yml`, `.moon/tasks/*.yml`, `moon.yml`     |
 | JS packages     | pnpm 11 with catalogs and supply-chain policy               | `pnpm-workspace.yaml`                                      |
 | Languages       | TypeScript 7 (`tsgo`), Rust 1.95                            | `pnpm-workspace.yaml` catalog, `.moon/toolchains.yml`      |
 | Lint and format | oxlint (type aware) and oxfmt                               | `.oxlintrc.json`, `.oxfmtrc.json`, `moon.yml` `tasks.lint` |

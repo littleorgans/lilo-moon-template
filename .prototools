@@ -1,6 +1,6 @@
 # Install pin. CI proto install (setup-toolchain auto-install) reads this file.
 # versionConstraint in .moon/workspace.yml must equal this version.
-moon = "2.5.1"
+moon = "2.5.5"
 atlas = "1.3.0"
 
 [plugins.tools]
