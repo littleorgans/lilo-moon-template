@@ -9,6 +9,8 @@ export const auth = createAuthRuntime({
   signedInPath: "/app",
   organizationPolicy: "personal",
   codeEntryPath: "/verify-email",
-  // One process's memory: replace it before running more than one instance. See memoryThrottle.
+  // One process's memory: replace it before running more than one instance. The socket address is
+  // the client only when nothing sits in front of the application; behind a proxy you control, read
+  // the forwarded one with `getRequestIP({ xForwardedFor: true })`. See memoryThrottle.
   throttle: memoryThrottle({ clientOf: () => getRequestIP() }),
 });

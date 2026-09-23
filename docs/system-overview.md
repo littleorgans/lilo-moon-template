@@ -303,7 +303,10 @@ the lower-cased address. On verify the address key bounds guesses at one code. A
 with `Retry-After`. `createAuthRuntime` requires a throttle and the package ships none. The
 reference `apps/web/src/server/throttle.ts` counts in process memory, keyed by the socket address,
 which is right for one instance only: a deployment with more than one instance needs a throttle over
-a shared store, and one behind a proxy needs a trusted client address.
+a shared store. Behind a proxy the socket address is the proxy's, so every visitor shares one budget
+and is refused with everyone else once it is spent; `apps/web/src/server/auth.ts` then reads the
+forwarded address with `getRequestIP({ xForwardedFor: true })`, which is safe only when the proxy
+overwrites that header.
 
 Cookie names are namespaced by `sha256(clientId:redirectUri)` (`auth-session/src/config.ts` lines
 96–99, `auth-tanstack/src/runtime.ts` line 88). The session key comes from
