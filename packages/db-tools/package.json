@@ -1,6 +1,6 @@
 {
   "name": "@littleorgans/db-tools",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Prove Postgres row level security holds in your own database, with the rls-verify CLI.",
   "license": "MIT",
   "repository": {

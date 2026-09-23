@@ -1,6 +1,6 @@
 {
   "name": "@littleorgans/vite-config",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Workspace source resolution for the Vite configs of applications in this repo.",
   "license": "MIT",
   "repository": {
