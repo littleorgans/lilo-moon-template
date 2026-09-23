@@ -2,22 +2,21 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
-await test("Moon installer, workspace constraint and release pins agree", () => {
+await test("Moon installer and workspace constraint agree, and workflows install from .prototools", () => {
   const version = readFileSync(".prototools", "utf8").match(/^moon = "([^"]+)"/m)?.[1];
   assert.ok(version);
   assert.equal(
     readFileSync(".moon/workspace.yml", "utf8").match(/versionConstraint: "=([^"]+)"/)?.[1],
     version,
   );
-  assert.equal(
-    readFileSync(".github/workflows/release.yml", "utf8").match(/moon-version: "([^"]+)"/)?.[1],
-    version,
-  );
+  for (const workflow of [".github/workflows/ci.yml", ".github/workflows/release.yml"]) {
+    assert.doesNotMatch(readFileSync(workflow, "utf8"), /moon-version:/, workflow);
+  }
 });
 
-await test("Renovate discovers all three Moon pins in one group", () => {
+await test("Renovate discovers both Moon pins in one group", () => {
   const config = JSON.parse(readFileSync("renovate.json", "utf8"));
-  for (const file of [".prototools", ".moon/workspace.yml", ".github/workflows/release.yml"]) {
+  for (const file of [".prototools", ".moon/workspace.yml"]) {
     const manager = config.customManagers.find(
       (candidate) =>
         candidate.managerFilePatterns.some((pattern) =>

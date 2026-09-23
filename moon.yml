@@ -301,8 +301,8 @@ tasks:
       cache: false
       runInCI: "always"
 
-  # secrets skips dist, and dist is most of what npm receives. changeset:publish runs this too,
-  # so a failed scan blocks publishing. Changesets packs again for the actual upload.
+  # secrets skips dist, and dist is most of what npm receives. The release gate runs the same scan
+  # on the tarballs it publishes: node scripts/check-packed-secrets.mjs <release directory>.
   packed-secrets:
     description: "Scan the packed tarball of every published package for secrets"
     type: "test"
@@ -310,6 +310,27 @@ tasks:
     inputs:
       - "@globs(sources)"
       - "/.secretlintrc.json"
+    deps:
+      - "#ts-library:build"
+    options:
+      shell: false
+      cache: false
+      runInCI: true
+
+  # The publish half of release.yml against a local Verdaccio: the refusal of a tarball changed
+  # after the scan, a partial failure and the rerun that completes it, and the post-publish smoke.
+  release-rehearsal:
+    description: "Rehearse publishing the release tarballs against a local registry"
+    type: "test"
+    command: "node scripts/release-rehearsal.mjs"
+    inputs:
+      - "scripts/release.mjs"
+      - "scripts/release-rehearsal.mjs"
+      - "scripts/check-packed-secrets.mjs"
+      - "scripts/lib/**/*"
+      - "/.github/workflows/release.yml"
+      - "/.secretlintrc.json"
+      - "/pnpm-workspace.yaml"
     deps:
       - "#ts-library:build"
     options:

@@ -13,10 +13,17 @@ import {
 } from "node:fs";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
-import { basename, dirname, join, relative, sep } from "node:path";
+import { basename, dirname, join, relative } from "node:path";
 import { setTimeout } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 
+import {
+  CONSUMER_TYPESCRIPT,
+  consumerCompilerOptions,
+  entriesModule,
+  entryPoints,
+  typecheckConsumer,
+} from "./lib/package-entries.mjs";
 import { dockerIsAvailable, psqlInput, withPostgres } from "./lib/postgres-container.mjs";
 import {
   initializeProject,
@@ -24,11 +31,18 @@ import {
   projectCommand,
   writeJson,
 } from "./lib/project-files.mjs";
+import { readReleaseTarballs } from "./lib/release-tarballs.mjs";
 import { pruneReferences } from "./lib/typescript-references.mjs";
 
 const source = process.cwd();
+// With a release directory from `node scripts/release.mjs pack`, only the tarball checks run, on
+// exactly those files, against this installed workspace. The release gate uses this so the tarballs
+// it checks are the ones it publishes. Without one, the whole check runs on a workspace snapshot.
+const releaseDirectory = process.argv[2];
 const scratch = mkdtempSync(join(tmpdir(), "published-shape-"));
 const snapshot = join(scratch, "snapshot");
+// The installed workspace whose manifests and third-party versions the tarballs are checked against.
+const reference = releaseDirectory === undefined ? snapshot : source;
 const packed = join(scratch, "packed");
 const tarballs = join(scratch, "tarballs");
 // A child Moon must discover its own workspace and toolchain rather than inherit its parent's paths.
@@ -274,9 +288,6 @@ async function exercise(root) {
   }
 }
 
-// Export conditions a packed manifest may use. Anything else is a condition some consumer's
-// resolver may select, as `@littleorgans/source` was before publishConfig.exports omitted it.
-const EXPORT_CONDITIONS = ["types", "import", "default"];
 const SOURCE_CONDITION = "@littleorgans/source";
 
 // Every publint and attw finding is fixed in the package or suppressed here, one reason per rule.
@@ -284,49 +295,23 @@ const SOURCE_CONDITION = "@littleorgans/source";
 // node16-from-CommonJS resolutions: the packages are ESM-only, for Node >= 24.19 and bundlers.
 const ATTW_PROFILE = "esm-only";
 
-// Use the versions in the snapshot's frozen install for third-party dependencies. The consumer
-// still installs with npm, outside the workspace, without catalogs or dependency overrides.
-// TypeScript 5 is deliberately independent of the workspace compiler (TypeScript 7).
-const CONSUMER_TYPESCRIPT = "5.9.3";
-
+// Use the versions in the reference workspace's frozen install for third-party dependencies. The
+// consumer still installs with npm, outside the workspace, without catalogs or dependency overrides.
 function consumerDependencies(packages) {
   const names = new Set(packages.map(({ manifest }) => manifest.name));
   const dependencies = { typescript: CONSUMER_TYPESCRIPT };
   for (const { manifest } of packages) {
-    const directory = join(snapshot, manifest.repository.directory);
+    const directory = join(reference, manifest.repository.directory);
     for (const name of Object.keys({ ...manifest.dependencies, ...manifest.peerDependencies })) {
       if (!names.has(name))
         dependencies[name] = readManifest(join(directory, "node_modules", name)).version;
     }
   }
   for (const name of ["@types/node", "@types/react", "@types/react-dom"]) {
-    dependencies[name] = readManifest(join(snapshot, "apps/web/node_modules", name)).version;
+    dependencies[name] = readManifest(join(reference, "apps/web/node_modules", name)).version;
   }
   return dependencies;
 }
-
-// Third-party declaration errors a consumer on skipLibCheck: false sees, by package and code. None
-// may come from a published package or the consumer's own files. drizzle-orm's dialects import one
-// another, so the node-postgres entry loads its gel, MySQL, SingleStore and SQLite declarations too.
-const TOLERATED_DECLARATION_ERRORS = new Map([
-  [
-    "drizzle-orm",
-    new Set([
-      // Its gel and mysql2 drivers import optional peers that a Postgres consumer never installs.
-      "TS2307",
-      // Its query and column builders disagree with their own base classes and interfaces.
-      "TS2344",
-      "TS2416",
-      "TS2420",
-      "TS2515",
-      // PgRole and its siblings share no property with their own config types.
-      "TS2559",
-      // utils.d.ts uses TextDecoder as a type, which only the DOM lib declares; a Node service
-      // without DOM in lib sees this.
-      "TS2749",
-    ]),
-  ],
-]);
 
 const capture = (cwd, command, args) => spawnSync(command, args, { cwd, env, encoding: "utf8" });
 
@@ -347,24 +332,6 @@ const npmInstall = (root) =>
     "--prefer-offline",
   ]);
 
-/** The package a declaration file belongs to, or undefined for the consumer's own files. */
-function declarationOwner(file) {
-  if (!/\.d\.[cm]?ts$/.test(file)) return undefined;
-  const parts = file.replaceAll("\\", "/").split("node_modules/");
-  if (parts.length === 1) return undefined;
-  const [first, second] = parts.at(-1).split("/");
-  return first.startsWith("@") ? `${first}/${second}` : first;
-}
-
-/** Every file in `root`, as `./`-relative paths with forward slashes. */
-function packedFiles(root, directory = root) {
-  return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
-    const path = join(directory, entry.name);
-    if (entry.isDirectory()) return packedFiles(root, path);
-    return [`./${relative(root, path).split(sep).join("/")}`];
-  });
-}
-
 /**
  * A tarball as a consumer receives it: its manifest and every concrete entry point `exports`
  * declares, with each wildcard subpath expanded against the files in the tarball. Reading the
@@ -374,10 +341,8 @@ function inspectTarball(artifact) {
   const root = join(scratch, "unpacked", basename(artifact, ".tgz"));
   mkdirSync(root, { recursive: true });
   execFileSync("tar", ["-xzf", artifact, "-C", root, "--strip-components=1"]);
-  const manifest = readManifest(root);
-  const files = packedFiles(root);
-  assert.ok(manifest.exports, `${manifest.name} must declare exports`);
-  const workspace = readManifest(join(snapshot, manifest.repository.directory));
+  const { manifest, entries } = entryPoints(root);
+  const workspace = readManifest(join(reference, manifest.repository.directory));
   assert.deepEqual(
     Object.keys(manifest.exports).toSorted(),
     Object.keys(workspace.exports).toSorted(),
@@ -412,76 +377,23 @@ function inspectTarball(artifact) {
         : `${manifest.name} publishConfig.exports["${subpath}"] must equal exports["${subpath}"] without ${SOURCE_CONDITION}`,
     );
   }
-  const entries = Object.entries(manifest.exports).flatMap(([subpath, target]) => {
-    const conditions = typeof target === "string" ? { default: target } : target;
-    for (const [condition, path] of Object.entries(conditions)) {
-      assert.ok(
-        EXPORT_CONDITIONS.includes(condition),
-        `${manifest.name} exports ${subpath} under the condition "${condition}"; packed exports use only ${EXPORT_CONDITIONS.join(", ")}`,
-      );
-      assert.equal(typeof path, "string", `${manifest.name} nests conditions under ${subpath}`);
-    }
-    const runtime = conditions.import ?? conditions.default;
-    assert.ok(runtime, `${manifest.name} exports ${subpath} with no import or default target`);
-    if (subpath.includes("*")) {
-      assert.equal(
-        subpath.split("*").length,
-        2,
-        `${manifest.name} has an unsupported subpath pattern`,
-      );
-      assert.equal(
-        runtime.split("*").length,
-        2,
-        `${manifest.name} has an unsupported export target pattern`,
-      );
-    }
-    const stars = subpath.includes("*")
-      ? files.flatMap((file) => {
-          const [prefix, suffix] = runtime.split("*");
-          const fits = file.startsWith(prefix) && file.endsWith(suffix);
-          return fits && file.length > prefix.length + suffix.length
-            ? [file.slice(prefix.length, file.length - suffix.length)]
-            : [];
-        })
-      : [undefined];
-    assert.ok(
-      stars.length > 0,
-      `${manifest.name} exports ${subpath}, which matches no packed file`,
-    );
-    return stars.map((star) => {
-      const expand = (path) => (star === undefined ? path : path?.replaceAll("*", star));
-      const entry = {
-        subpath: expand(subpath),
-        specifier: `${manifest.name}${expand(subpath).slice(1)}`,
-        runtime: expand(runtime),
-        types: expand(conditions.types),
-      };
-      // JavaScript is imported and must carry declarations; anything else, CSS or SQL, is a file.
-      if (/\.[cm]?js$/.test(entry.runtime)) {
-        assert.ok(entry.types, `${entry.specifier} has JavaScript but no types condition`);
-      }
-      for (const path of [entry.runtime, entry.types].filter(Boolean)) {
-        assert.ok(
-          files.includes(path),
-          `${entry.specifier} points at ${path}, which is not packed`,
-        );
-      }
-      return entry;
-    });
-  });
   return { artifact, manifest, entries };
 }
 
 function lintTarball({ artifact, manifest, entries }) {
   succeeded(
-    capture(tarballs, join(source, "node_modules/.bin/publint"), ["run", artifact, "--strict"]),
+    capture(dirname(artifact), join(source, "node_modules/.bin/publint"), [
+      "run",
+      artifact,
+      "--strict",
+    ]),
     `publint ${manifest.name}`,
   );
   const typed = entries.filter((entry) => entry.types).map((entry) => entry.subpath);
   // Asset subpaths are left out: attw checks module entry points, and the consumer resolves assets.
   if (typed.length > 0) {
     succeeded(
-      capture(tarballs, join(source, "node_modules/.bin/attw"), [
+      capture(dirname(artifact), join(source, "node_modules/.bin/attw"), [
         artifact,
         "--profile",
         ATTW_PROFILE,
@@ -515,51 +427,8 @@ function installedCopies(root, name) {
   return [...own, ...nested];
 }
 
-/**
- * TypeScript 5 over the consumer's files with skipLibCheck: false. The only errors allowed are the
- * third-party declaration errors listed in TOLERATED_DECLARATION_ERRORS.
- */
-function typecheck(root) {
-  const { version } = readManifest(join(root, "node_modules/typescript"));
-  assert.match(version, /^5\./, `the consumer installed TypeScript ${version}, not 5.x`);
-  const result = spawnSync(
-    join(root, "node_modules/.bin/tsc"),
-    ["--project", "tsconfig.json", "--pretty", "false"],
-    { cwd: root, env, encoding: "utf8" },
-  );
-  assert.ok(
-    !result.error && !result.signal,
-    `tsc did not finish: ${result.error ?? result.signal}`,
-  );
-  assert.equal(result.stderr, "", `tsc wrote unexpected stderr: ${result.stderr}`);
-  const errors = result.stdout.split("\n").flatMap((line) => {
-    const match = /^(.+?)\(\d+,\d+\): error (TS\d+): /.exec(line);
-    if (match) return [{ line, file: match[1], code: match[2] }];
-    // Global/config diagnostics have no file location. Never lose one beside tolerated errors.
-    return /error TS\d+:/.test(line) ? [{ line, file: "", code: "" }] : [];
-  });
-  assert.ok(
-    result.status === 0 || errors.length > 0,
-    `tsc failed without a diagnostic:\n${result.stdout}${result.stderr}`,
-  );
-  const untolerated = errors.filter(
-    ({ file, code }) => !TOLERATED_DECLARATION_ERRORS.get(declarationOwner(file))?.has(code),
-  );
-  assert.deepEqual(
-    untolerated.map(({ line }) => line),
-    [],
-    "the TypeScript 5 consumer typecheck failed outside the tolerated third-party declarations",
-  );
-  const tolerated = Object.entries(Object.groupBy(errors, ({ file }) => declarationOwner(file)))
-    .map(([name, found]) => `${found.length} in ${name}`)
-    .join(", ");
-  process.stdout.write(
-    `published-shape: TypeScript ${version}, skipLibCheck false: no errors outside tolerated third-party declarations (${tolerated || "none"})\n`,
-  );
-}
-
 // A library and service consumer outside any workspace. npm installs every tarball and pins direct
-// third-party dependencies to the snapshot install, without a catalog. It imports and typechecks
+// third-party dependencies to the reference install, without a catalog. It imports and typechecks
 // every entry point, then runs a service on packed auth, auth-http and db against Postgres, and the
 // packed rls-verify bin against the result.
 async function exerciseConsumer(packages) {
@@ -583,35 +452,15 @@ async function exerciseConsumer(packages) {
     },
   });
   writeJson(join(root, "tsconfig.json"), {
-    compilerOptions: {
-      target: "ES2024",
-      lib: ["ES2024", "DOM"],
-      types: ["node"],
-      module: "NodeNext",
-      jsx: "react-jsx",
-      strict: true,
-      noEmit: true,
-      skipLibCheck: false,
-    },
+    compilerOptions: consumerCompilerOptions,
     include: ["*.ts"],
   });
-  const entries = packages.flatMap((pkg) => pkg.entries);
-  const modules = entries.filter((entry) => entry.types);
-  const assets = entries.filter((entry) => !entry.types);
-  writeFileSync(
-    join(root, "entries.ts"),
-    `import assert from "node:assert/strict";
-import { existsSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-
-${modules.map(({ specifier }, index) => `import * as entry${index} from "${specifier}";`).join("\n")}
-
-assert.equal([${modules.map((_, index) => `entry${index}`).join(", ")}].length, ${modules.length});
-for (const specifier of ${JSON.stringify(assets.map(({ specifier }) => specifier))}) {
-  assert.ok(existsSync(fileURLToPath(import.meta.resolve(specifier))), specifier);
-}
-`,
-  );
+  const {
+    modules,
+    assets,
+    source: entriesSource,
+  } = entriesModule(packages.flatMap((pkg) => pkg.entries));
+  writeFileSync(join(root, "entries.ts"), entriesSource);
   const scope = scopedName("auth").split("/")[0];
   const httpName = scopedName("auth-http");
   const dbName = scopedName("db");
@@ -745,7 +594,7 @@ try {
       `${dbName} and the consumer must share one ${peer}`,
     );
   }
-  typecheck(root);
+  process.stdout.write(`published-shape: ${typecheckConsumer(root, env)}\n`);
   run(root, process.execPath, ["entries.ts"]);
   process.stdout.write(
     `published-shape: ${modules.length} module and ${assets.length} file entry points resolve in ${root}\n`,
@@ -794,9 +643,9 @@ function checkDrizzleSkew(packages) {
         ),
         "drizzle-orm": drizzle,
         typescript: CONSUMER_TYPESCRIPT,
-        "@types/node": readManifest(join(snapshot, "node_modules/@types/node")).version,
-        pg: readManifest(join(snapshot, "packages/db/node_modules/pg")).version,
-        "@types/pg": readManifest(join(snapshot, "packages/db/node_modules/@types/pg")).version,
+        "@types/node": readManifest(join(reference, "node_modules/@types/node")).version,
+        pg: readManifest(join(reference, "packages/db/node_modules/pg")).version,
+        "@types/pg": readManifest(join(reference, "packages/db/node_modules/@types/pg")).version,
       },
     });
     return root;
@@ -864,7 +713,7 @@ void wrong;
     [floor],
     `drizzle-orm ${floor} must be the only copy, found ${copies.join(", ")}`,
   );
-  typecheck(aligned);
+  process.stdout.write(`published-shape: ${typecheckConsumer(aligned, env)}\n`);
   process.stdout.write(`published-shape: drizzle-orm ${floor} is ${name}'s only copy\n`);
 }
 
@@ -999,7 +848,20 @@ async function exerciseServiceDatabase(root, dbName) {
   );
 }
 
-try {
+// The tarballs the release will publish, checked where a consumer meets them: publint and attw,
+// then npm consumers that import, typecheck and run them. The packed reference app is not rebuilt:
+// it needs the snapshot's CSS fixtures, which these tarballs do not carry.
+async function checkReleaseTarballs(directory) {
+  const packages = readReleaseTarballs(directory).map(({ file }) => inspectTarball(file));
+  for (const pkg of packages) lintTarball(pkg);
+  await exerciseConsumer(packages);
+  checkDrizzleSkew(packages);
+  process.stdout.write(
+    `published-shape: the ${packages.length} release tarballs in ${directory} passed the npm and skew consumers.\n`,
+  );
+}
+
+async function checkSnapshot() {
   mkdirSync(snapshot);
   const files = execFileSync(
     "git",
@@ -1123,6 +985,10 @@ try {
   await exerciseConsumer(packages);
   checkDrizzleSkew(packages);
   process.stdout.write("published-shape: snapshot, packed, npm and skew consumers passed.\n");
+}
+
+try {
+  await (releaseDirectory === undefined ? checkSnapshot() : checkReleaseTarballs(releaseDirectory));
 } finally {
   rmSync(scratch, { recursive: true, force: true });
 }

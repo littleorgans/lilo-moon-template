@@ -139,12 +139,26 @@ Nothing to rotate. No history rewrite is recommended.
 - Moon 2.5.5 CI passed with 59 completed actions and 5 skipped. The no-identity scripts run
   passed 24/24 using absolute toolchain symlinks. The hook-path check printed nothing.
 
+## Round 4: every GitHub Actions log, and task 1.8
+
+- On 2026-09-24, `gh run list` listed 332 runs of `littleorgans/lilo-moon-template`: 260 CI and 72
+  Release, all completed by the time of download. Each run's log archive was downloaded through
+  `gh api repos/littleorgans/lilo-moon-template/actions/runs/<id>/logs` into a scratch directory
+  outside the repository, and nothing from it was committed or printed. 329 runs had logs: 801 files,
+  50.7 MB. One failed Release run returned an empty archive (its only job was cancelled before a step ran). Two runs
+  returned 404 and have no jobs: a cancelled CI run and an `action_required` Version PR run.
+- `gitleaks dir --redact` (8.30.1, `GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1`) scanned
+  50.71 MB and found no leaks. `secretlint --maskSecrets` with this repository's
+  `.secretlintrc.json` (13.0.4) scanned the 801 files and reported nothing. No run was deleted.
+- Task 1.8 retired the interim lifecycle-script guard. The release publishes the tarballs it scanned
+  (`node scripts/release.mjs pack`, then `publish`), and publishing a tarball runs no lifecycle
+  scripts, so no hook can change the contents between the scan and the upload.
+  [Releasing the packages](../releasing.md) describes the flow.
+
 ## Not scanned
 
-- Remaining GitHub Actions logs and caches. The builder found no artifacts. Before the first public
-  publish, scanning all retained downloadable logs is worthwhile: masking only registered secrets
-  does not protect arbitrary credentials printed by commands. Never echo raw logs during that
-  review. Deleted/expired logs cannot be assessed.
+- GitHub Actions caches. The builder found no artifacts. Logs are covered in round 4; logs that
+  GitHub has already deleted or expired cannot be assessed.
 - Commits GitHub still serves by SHA after a force push or branch deletion, unless they survive in
   the local object store. The deleted `origin/feat/*` branches were pull request heads, which the
   mirror holds. The `changeset-release/main` tip from before its last force push (`c919af2`)

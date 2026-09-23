@@ -458,11 +458,13 @@ detection. Tasks marked `runInCI: "always"` run on every change. These include `
 its inputs change: apps, packages, services, scripts, `.moon`, the root manifests, the lockfile or
 `moon.yml`. A documentation-only change skips it.
 
-`.github/workflows/release.yml` runs Changesets on pushes to `main`. It opens or updates a Version
-Packages pull request, and it publishes only when `vars.NPM_PUBLISH_ENABLED == 'true'`. The publish
-command, `pnpm changeset:publish`, builds, scans a packed copy of each published package with
-`root:packed-secrets`, and publishes only if both succeed. Changesets packs again for upload. It
-does not rerun tests. It relies on protected-branch CI, as `docs/decisions.md` explains.
+`.github/workflows/release.yml` runs on pushes to `main`. While changesets are pending, Changesets
+opens or updates the Version Packages pull request. On the commit that merges it, and only when
+`vars.NPM_PUBLISH_ENABLED == 'true'`, a gate job runs `moon ci --force` (every CI task, not only the
+affected ones), packs each published package once, and scans and shape-checks those tarballs. A
+publish job then uploads the same files in dependency order, tags the commit, and creates one GitHub
+release for `v<version>`. A smoke job installs the published versions from npm. [Releasing the
+packages](releasing.md) describes the flow and the npm authentication.
 
 Local hooks in `lefthook.yml` run `format-check`, `lint` and `secrets` on staged files, plus
 commitlint. The root `prepare` script installs them through `scripts/install-hooks.mjs`, which runs

@@ -250,33 +250,53 @@ Keep the split.
 
 ## Changelogs cover JavaScript packages
 
-Changesets reads `package.json`, so private and publishable JavaScript packages both receive
-versions and changelogs. It cannot see `Cargo.toml`, `pyproject.toml`, or `go.mod`. Every member
+Changesets reads `package.json`, so it versions JavaScript packages and writes their changelogs.
+Only the published packages receive them: `privatePackages.version` is `false`, so the reference app
+and service stay unversioned, and a changeset names published packages only. It cannot see `Cargo.toml`, `pyproject.toml`, or `go.mod`. Every member
 today is a JavaScript package, so nothing is left out yet.
 
 Moon does not version or publish packages. Its FAQ points JavaScript workspaces to Yarn releases,
 Changesets, or Lerna. This leaves non-JavaScript release notes outside the baseline. Revisit the
 release tool when the first consumer repository ships a real non-JavaScript artifact.
 
-## Publishing relies on the protected merge boundary
+## Publishing waits for the whole gate on the released commit
 
-Strict branch protection keeps publishing behind the merge boundary. Required `CI` checks use strict
-branch protection on `main`, so every non-bypass merge has already passed lint, typecheck, and tests.
-The owner retains deliberate admin and force-push bypasses.
+Branch protection used to be the only gate: required `CI` checks on `main`, and a publish path that
+only built. That was enough while nothing was published. Consumers outside this repository now
+install the packages, a bad version reaches all of them, and a published version cannot be
+replaced. CI on a push to `main` also runs only the affected tasks, and the owner keeps admin and
+force-push bypasses. So `release.yml` gates the publish itself (decision D9).
 
-`withastro/astro`, `changesets/changesets`, and `chakra-ui/chakra-ui` use the same build-only publish
-shape without a test-job `needs` edge. This repository leaves `NPM_PUBLISH_ENABLED` unset, so
-Changesets receives no publish command and cannot publish the exemplar. Adding workflow sequencing
-now would add ceremony to a dormant path without strengthening the protected merge boundary.
+The Release gate job runs `moon ci --force` on the commit it will publish: every task `moon ci`
+runs, with no affected filter and no cache. The publish job `needs` it, so a failed task skips the
+publish. The gate runs in the release workflow rather than waiting on the CI run for the same SHA,
+because that run is affected-only on `main` and a `workflow_run` or checks-API wait would add a
+second workflow to reason about for no stronger guarantee. The cost is a full run on each release
+commit, which happens once per release.
 
-Versioning and publishing are separate steps, and only the second is gated by
-`NPM_PUBLISH_ENABLED`. The first changeset this repository produced opened a Version Packages PR that
-bumps a version and writes a changelog and reaches no registry at all. Observed 2026-08-22: that PR
-came from `github-actions[bot]`, its `CI` run returned `action_required`, and it could not merge
-until a maintainer approved the workflow. `release.yml` now prefers `secrets.LILO_GITHUB_PAT` and
-falls back to `GITHUB_TOKEN`, which moves the authorship off the bot and removes the approval when the
-secret is set. Consumer-facing detail is in
-[Maintain this repository](maintaining.md).
+**The published bytes are the checked bytes.** `changeset publish` packs again after the scan, so
+what `root:packed-secrets` inspected was a copy. `scripts/release.mjs pack` now packs each package
+once and records its sha512 in `release.json`. The secrets scan and `root:published-shape` run on
+those files, and the publish uploads them with `npm publish <file>.tgz`, which runs no lifecycle
+scripts. Every step after the pack refuses a file whose hash differs from the record.
+`root:release-rehearsal` proves this against a local Verdaccio: the registry's `dist.integrity`,
+and the tarball it serves, equal the scanned file's hash.
+
+**Authentication moves to OIDC without a workflow edit.** npm tries trusted publishing first and
+falls back to `NODE_AUTH_TOKEN`. The organization token bootstraps packages that do not exist yet,
+since npm attaches a trusted publisher only to an existing package. Once every package trusts
+`release.yml`, the token and its secret are deleted, and no long-lived publish credential remains.
+Only the publish job can mint an OIDC token or read the npm token. It installs no workspace
+dependencies, and its pinned npm install runs no lifecycle scripts.
+
+Versioning and publishing stay separate steps. While changesets are pending, the workflow only
+opens or updates the Version Packages PR. The publish jobs run on the commit that merges it, and
+only when `vars.NPM_PUBLISH_ENABLED == 'true'`. The first changeset this repository produced
+opened a Version Packages PR from `github-actions[bot]`: observed 2026-08-22, its `CI` run returned
+`action_required`, and it could not merge until a maintainer approved the workflow. `release.yml`
+prefers `secrets.LILO_GITHUB_PAT` and falls back to `GITHUB_TOKEN`, which moves the authorship off
+the bot and removes the approval when the secret is set. [Releasing the packages](releasing.md) is
+the maintainer procedure.
 
 ## Left to the consuming repo
 

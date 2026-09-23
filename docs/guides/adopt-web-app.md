@@ -82,7 +82,7 @@ Remove this repository's publishing tools from the root manifest, and keep the g
 
 ```sh
 npm pkg set name=acme
-npm pkg delete license scripts.changeset scripts.changeset:publish scripts.changeset:version
+npm pkg delete license scripts.changeset scripts.changeset:version
 npm pkg delete devDependencies.@arethetypeswrong/cli devDependencies.@changesets/changelog-github devDependencies.@changesets/cli
 npm pkg delete devDependencies.publint devDependencies.drizzle-kit devDependencies.drizzle-orm devDependencies.pg devDependencies.@littleorgans/db-tools
 ```

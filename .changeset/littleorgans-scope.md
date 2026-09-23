@@ -8,7 +8,6 @@
 "@littleorgans/ui": minor
 "@littleorgans/views": minor
 "@littleorgans/vite-config": minor
-"@littleorgans/web": patch
 ---
 
 Publish under the `@littleorgans` npm scope instead of `@lilo-moon`. Imports and the workspace

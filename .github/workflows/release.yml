@@ -6,16 +6,26 @@ on:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
 
-permissions:
-  contents: write
-  id-token: write
-  pull-requests: write
+# Each job asks for what it needs. Only publish can mint an OIDC token or read the npm token, and it
+# runs no workspace install or package lifecycle scripts. docs/releasing.md covers
+# the flow, the bootstrap and recovery.
+permissions: {}
 
 jobs:
-  release:
-    name: Release
+  # While changesets are pending, this opens or updates the "chore: version packages" pull request
+  # and nothing else runs. Merging that pull request consumes the changesets, so on its merge commit
+  # hasChangesets is false and, once NPM_PUBLISH_ENABLED is true, the jobs below publish. The tag
+  # v<version> stops later pushes from publishing again. Recovery uses the original run.
+  version:
+    name: Version
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    outputs:
+      publish: ${{ steps.changesets.outputs.hasChangesets == 'false' && steps.released.outputs.released == 'false' && vars.NPM_PUBLISH_ENABLED == 'true' }}
     steps:
       # LILO_GITHUB_PAT, when set, makes the version PR come from a user rather than from
       # github-actions[bot]. A bot-authored PR can land in an approval-required state, and until a
@@ -34,21 +44,169 @@ jobs:
           node-version: "24.19.0"
           cache: pnpm
 
-      - uses: moonrepo/setup-toolchain@261c62cb5b0f580c7be7c8cd0f023a2e96756095 # v0
-        with:
-          moon-version: "2.5.5"
-
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Create version PR or publish
+      # No publish input: with changesets pending this versions, and without them it only reports
+      # hasChangesets. Publishing is the gate and publish jobs' work.
+      - name: Create or update the version PR
+        id: changesets
         uses: changesets/action@a45c4d594aa4e2c509dc14a9f2b3b67ba3780d0d # v1
         with:
           version: pnpm changeset:version
-          # Publishing stays disabled unless NPM_PUBLISH_ENABLED compares equal to true. Configure
-          # npm trusted publishing for every package before enabling it.
-          publish: ${{ vars.NPM_PUBLISH_ENABLED == 'true' && 'pnpm changeset:publish' || '' }}
           commit: "chore: version packages"
           title: "chore: version packages"
         env:
           GITHUB_TOKEN: ${{ secrets.LILO_GITHUB_PAT || secrets.GITHUB_TOKEN }}
+
+      - name: Check whether this version is released
+        id: released
+        if: steps.changesets.outputs.hasChangesets == 'false'
+        run: |
+          tag="v$(node scripts/release.mjs version)"
+          if git ls-remote --exit-code --tags origin "refs/tags/$tag" > /dev/null; then
+            echo "$tag is on origin; nothing to release"
+            echo "released=true" >> "$GITHUB_OUTPUT"
+          else
+            status=$?
+            if [ "$status" -ne 2 ]; then
+              exit "$status"
+            fi
+            echo "released=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  # D9: nothing publishes unless every task moon ci runs passes on this exact commit. --force skips
+  # the affected filter and the cache, so this is the whole gate, not the tasks this push touched.
+  # The tarballs are then packed once, and the scan and the consumer checks read those files.
+  gate:
+    name: Release gate
+    needs: version
+    if: needs.version.outputs.publish == 'true'
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
+    permissions:
+      contents: read
+    outputs:
+      artifact-id: ${{ steps.artifact.outputs.artifact-id }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          filter: blob:none
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24.19.0"
+          cache: pnpm
+
+      - uses: moonrepo/setup-toolchain@261c62cb5b0f580c7be7c8cd0f023a2e96756095 # v0
+        with:
+          # proto install reads moon from .prototools. A moon-version literal would hide a stale pin.
+          auto-install: true
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: moon ci, every task
+        run: moon ci --force
+
+      - name: Pack every published package once
+        run: node scripts/release.mjs pack "$RUNNER_TEMP/release"
+
+      - name: Scan the release tarballs for secrets
+        run: node scripts/check-packed-secrets.mjs "$RUNNER_TEMP/release"
+
+      - name: Check the release tarballs as a consumer installs them
+        run: node scripts/published-shape.mjs "$RUNNER_TEMP/release"
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        id: artifact
+        with:
+          name: release-tarballs-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/release
+          if-no-files-found: error
+          retention-days: 30
+
+  # Uploads the gated tarballs, then tags them. Authentication is npm's: it tries OIDC trusted
+  # publishing first and falls back to NODE_AUTH_TOKEN, so the LILO_NPM_TOKEN bootstrap and the
+  # tokenless steady state need no edit here. Rerunning this job after a partial failure skips the
+  # versions already on the registry.
+  publish:
+    name: Publish
+    needs: gate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24.19.0"
+          registry-url: "https://registry.npmjs.org"
+
+      # Trusted publishing needs npm 11.5 or later. The pin keeps the publishing client explicit.
+      - name: Install npm
+        run: |
+          npm install --global npm@11.20.0 --ignore-scripts
+          test "$(npm --version)" = "11.20.0"
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          artifact-ids: ${{ needs.gate.outputs.artifact-id }}
+          merge-multiple: true
+          path: ${{ runner.temp }}/release
+
+      - name: Refuse conflicting release tags before uploading
+        run: node scripts/release.mjs preflight "$RUNNER_TEMP/release"
+
+      - name: Publish the gated tarballs
+        run: node scripts/release.mjs publish "$RUNNER_TEMP/release"
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.LILO_NPM_TOKEN }}
+          NPM_CONFIG_PROVENANCE: "true"
+
+      - name: Tag and create GitHub releases
+        run: |
+          export GIT_CONFIG_COUNT=1
+          export GIT_CONFIG_KEY_0=http.https://github.com/.extraheader
+          # GitHub masks GH_TOKEN, not its base64 form, so mask that as actions/checkout does.
+          credential="$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
+          echo "::add-mask::$credential"
+          export GIT_CONFIG_VALUE_0="AUTHORIZATION: basic $credential"
+          node scripts/release.mjs tag "$RUNNER_TEMP/release"
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          GIT_COMMITTER_NAME: github-actions[bot]
+          GIT_COMMITTER_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
+
+  # A consumer's first install, from the public registry, of exactly what was published.
+  smoke:
+    name: Smoke
+    needs: [gate, publish]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24.19.0"
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          artifact-ids: ${{ needs.gate.outputs.artifact-id }}
+          merge-multiple: true
+          path: ${{ runner.temp }}/release
+
+      - name: Install and typecheck the published versions
+        run: node scripts/release.mjs smoke "$RUNNER_TEMP/release"

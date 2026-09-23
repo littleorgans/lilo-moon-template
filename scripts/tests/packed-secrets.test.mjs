@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import {
+  appendFileSync,
   copyFileSync,
   chmodSync,
   mkdirSync,
@@ -13,27 +14,8 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { test } from "node:test";
 
-import { publishedPackages } from "../lib/published-packages.mjs";
-
 const script = resolve("scripts/check-packed-secrets.mjs");
-
-// Until task 1.8 publishes the scanned archives, Changesets packs a second time. These hooks
-// could change package contents between the scan and upload, so adding one requires that redesign.
-await test("published packages have no lifecycle scripts that can change the scanned contents", () => {
-  const packages = publishedPackages();
-  assert.ok(packages.length > 0, "no published packages found");
-  const hooks = ["prepack", "prepare", "prepublishOnly", "postpack"];
-  const violations = packages.flatMap(({ directory, manifest }) =>
-    hooks
-      .filter((hook) => Object.hasOwn(manifest.scripts ?? {}, hook))
-      .map((hook) => `${directory}/package.json: ${hook}`),
-  );
-  assert.deepEqual(
-    violations,
-    [],
-    "publish the scanned archives (task 1.8) before adding packaging lifecycle scripts",
-  );
-});
+const release = resolve("scripts/release.mjs");
 
 // A published package whose dist carries `content`. dist is ignored by root:secrets, so only the
 // packed scan can see it.
@@ -50,10 +32,10 @@ function packageFixture(t, content) {
   return root;
 }
 
-function scan(root, env = {}) {
+function scan(root, env = {}, args = []) {
   const temporary = join(root, "tmp");
   mkdirSync(temporary, { recursive: true });
-  const result = spawnSync("node", [script], {
+  const result = spawnSync("node", [script, ...args], {
     cwd: root,
     encoding: "utf8",
     env: { ...process.env, TMPDIR: temporary, TMP: temporary, TEMP: temporary, ...env },
@@ -106,4 +88,29 @@ await test("no publishable packages fails closed", (t) => {
   const failed = scan(root);
   assert.equal(failed.status, 1);
   assert.match(failed.stderr, /no published packages/);
+});
+
+// The release gate scans the tarballs it publishes rather than packing its own.
+await test("given a release directory, the scan reads those tarballs and refuses a changed one", (t) => {
+  const token = ["npm", "Ab3dEf6hIj9kLm2nOp5qRs8tUv1wXy4zAb7c"].join("_");
+  const root = packageFixture(t, `export const token = "${token}";\n`);
+  const packed = spawnSync("node", [release, "pack", "release"], { cwd: root, encoding: "utf8" });
+  assert.equal(packed.status, 0, packed.stderr);
+  // Source without the token: only the release tarball holds it, so a pass would mean a repack.
+  writeFileSync(join(root, "packages/fixture/dist/index.js"), "export const value = 1;\n");
+  const leaked = scan(root, {}, ["release"]);
+  assert.equal(leaked.status, 1, `${leaked.stdout}${leaked.stderr}`);
+  assert.match(leaked.stdout, /NPM_ACCESS_TOKEN/);
+
+  appendFileSync(
+    join(
+      root,
+      "release",
+      readdirSync(join(root, "release")).find((name) => name.endsWith(".tgz")),
+    ),
+    "\0",
+  );
+  const changed = scan(root, {}, ["release"]);
+  assert.equal(changed.status, 1);
+  assert.match(changed.stderr, /changed after it was packed and scanned/);
 });
