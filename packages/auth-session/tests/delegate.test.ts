@@ -1,4 +1,6 @@
 import { randomBytes } from "node:crypto";
+import { createServer } from "node:http";
+import type { IncomingMessage, Server, ServerResponse } from "node:http";
 import { setTimeout as nextTurn } from "node:timers/promises";
 import { inspect } from "node:util";
 
@@ -100,6 +102,7 @@ function depsWith(
   verify: Verifier,
   auth: WorkOSAuth = authDouble().auth,
   serviceOrigins: readonly string[] = [service],
+  send: "recorded" | "live" = "recorded",
 ) {
   const logged: TokenFailure[] = [];
   const wire = sender();
@@ -110,7 +113,8 @@ function depsWith(
     auth,
     log: (failure) => logged.push(failure),
     serviceOrigins,
-    fetch: wire.fetch,
+    // Left out for "live", so the default, Node's own fetch, is what sends.
+    ...(send === "recorded" ? { fetch: wire.fetch } : {}),
   };
   return { deps, logged, sent: wire.sent };
 }
@@ -188,14 +192,42 @@ describe("fetch as the signed-in person", () => {
   });
 
   // Appending would send two credentials joined by a comma, and auth-http refuses that pair as
-  // malformed. Replacing makes the person's token the only one that travels.
-  it("replaces an Authorization header the caller set", async () => {
+  // malformed. Replacing makes the person's token the only one that travels, however the caller
+  // spelt theirs and however many times: header names compare case-insensitively, so two spellings
+  // are one header, and the second joins the first rather than surviving beside the token.
+  const spellings: [string, NonNullable<RequestInit["headers"]>][] = [
+    ["in lower case", { authorization: "Bearer other" }],
+    ["in title case", { Authorization: "Bearer other" }],
+    ["under two spellings", { authorization: "Bearer one", AUTHORIZATION: "Bearer two" }],
+    ["as a Headers instance", new Headers({ Authorization: "Basic b3BlcmF0b3I6cHc=" })],
+    [
+      "as a list of pairs",
+      [
+        ["authorization", "Bearer one"],
+        ["Authorization", "Bearer two"],
+      ],
+    ],
+  ];
+  it.each(spellings)("replaces an Authorization header the caller set %s", async (_, headers) => {
     const { deps, sent } = depsWith(valid);
     const user = signedIn(await readUserAccess(session().jar, deps));
 
-    await user.fetch(new URL("/v1/me", service), { headers: { authorization: "Bearer other" } });
+    await user.fetch(new URL("/v1/me", service), { headers });
 
     expect(sent[0]?.authorization).toBe(`Bearer ${ACCESS}`);
+  });
+
+  // The caller's own Headers object is copied, not written to. Otherwise the token would sit in a
+  // value the caller still holds, and may well reuse, log or return.
+  it("leaves the caller's Headers object without the token", async () => {
+    const { deps } = depsWith(valid);
+    const user = signedIn(await readUserAccess(session().jar, deps));
+    const own = new Headers({ "x-request-id": "r1" });
+
+    await user.fetch(`${service}/v1/me`, { headers: own });
+
+    expect(own.get("authorization")).toBeNull();
+    expect([...own.keys()]).toStrictEqual(["x-request-id"]);
   });
 
   it.each([
@@ -232,6 +264,18 @@ describe("fetch as the signed-in person", () => {
 
     await expect(user.fetch(blob)).rejects.toThrow("services are http or https");
     expect(sent).toHaveLength(0);
+  });
+
+  // What goes out is the URL object the origin check read, so the check and the send cannot see
+  // two different addresses. The visible consequence: the wire gets the parsed form, with the case
+  // of the host, a default port and surrounding whitespace all normalised away.
+  it("sends the parsed URL it checked, not the string it was given", async () => {
+    const { deps, sent } = depsWith(valid);
+    const user = signedIn(await readUserAccess(session().jar, deps));
+
+    await user.fetch(" HTTPS://API.example.com:443/v1/me\t");
+
+    expect(sent.map((request) => request.url)).toStrictEqual([`${service}/v1/me`]);
   });
 
   it("refuses every call when no service origins are configured", async () => {
@@ -395,5 +439,66 @@ describe("service origins", () => {
 
     await user.fetch(url);
     expect(sent.map((request) => request.url)).toStrictEqual([url]);
+  });
+});
+
+type Handler = (request: IncomingMessage, response: ServerResponse) => void;
+
+/** A loopback HTTP server on a free port, so a redirect can be followed for real. */
+function listen(handle: Handler): Promise<{ server: Server; origin: string }> {
+  return new Promise((resolve) => {
+    const server = createServer(handle);
+    server.listen(0, "127.0.0.1", () => {
+      const address = server.address();
+      if (address === null || typeof address === "string") throw new Error("no port");
+      resolve({ server, origin: `http://127.0.0.1:${address.port}` });
+    });
+  });
+}
+
+// Node's own fetch against real sockets, not the recording double. What happens after the request
+// leaves this helper is the platform's doing, and the documentation makes a promise about it: a
+// redirect to another origin drops the header. This pins that promise on the pinned Node.
+describe("redirects, through the real fetch", () => {
+  it("keeps the token on a same-origin redirect and drops it across origins", async () => {
+    const seen: { readonly at: string; readonly path: string; readonly bearer: string | null }[] =
+      [];
+    const record = (at: string): Handler => {
+      return (request, response) => {
+        seen.push({ at, path: request.url ?? "", bearer: request.headers.authorization ?? null });
+        const location =
+          request.url === "/same"
+            ? "/landed"
+            : request.url === "/cross"
+              ? `${elsewhere}/landed`
+              : null;
+        if (location === null) {
+          response.end("ok");
+        } else {
+          response.writeHead(302, { location }).end();
+        }
+      };
+    };
+    const other = await listen(record("other"));
+    const elsewhere = other.origin;
+    const own = await listen(record("service"));
+    try {
+      const { deps, sent } = depsWith(valid, authDouble().auth, [own.origin], "live");
+      const user = signedIn(await readUserAccess(session().jar, deps));
+
+      expect(await (await user.fetch(`${own.origin}/same`)).text()).toBe("ok");
+      expect(await (await user.fetch(`${own.origin}/cross`)).text()).toBe("ok");
+
+      expect(sent).toHaveLength(0);
+      expect(seen).toStrictEqual([
+        { at: "service", path: "/same", bearer: `Bearer ${ACCESS}` },
+        { at: "service", path: "/landed", bearer: `Bearer ${ACCESS}` },
+        { at: "service", path: "/cross", bearer: `Bearer ${ACCESS}` },
+        { at: "other", path: "/landed", bearer: null },
+      ]);
+    } finally {
+      own.server.close();
+      other.server.close();
+    }
   });
 });
