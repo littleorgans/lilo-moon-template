@@ -282,6 +282,22 @@ tasks:
       cache: false
       runInCI: "always"
 
+  # secrets skips dist, and dist is most of what npm receives. changeset:publish runs this too,
+  # so a failed scan blocks publishing. Changesets packs again for the actual upload.
+  packed-secrets:
+    description: "Scan the packed tarball of every published package for secrets"
+    type: "test"
+    command: "node scripts/check-packed-secrets.mjs"
+    inputs:
+      - "@globs(sources)"
+      - "/.secretlintrc.json"
+    deps:
+      - "#ts-library:build"
+    options:
+      shell: false
+      cache: false
+      runInCI: true
+
   audit:
     type: "test"
     command: "pnpm audit"
