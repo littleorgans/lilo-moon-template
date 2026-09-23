@@ -3,7 +3,7 @@
 
 # Runtime refuse. Must equal moon in .prototools. CI installs that pin,
 # so a bump to one file without the other fails moon. Independent of littleorgans.
-versionConstraint: "=2.5.1"
+versionConstraint: "=2.5.5"
 
 projects:
   globs:

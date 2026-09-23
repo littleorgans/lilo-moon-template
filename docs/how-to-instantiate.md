@@ -14,8 +14,8 @@ Use the creator to configure both remotes and register the project.
 
 ## Install the tools first
 
-`just setup` needs `just` and moon `2.5.1` on `PATH`. The workspace `versionConstraint` in
-`.moon/workspace.yml` is `=2.5.1`. Any other moon release is rejected. proto is the version manager
+`just setup` needs `just` and moon `2.5.5` on `PATH`. The workspace `versionConstraint` in
+`.moon/workspace.yml` is `=2.5.5`. Any other moon release is rejected. proto is the version manager
 that reads `.prototools`. CI installs moon from that file. `just setup` does not install just, moon,
 or proto.
 
@@ -28,7 +28,7 @@ bash <(curl -fsSL https://moonrepo.dev/install/proto.sh)
 Finish the installer prompt so `~/.proto/bin` is on `PATH`. Then pin moon to the workspace version:
 
 ```bash
-proto install moon 2.5.1
+proto install moon 2.5.5
 ```
 
 Install just from the [just installation guide](https://github.com/casey/just#installation). On
@@ -46,7 +46,7 @@ moon --version
 just --version
 ```
 
-`moon --version` must print `2.5.1`.
+`moon --version` must print `2.5.5`.
 
 ## Create the repository
 
