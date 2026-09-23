@@ -153,7 +153,7 @@ a run before job-level concurrency protects a publish and can leave a partial re
 has exercised neither the OIDC publish path nor the extra workflow gate, so it does not prescribe an
 integration recipe.
 
-The Version Packages PR is authored by `secrets.HELIOY_PAT`, an organization-level token, when that
+The Version Packages PR is authored by `secrets.LILO_GITHUB_PAT`, a repository-level token, when that
 secret exists, and by `GITHUB_TOKEN` when it does not. Leave it unset and releases still work, but
 the PR arrives from `github-actions[bot]` in an approval-required state: its `CI` run comes back
 `action_required`, the required check never reports, and the PR cannot merge until a maintainer
