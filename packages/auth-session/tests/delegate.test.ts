@@ -12,7 +12,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { readAccess, refreshesInFlight } from "../src/access.js";
 import { readUserAccess } from "../src/delegate.js";
-import type { UserAccess, UserAccessDeps } from "../src/delegate.js";
+import type { ServiceOrigin, UserAccess, UserAccessDeps } from "../src/delegate.js";
 import type { TokenFailure } from "../src/failure.js";
 import { SESSION_COOKIE, readSession, seal } from "../src/session.js";
 import { jarWith } from "./support.js";
@@ -101,7 +101,7 @@ function sender(): { fetch: typeof fetch; sent: Sent[] } {
 function depsWith(
   verify: Verifier,
   auth: WorkOSAuth = authDouble().auth,
-  serviceOrigins: readonly string[] = [service],
+  serviceOrigins: readonly ServiceOrigin[] = [service],
   send: "recorded" | "live" = "recorded",
 ) {
   const logged: TokenFailure[] = [];
@@ -421,11 +421,49 @@ describe("when there is no usable session", () => {
 });
 
 describe("service origins", () => {
+  it("names the per-origin opt-in when it refuses plain http", async () => {
+    const { deps } = depsWith(valid, authDouble().auth, ["http://api:3000"]);
+    await expect(readUserAccess(session().jar, deps)).rejects.toThrow(
+      'List a service on a network you trust as { origin: "http://api:3000", insecure: true }.',
+    );
+  });
+
+  // The flag covers the one origin it is written beside. Nothing about it widens to the host, the
+  // port, the scheme, or the other entries.
   it.each([
+    ["another port on the same host", "http://api:3001/v1/me"],
+    ["another host on the same port", "http://api-2:3000/v1/me"],
+    ["the https origin of the same host", "https://api:3000/v1/me"],
+    ["plain http to an origin listed only as https", "http://api.example.com/v1/me"],
+  ])("still refuses %s", async (_, url) => {
+    const { deps, sent } = depsWith(valid, authDouble().auth, [
+      service,
+      { origin: "http://api:3000", insecure: true },
+    ]);
+    const user = signedIn(await readUserAccess(session().jar, deps));
+
+    await expect(user.fetch(url)).rejects.toThrow("not in serviceOrigins");
+    expect(sent).toHaveLength(0);
+  });
+
+  // Built from JSON rather than typed, because the type already refuses it: a JavaScript caller or
+  // a value parsed from configuration is how an object without the flag would arrive.
+  const unflagged: ServiceOrigin = JSON.parse('{"origin":"http://api:3000","insecure":false}');
+  const quoted: ServiceOrigin = JSON.parse('{"origin":"http://api:3000","insecure":"false"}');
+
+  it.each<[string, ServiceOrigin, string]>([
     ["plain http off localhost", "http://api.example.com", "must use HTTPS"],
     ["a path", "https://api.example.com/v1", "origin only"],
     ["a query", "https://api.example.com/?v=1", "origin only"],
     ["a user name", "https://operator@api.example.com", "origin only"],
+    ["an insecure entry that is https", { origin: service, insecure: true }, "is not http"],
+    [
+      "an insecure entry with a path",
+      { origin: "http://api:3000/v1", insecure: true },
+      "origin only",
+    ],
+    ["an object without insecure: true", unflagged, "without insecure: true"],
+    ["an insecure flag that is a string, even a truthy one", quoted, "without insecure: true"],
   ])("refuses %s before the session is read", async (_, origin, message) => {
     let reads = 0;
     const { deps } = depsWith(valid, authDouble().auth, [origin]);
@@ -435,8 +473,13 @@ describe("service origins", () => {
     expect(reads).toBe(0);
   });
 
-  it.each([
+  it.each<[string, ServiceOrigin, string]>([
     ["http on localhost", "http://localhost:8787", "http://localhost:8787/v1/me"],
+    [
+      "plain http on a trusted network when the origin is marked insecure",
+      { origin: "http://api:3000", insecure: true },
+      "http://api:3000/v1/me",
+    ],
     ["a trailing slash and a default port", "https://API.example.com:443/", `${service}/v1/me`],
   ])("accepts %s", async (_, origin, url) => {
     const { deps, sent } = depsWith(valid, authDouble().auth, [origin]);

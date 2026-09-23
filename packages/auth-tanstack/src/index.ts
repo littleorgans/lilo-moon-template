@@ -3,6 +3,8 @@
 export type {
   Access,
   AuthFailureReport,
+  InsecureServiceOrigin,
+  ServiceOrigin,
   Throttle,
   ThrottleDecision,
   ThrottleKey,

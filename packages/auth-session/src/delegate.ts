@@ -28,31 +28,64 @@ export type UserAccess =
   | { readonly status: "signed-in"; readonly principal: Principal; readonly fetch: UserFetch }
   | Exclude<Access, { readonly status: "signed-in" }>;
 
+/**
+ * A service reached over plain `http` on a network the application trusts, such as
+ * `{ origin: "http://api:3000", insecure: true }` for a service inside the same cluster.
+ *
+ * The person's bearer token crosses that network readable by anything on the path, so there is no
+ * switch that allows `http` everywhere. Each such origin is listed on its own, and `insecure: true`
+ * is required, so the exception is written down next to the one address it covers.
+ */
+export interface InsecureServiceOrigin {
+  readonly origin: string;
+  readonly insecure: true;
+}
+
+/** An `https` origin (or `http` on localhost) as a string, or one opted-in plain `http` origin. */
+export type ServiceOrigin = string | InsecureServiceOrigin;
+
 export interface UserAccessDeps extends AccessDeps {
   /**
    * Every origin the token may be sent to, such as `https://api.example.com`. Anything else is
    * refused. An empty list refuses every call, which is the right default for an application that
    * calls no services.
    */
-  readonly serviceOrigins: readonly string[];
+  readonly serviceOrigins: readonly ServiceOrigin[];
   /** Overridable so a test never needs a listening service. Defaults to the global `fetch`. */
   readonly fetch?: typeof fetch;
 }
 
 const LOOPBACK = new Set(["localhost", "127.0.0.1", "[::1]"]);
 
+// The type already requires `true`. Read as unknown because JavaScript callers and parsed config
+// need not honour it, and a truthy test would take the string "false" as consent.
+function isTrue(flag: unknown): boolean {
+  return flag === true;
+}
+
 /**
  * Checks one configured service origin, returning it in the form `URL.origin` compares against.
  *
  * HTTPS except on localhost, the rule `WORKOS_REDIRECT_URI` already follows: a bearer token over
- * plain http is readable by anything on the path. A path, query or credentials are refused rather
- * than dropped, because `https://api.example.com/v1` reads as if it limited the token to `/v1`, and
- * the origin is the only boundary this enforces.
+ * plain http is readable by anything on the path. An `InsecureServiceOrigin` is the one exception,
+ * and it must be `http`: on an `https` origin the flag would claim a risk that is not there. A
+ * path, query or credentials are refused rather than dropped, because `https://api.example.com/v1`
+ * reads as if it limited the token to `/v1`, and the origin is the only boundary this enforces.
  */
-function serviceOrigin(value: string): string {
+function serviceOrigin(entry: ServiceOrigin): string {
+  const value = typeof entry === "string" ? entry : entry.origin;
   const url = new URL(value);
-  if (url.protocol !== "https:" && !(url.protocol === "http:" && LOOPBACK.has(url.hostname))) {
-    throw new Error(`Service origin ${value} must use HTTPS except on localhost.`);
+  if (typeof entry === "string") {
+    if (url.protocol !== "https:" && !(url.protocol === "http:" && LOOPBACK.has(url.hostname))) {
+      throw new Error(
+        `Service origin ${value} must use HTTPS except on localhost. List a service on a network ` +
+          `you trust as { origin: "${value}", insecure: true }.`,
+      );
+    }
+  } else if (!isTrue(entry.insecure)) {
+    throw new Error(`Service origin ${value} is an object without insecure: true.`);
+  } else if (url.protocol !== "http:") {
+    throw new Error(`Service origin ${value} is marked insecure but is not http.`);
   }
   // Anything beyond the origin, whether path, query, fragment or credentials, lengthens the href.
   if (url.href !== `${url.origin}/`) {
