@@ -32,6 +32,19 @@
     }
   },
   "publishConfig": {
+    "exports": {
+      "./globals.css": "./src/globals.css",
+      "./components/*": {
+        "types": "./dist/components/*.d.ts",
+        "import": "./dist/components/*.js",
+        "default": "./dist/components/*.js"
+      },
+      "./lib/*": {
+        "types": "./dist/lib/*.d.ts",
+        "import": "./dist/lib/*.js",
+        "default": "./dist/lib/*.js"
+      }
+    },
     "access": "public"
   },
   "dependencies": {

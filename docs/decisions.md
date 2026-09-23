@@ -234,7 +234,7 @@ condition `@littleorgans/source` points at `src` for Vite `serve` only. Applicat
 condition in `vite.config.ts` when `command === "serve"`. They do not add it to the production
 build.
 
-The condition stays in the workspace. `.pnpmfile.cjs` removes it from every packed manifest,
+The condition stays in the workspace. Each library’s `publishConfig.exports` omits it from the packed manifest,
 because an application that installs the packages and runs `vite dev` through
 `@littleorgans/vite-config` would otherwise resolve them to `src` inside `node_modules`.
 `root:published-shape` rejects any tarball whose `exports` use a condition other than `types`,

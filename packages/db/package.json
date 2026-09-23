@@ -28,6 +28,15 @@
     "./grants/*": "./grants/*"
   },
   "publishConfig": {
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "import": "./dist/index.js",
+        "default": "./dist/index.js"
+      },
+      "./migrations/*": "./migrations/*",
+      "./grants/*": "./grants/*"
+    },
     "access": "public"
   },
   "dependencies": {

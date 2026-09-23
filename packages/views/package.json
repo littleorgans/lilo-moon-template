@@ -26,6 +26,14 @@
     }
   },
   "publishConfig": {
+    "exports": {
+      "./sources.css": "./src/sources.css",
+      "./*": {
+        "types": "./dist/*/index.d.ts",
+        "import": "./dist/*/index.js",
+        "default": "./dist/*/index.js"
+      }
+    },
     "access": "public"
   },
   "dependencies": {
