@@ -3,8 +3,8 @@ import type { WorkOSAuth } from "@littleorgans/auth-workos";
 import { ensureOrganization, establishSession } from "./callback.js";
 import type { SessionDeps } from "./callback.js";
 import type { CookieJar } from "./cookies.js";
-import { dispositionFor, failurePage, messageFor, reasonFor } from "./failure.js";
-import type { CallbackFailure } from "./failure.js";
+import { dispositionFor, dispositionPage, failurePage, reasonFor } from "./failure.js";
+import type { EmailFailure } from "./failure.js";
 import { refuseCrossOrigin } from "./origin.js";
 import { EMAIL_COOKIE } from "./session.js";
 import { throttled } from "./throttle.js";
@@ -50,7 +50,7 @@ export interface EmailStartDeps extends EmailGuardDeps {
   /** Where the person types the code. The application's route, not this package's. */
   readonly codeEntryPath: string;
   /** Told about every failure the provider raises, same contract as the callback's. */
-  readonly log: (failure: CallbackFailure) => void;
+  readonly log: (failure: EmailFailure) => void;
 }
 
 /**
@@ -93,8 +93,8 @@ export async function startEmailSignIn(
   } catch (error) {
     const reason = reasonFor(error);
     const disposition = dispositionFor(reason);
-    deps.log({ kind: "callback", reason, disposition, error });
-    return failurePage(messageFor(disposition));
+    deps.log({ kind: "email", step: "start", reason, disposition, error });
+    return dispositionPage(disposition);
   }
 
   // Written only after the provider accepted the address, so the cookie always names an email a
@@ -114,7 +114,7 @@ export interface EmailVerifyDeps extends SessionDeps, EmailGuardDeps {
   readonly auth: WorkOSAuth;
   /** Where the person is sent back to when the code they typed is not the code that was sent. */
   readonly codeEntryPath: string;
-  readonly log: (failure: CallbackFailure) => void;
+  readonly log: (failure: EmailFailure) => void;
 }
 
 /**
@@ -169,9 +169,9 @@ export async function completeEmailSignIn(
   } catch (error) {
     const reason = reasonFor(error);
     const disposition = dispositionFor(reason);
-    deps.log({ kind: "callback", reason, disposition, error });
+    deps.log({ kind: "email", step: "verify", reason, disposition, error });
     if (reason === "code-rejected") return retry;
-    return failurePage(messageFor(disposition));
+    return dispositionPage(disposition);
   }
 
   // Spent only on success. A typo must not cost the person the address they already proved they

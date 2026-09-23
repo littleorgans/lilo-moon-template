@@ -1,7 +1,7 @@
 import type { Authentication, WorkOSAuth } from "@littleorgans/auth-workos";
 
 import type { CookieJar } from "./cookies.js";
-import { dispositionFor, failurePage, messageFor, reasonFor } from "./failure.js";
+import { dispositionFor, dispositionPage, failurePage, reasonFor } from "./failure.js";
 import type { CallbackFailure } from "./failure.js";
 import type { SessionCookieDeps } from "./session.js";
 import { STATE_COOKIE, stateMatches, writeSession } from "./session.js";
@@ -146,7 +146,7 @@ export async function handleCallback(
     const reason = reasonFor(error);
     const disposition = dispositionFor(reason);
     deps.log({ kind: "callback", reason, disposition, error });
-    return failurePage(messageFor(disposition));
+    return dispositionPage(disposition);
   }
 
   return establishSession(jar, deps, authentication);

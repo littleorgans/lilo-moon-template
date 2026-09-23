@@ -2,7 +2,14 @@ import { WorkOSAuthError } from "@littleorgans/auth-workos";
 import type { WorkOSAuthFailure } from "@littleorgans/auth-workos";
 import { describe, expect, it } from "vitest";
 
-import { dispositionFor, failurePage, messageFor, reasonFor } from "../src/failure.js";
+import {
+  dispositionFor,
+  dispositionPage,
+  failurePage,
+  messageFor,
+  reasonFor,
+  statusFor,
+} from "../src/failure.js";
 import type { CallbackDisposition } from "../src/failure.js";
 
 /**
@@ -112,11 +119,35 @@ describe("failurePage", () => {
     expect(body).toContain('href="/"');
   });
 
+  it("serves the status it is given", () => {
+    expect(failurePage("Something went wrong.", 503).status).toBe(503);
+  });
+
   // This page has to render when the rest of the request is broken, so it may not depend on a
   // stylesheet, a bundle, or anything else that has to load first.
   it("depends on nothing that has to load", async () => {
     const body = await failurePage("Something went wrong.").text();
     expect(body).not.toContain("<script");
     expect(body).not.toContain("stylesheet");
+  });
+});
+
+// The status is what monitoring reads. Only a provider that cannot serve anyone is a 5xx; every
+// other disposition stays 400, so an alert on 5xx is not paged by a person's typo.
+describe("statusFor", () => {
+  it("serves retry as 503 and every other disposition as 400", () => {
+    expect({
+      retry: statusFor("retry"),
+      unsupported: statusFor("unsupported"),
+      misconfigured: statusFor("misconfigured"),
+    }).toStrictEqual({ retry: 503, unsupported: 400, misconfigured: 400 });
+  });
+});
+
+describe("dispositionPage", () => {
+  it("pairs the disposition's message with its status", async () => {
+    const response = dispositionPage("retry");
+    expect(response.status).toBe(503);
+    expect(await response.text()).toContain(messageFor("retry"));
   });
 });

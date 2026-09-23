@@ -5,7 +5,7 @@ import type { Authentication, WorkOSAuth, WorkOSAuthFailure } from "@littleorgan
 import { describe, expect, it } from "vitest";
 
 import { completeEmailSignIn, startEmailSignIn } from "../src/email.js";
-import type { CallbackFailure } from "../src/failure.js";
+import type { EmailFailure } from "../src/failure.js";
 import { EMAIL_COOKIE, SESSION_COOKIE, readSession } from "../src/session.js";
 import { jarWith, throttleDouble } from "./support.js";
 
@@ -93,14 +93,14 @@ function formRequest(
   };
 }
 
-function logSink(): { log: (failure: CallbackFailure) => void; failures: CallbackFailure[] } {
-  const failures: CallbackFailure[] = [];
+function logSink(): { log: (failure: EmailFailure) => void; failures: EmailFailure[] } {
+  const failures: EmailFailure[] = [];
   return { failures, log: (failure) => failures.push(failure) };
 }
 
 const startDeps = (
   auth: WorkOSAuth,
-  log: (failure: CallbackFailure) => void,
+  log: (failure: EmailFailure) => void,
   throttle = throttleDouble().throttle,
 ) => ({
   auth,
@@ -113,7 +113,7 @@ const startDeps = (
 
 const verifyDeps = (
   auth: WorkOSAuth,
-  log: (failure: CallbackFailure) => void,
+  log: (failure: EmailFailure) => void,
   throttle = throttleDouble().throttle,
 ) => ({
   auth,
@@ -185,9 +185,10 @@ describe("startEmailSignIn", () => {
       startDeps(failing, log),
     );
 
-    expect(response.status).toBe(400);
+    expect(response.status).toBe(503);
     expect(await response.text()).toContain("temporarily unavailable");
-    expect(failures.map((failure) => failure.reason)).toStrictEqual(["rate-limited"]);
+    // Its own kind, so a collector can tell codes that could not be sent from a failed redirect.
+    expect(failures).toMatchObject([{ kind: "email", step: "start", reason: "rate-limited" }]);
     expect(written).toHaveLength(0);
   });
 });
@@ -273,7 +274,7 @@ describe("completeEmailSignIn", () => {
     expect(response.status).toBe(302);
     expect(response.headers.get("location")).toBe("/verify-email?retry=true");
     expect(cleared).toHaveLength(0);
-    expect(failures.map((failure) => failure.reason)).toStrictEqual(["code-rejected"]);
+    expect(failures).toMatchObject([{ kind: "email", step: "verify", reason: "code-rejected" }]);
   });
 
   it("treats a missing code as rejected without calling the provider", async () => {
@@ -287,9 +288,13 @@ describe("completeEmailSignIn", () => {
     expect(calls).toHaveLength(0);
   });
 
-  it.each(["unavailable", "sso-required", "invalid-request"] satisfies WorkOSAuthFailure[])(
-    "collapses a %s failure exactly as the callback does",
-    async (reason) => {
+  it.each([
+    ["unavailable", 503],
+    ["sso-required", 400],
+    ["invalid-request", 400],
+  ] satisfies [WorkOSAuthFailure, number][])(
+    "collapses a %s failure exactly as the callback does, served as %i",
+    async (reason, status) => {
       const { jar, cleared } = jarWith({ [EMAIL_COOKIE]: "owner@example.com" });
       const { auth } = authDouble(() =>
         Promise.reject(new WorkOSAuthError({ reason, message: reason, cause: null })),
@@ -302,9 +307,9 @@ describe("completeEmailSignIn", () => {
         verifyDeps(auth, log),
       );
 
-      expect(response.status).toBe(400);
+      expect(response.status).toBe(status);
       expect(cleared).toHaveLength(0);
-      expect(failures.map((failure) => failure.reason)).toStrictEqual([reason]);
+      expect(failures).toMatchObject([{ kind: "email", step: "verify", reason }]);
     },
   );
 });

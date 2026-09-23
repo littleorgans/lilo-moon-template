@@ -279,11 +279,11 @@ rendered `{"status":400,"message":"HTTPError"}`, which tells the person nothing 
 less. The same rule as above applies, and the same discipline: collapse them, and write down which
 ones collapse.
 
-| Disposition     | Reasons                                                                                                                         | What the person sees                  |
-| --------------- | ------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
-| `retry`         | `rate-limited`, `unavailable`                                                                                                   | Temporarily unavailable, try again    |
-| `unsupported`   | `email-verification-required`, `organization-selection-required`, the three `mfa-*`, `radar-challenge-required`, `sso-required` | A step this application has not built |
-| `misconfigured` | `invalid-request`, `unauthorized`, `not-found`, `conflict`, `configuration`, `provider`                                         | Not set up correctly, recorded        |
+| Disposition     | Reasons                                                                                                                         | What the person sees                  | Status |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- | ------ |
+| `retry`         | `rate-limited`, `unavailable`                                                                                                   | Temporarily unavailable, try again    | 503    |
+| `unsupported`   | `email-verification-required`, `organization-selection-required`, the three `mfa-*`, `radar-challenge-required`, `sso-required` | A step this application has not built | 400    |
+| `misconfigured` | `invalid-request`, `unauthorized`, `not-found`, `conflict`, `configuration`, `provider`                                         | Not set up correctly, recorded        | 400    |
 
 **`retry` is the only one that tells someone to try again**, because waiting is the entire remedy
 for exactly those two and advice that cannot work is worse than none.
@@ -296,6 +296,21 @@ failure is reported rather than only rendered. Catching an error to draw a page 
 trace the framework would have printed, and a callback that renders without reporting trades a bad
 page for a silent outage. The default destination is one JSON line per failure on stderr,
 overridable by the application.
+
+**Only `retry` is a 5xx.** Until 2026-09-24 every row was a 400, so monitoring could not tell a
+provider outage from a person's mistake. A rate limit or an outage is the provider unable to serve
+anyone, which is what 503 means and what an alert on 5xx should hear. `unsupported` is a property
+of the account signing in. `misconfigured` holds reasons that are ours, but `invalid-request` is
+the provider calling the request malformed, which a submitted value can cause as easily as our
+code, so a 5xx there would page someone for a typo; its log line is what makes a wrong API key
+findable. The refusals that come before the provider is asked (a forged or stale `state`, no code,
+no address, an expired email cookie) are the request's own fault and stay 400.
+
+**The email-code path collapses its failures the same way and logs them under their own kind.**
+They reused the callback's until 2026-09-24, so a code that could not be sent was logged as
+`auth.callback.failed`. The default sink now writes `auth.callback.failed` for the redirect,
+`auth.email.failed` with a `step` of `start` or `verify` for the email path, and
+`auth.token.failed` for a token that fails verification.
 
 **No message names the reason.** Several of these failures are indistinguishable from someone
 probing the callback, and a message naming the failed check tells them which one to change.

@@ -33,6 +33,7 @@ export type {
   AuthFailureReport,
   CallbackDisposition,
   CallbackFailure,
+  EmailFailure,
   TokenFailure,
 } from "./failure.js";
 export { refuseCrossOrigin } from "./origin.js";

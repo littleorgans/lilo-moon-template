@@ -24,6 +24,21 @@ export interface CallbackFailure {
 }
 
 /**
+ * The same, raised by the email-code sign-in rather than the redirect callback.
+ *
+ * Its own kind so a collector can tell the flows apart: a spike in codes that could not be sent is
+ * a different incident from a spike in redirects that could not be exchanged, and one event name
+ * for both hides which. `step` says which half failed, sending the code or checking it.
+ */
+export interface EmailFailure {
+  readonly kind: "email";
+  readonly step: "start" | "verify";
+  readonly reason: WorkOSAuthFailure;
+  readonly disposition: CallbackDisposition;
+  readonly error: unknown;
+}
+
+/**
  * A token that failed verification, for the same reader.
  *
  * Every reason is reported, not only the one that earns a screen. A signature that does not check
@@ -44,7 +59,7 @@ export interface TokenFailure {
 }
 
 /** Everything an application's log sink is handed. One sink, so one place to point at a collector. */
-export type AuthFailureReport = CallbackFailure | TokenFailure;
+export type AuthFailureReport = CallbackFailure | EmailFailure | TokenFailure;
 
 const MESSAGES: Readonly<Record<CallbackDisposition, string>> = {
   // Nothing is wrong with the account or the configuration. Waiting is the whole remedy.
@@ -102,20 +117,48 @@ export function reasonFor(error: unknown): WorkOSAuthFailure {
 }
 
 /**
+ * The status a disposition is served with, so monitoring can tell an outage from a person's error.
+ *
+ * Only `retry` leaves 400. Its two reasons, a rate limit and a provider outage, are the provider
+ * being unable to serve anyone, which is what 503 says and what an alert on 5xx should hear.
+ * `unsupported` is a property of the account signing in, not of the service. `misconfigured` stays
+ * 400 too, although it holds reasons that are ours: `invalid-request` is the provider calling the
+ * request malformed, which a submitted value can cause as easily as our code, and a 5xx for that
+ * would page someone for a typo. Its log line, not its status, is what makes a wrong API key findable.
+ */
+const STATUSES: Readonly<Record<CallbackDisposition, number>> = {
+  retry: 503,
+  unsupported: 400,
+  misconfigured: 400,
+};
+
+/**
  * The page a failed sign-in renders.
  *
  * Deliberately plain, with no stylesheet and no client script. Sign-in failing is not the moment to
  * discover a styling dependency, and this page has to render when everything else in the request is
  * broken.
+ *
+ * 400 by default, for the failures the request itself caused: a forged or stale state, a missing
+ * code, an empty address. A provider refusal goes through `dispositionPage`, which picks the status.
  */
-export function failurePage(message: string): Response {
+export function failurePage(message: string, status = 400): Response {
   return new Response(
     `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Sign-in failed</title></head>` +
       `<body><h1>Sign-in failed</h1><p>${message}</p><p><a href="/">Back to sign in</a></p></body></html>`,
-    { status: 400, headers: { "content-type": "text/html; charset=utf-8" } },
+    { status, headers: { "content-type": "text/html; charset=utf-8" } },
   );
 }
 
 export function messageFor(disposition: CallbackDisposition): string {
   return MESSAGES[disposition];
+}
+
+export function statusFor(disposition: CallbackDisposition): number {
+  return STATUSES[disposition];
+}
+
+/** The page for a provider refusal: the disposition's message, served with its status. */
+export function dispositionPage(disposition: CallbackDisposition): Response {
+  return failurePage(messageFor(disposition), statusFor(disposition));
 }
