@@ -10,14 +10,22 @@ import { MissingToolError, runTool } from "./tools.js";
 const missing =
   "atlas is not on PATH. Install it from https://atlasgo.io/getting-started, or pin it in .prototools and run proto install.";
 
-/** Fails fast with an install hint, before any container starts. */
+/** Fails fast, before any container starts: with an install hint when atlas is absent, and with
+ * Atlas's own words when it is present but cannot run, such as a proto shim without a pin. */
 export function requireAtlas(env: Env = process.env): void {
   const result = spawnSync("atlas", ["version"], {
+    encoding: "utf8",
     env: { ...env },
-    stdio: "ignore",
+    stdio: ["ignore", "pipe", "pipe"],
     timeout: 30_000,
   });
-  if (result.error !== undefined || result.status !== 0) throw new MissingToolError(missing);
+  if (result.error !== undefined && "code" in result.error && result.error.code === "ENOENT") {
+    throw new MissingToolError(missing);
+  }
+  if (result.status !== 0) {
+    const detail = `${result.stderr}${result.stdout}`.trim().split("\n").at(-1);
+    throw new MissingToolError(`atlas version failed: ${detail || result.error?.message}`);
+  }
 }
 
 function atlas(args: readonly string[], env: Env | undefined): void {

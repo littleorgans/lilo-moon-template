@@ -707,6 +707,9 @@ function checkBins(root, packages) {
 // PATH and drizzle-kit resolved as db-tools's peer from the consumer's node_modules. --root puts the
 // database in this checkout's container rather than a new one for the scratch directory.
 function generateConsumerSchema(root, installed) {
+  // A project pins Atlas in .prototools (the adoption guides copy this one), and a proto shim on
+  // PATH cannot choose a version without it.
+  cpSync(join(source, ".prototools"), join(root, ".prototools"));
   const out = join(root, "db/drizzle/_generated");
   succeeded(
     capture(root, join(root, "node_modules/.bin/db-tools"), [

@@ -80,6 +80,16 @@ describe("db-tools command line", () => {
     },
   );
 
+  it("says why an atlas on PATH cannot run, rather than calling it missing", async () => {
+    const PATH = fakePath({ atlas: 'echo "atlas is not a built-in plugin" >&2; exit 1' });
+    const { code, stderr } = await run(["atlas-apply"], {
+      PATH,
+      DATABASE_URL: "postgres://db/app",
+    });
+    expect(code).toBe(exitCodes.setup);
+    expect(stderr).toContain("atlas version failed: atlas is not a built-in plugin");
+  });
+
   it("atlas-apply needs a URL", async () => {
     const { code, stderr } = await run(["atlas-apply"]);
     expect(code).toBe(exitCodes.usage);
