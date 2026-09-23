@@ -36,8 +36,10 @@ const app = new Hono<AuthEnv>()
     "/api/*",
     requireAuth({
       verify,
-      onRejection: ({ code, cause }) => {
-        if (code === "auth_unavailable") console.error(cause);
+      onRejection: ({ code, cause, request }) => {
+        if (code === "auth_unavailable") {
+          console.error({ code, reason: cause?.reason, method: request.method });
+        }
       },
     }),
   )
@@ -101,6 +103,13 @@ so serializing an `Authentication` result cannot leak more. The `AuthError` caus
 `onRejection` as an ordinary field, so it survives spreading and JSON loggers. Keep it in trusted
 server logs. `rejectionResponse` sets `Cache-Control: no-store` on every rejection, 503 included.
 
+The event contains the **original, unredacted request** for application correlation. Never pass
+it wholesale to a logger, spread it into a log record, or log its headers or full URL: object
+inspection and request serializers can expose Authorization, cookies, and query credentials.
+Select fields explicitly, as in the example above. Prefer an application-generated correlation
+ID. Error messages and cause chains can also contain secrets; the example records only the
+verifier's enumerated reason. Custom serializers and redaction belong to the application.
+
 | Condition                                                | Status                                   | `WWW-Authenticate`             | `error`            |
 | -------------------------------------------------------- | ---------------------------------------- | ------------------------------ | ------------------ |
 | No Authorization header, or a scheme other than Bearer   | 401                                      | `Bearer`                       | `missing_token`    |
@@ -140,11 +149,16 @@ Cookies belong to `@littleorgans/auth-session`, which pairs them with CSRF defen
 lookup; return a boolean rather than throwing an `AuthError` for a denied permission.
 `onRejection` receives the request for correlation. It covers expected auth rejections. The
 response does not wait for it: a synchronous observer runs before the response is returned, but
-an async one is not awaited. An observer that throws or rejects is reported with `console.error`
-and does not change the response, so a logging outage cannot turn every 401 into a 500 or a hang.
-On a runtime that stops work when the response is sent, finish async logging synchronously or
-hand it to the runtime's own background mechanism. Unexpected errors from `verify` or
-`authorize` propagate to the framework's error handler. The default Hono error handler returns a
+an async one is not awaited. Keep synchronous work short: an async function still runs its
+synchronous prefix on the response path, and the library cannot interrupt blocking code.
+A throw or rejected promise produces only the fixed `console.error` message
+`auth-http: onRejection failed`; arbitrary thrown values are not logged because they may contain
+credentials. A throwing fallback reporter is also contained. For a custom error sink, catch and
+report failures inside your observer using the application's redaction policy.
+On a runtime that stops work when the response is sent, hand the logging promise to the runtime's
+own background mechanism. Detached work is best-effort and is not a durable audit log.
+
+Unexpected errors from `verify` or `authorize` propagate to the framework's error handler. The default Hono error handler returns a
 generic 500; a custom handler must avoid returning error messages or stacks.
 
 These operations are not constant-time: malformed syntax, signature checks, and JWKS fetches
