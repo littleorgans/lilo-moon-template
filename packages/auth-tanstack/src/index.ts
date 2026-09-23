@@ -7,6 +7,8 @@ export type {
   ThrottleDecision,
   ThrottleKey,
   ThrottleStep,
+  UserAccess,
+  UserFetch,
 } from "@littleorgans/auth-session";
 // Re-exported for an application's own POST routes, which the runtime does not handle.
 export { refuseCrossOrigin } from "@littleorgans/auth-session";

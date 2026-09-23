@@ -4,17 +4,20 @@ import {
   handleCallback,
   loadAuthConfig,
   readAccess,
+  readUserAccess,
   signOut,
   startAuthorization,
   startEmailSignIn,
 } from "@littleorgans/auth-session";
 import type {
   Access,
+  AccessDeps,
   AuthConfig,
   AuthFailureReport,
   AuthServices,
   CookieJar,
   Throttle,
+  UserAccess,
 } from "@littleorgans/auth-session";
 import type { AuthorizationProvider } from "@littleorgans/auth-workos";
 
@@ -48,6 +51,12 @@ export interface AuthRuntimeOptions {
    * is a line that misses the aggregator.
    */
   readonly log?: (failure: AuthFailureReport) => void;
+  /**
+   * The only origins `asUser().fetch` sends the person's access token to, such as
+   * `https://api.example.com`. HTTPS except on localhost. Defaults to none, so an application that
+   * calls no services cannot send the token anywhere.
+   */
+  readonly serviceOrigins?: readonly string[];
 }
 
 /**
@@ -72,6 +81,13 @@ export interface AuthRuntime {
   readonly endSession: (context: { readonly request: Request }) => Response;
   /** Who is calling: signed in, nobody, or a token this application will not act on. */
   readonly access: () => Promise<Access>;
+  /**
+   * Who is calling, and on success a `fetch` that calls a service as them. Server code only.
+   *
+   * The way to reach a service on the person's behalf. There is no accessor for the token itself:
+   * a string can be returned from a loader, logged, or sent anywhere, and this cannot.
+   */
+  readonly asUser: () => Promise<UserAccess>;
 }
 
 /**
@@ -99,6 +115,16 @@ export function createAuthRuntime(options: AuthRuntimeOptions): AuthRuntime {
 
   const origin = () => new URL(services().config.redirectUri).origin;
   const nameFor = (name: string) => `${services().config.cookieNamespace}_${name}`;
+  const accessDeps = (): AccessDeps => {
+    const { auth, config, verify } = services();
+    return {
+      auth,
+      verify,
+      cookieKey: config.cookieKey,
+      secureCookies: config.secureCookies,
+      log: options.log ?? reportAuthFailure,
+    };
+  };
   const jar: CookieJar = {
     read: (name) => rawJar.read(nameFor(name)),
     write: (name, value, cookieOptions) => rawJar.write(nameFor(name), value, cookieOptions),
@@ -171,15 +197,12 @@ export function createAuthRuntime(options: AuthRuntimeOptions): AuthRuntime {
       });
     },
 
-    access: async () => {
-      const { auth, config, verify } = services();
-      return await readAccess(jar, {
-        auth,
-        verify,
-        cookieKey: config.cookieKey,
-        secureCookies: config.secureCookies,
-        log: options.log ?? reportAuthFailure,
-      });
-    },
+    access: async () => await readAccess(jar, accessDeps()),
+
+    asUser: async () =>
+      await readUserAccess(jar, {
+        ...accessDeps(),
+        serviceOrigins: options.serviceOrigins ?? [],
+      }),
   };
 }

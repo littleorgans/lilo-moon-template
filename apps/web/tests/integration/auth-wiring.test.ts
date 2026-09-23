@@ -1,3 +1,6 @@
+import { createCipheriv, generateKeyPairSync, randomBytes, sign } from "node:crypto";
+import { inspect } from "node:util";
+
 import type { Throttle } from "@littleorgans/auth-tanstack";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -204,5 +207,66 @@ describe("application services", () => {
 
     expect(config.issuer).toContain(env.WORKOS_CLIENT_ID);
     expect(config.jwksUri).toContain(env.WORKOS_CLIENT_ID);
+  });
+});
+
+// A key this test owns, served in place of the WorkOS JWKS, so the real verifier accepts a session
+// minted here and the signed-in path runs end to end without a network.
+const { privateKey, publicKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
+const jwk = { ...publicKey.export({ format: "jwk" }), kid: "test-key", alg: "RS256", use: "sig" };
+
+const encode = (value: unknown) => Buffer.from(JSON.stringify(value)).toString("base64url");
+
+function mint(claims: Readonly<Record<string, unknown>>): string {
+  const body = `${encode({ alg: "RS256", kid: "test-key", typ: "JWT" })}.${encode(claims)}`;
+  return `${body}.${sign("sha256", Buffer.from(body), privateKey).toString("base64url")}`;
+}
+
+/**
+ * The session cookie's envelope, written out because this application imports only the adapter.
+ * If it drifts from `seal` in auth-session, the loader below redirects and the test fails.
+ */
+function sealSession(key: Buffer, session: { accessToken: string; refreshToken: string }): string {
+  const iv = randomBytes(12);
+  const cipher = createCipheriv("aes-256-gcm", key, iv);
+  const body = Buffer.concat([cipher.update(JSON.stringify(session), "utf8"), cipher.final()]);
+  return Buffer.concat([iv, cipher.getAuthTag(), body]).toString("base64url");
+}
+
+describe("the access token stays on the server", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  // What the loader returns is serialised into the page. The token that proved the session must be
+  // in neither that value nor the Principal inside it, however either is read.
+  it("is absent from the signed-in loader's output and its Principal", async () => {
+    const { auth } = await import("../../src/server/auth.js");
+    const { loadWorkspaceOrRedirect } =
+      await import("../../src/features/workspace/server/load-workspace.js");
+    const { config } = auth.services();
+    const token = mint({
+      iss: config.issuer,
+      sub: "user_01HBEQ",
+      org_id: "org_01M0",
+      exp: Math.floor(Date.now() / 1000) + 300,
+    });
+    cookies.set(
+      `${config.cookieNamespace}_lilo_session`,
+      sealSession(config.cookieKey, { accessToken: token, refreshToken: "r" }),
+    );
+    vi.stubGlobal("fetch", (input: string | URL) =>
+      String(input) === config.jwksUri
+        ? Promise.resolve(Response.json({ keys: [jwk] }))
+        : Promise.reject(new Error(`unexpected fetch ${String(input)}`)),
+    );
+
+    const view = await loadWorkspaceOrRedirect();
+
+    expect(view.principal.userId).toBe("user_01HBEQ");
+    for (const value of [view, view.principal]) {
+      expect(JSON.stringify(value)).not.toContain(token);
+      expect(inspect(value, { depth: Infinity, showHidden: true })).not.toContain(token);
+    }
   });
 });
