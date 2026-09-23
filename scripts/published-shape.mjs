@@ -27,7 +27,7 @@ import {
 import { pruneReferences } from "./lib/typescript-references.mjs";
 
 const source = process.cwd();
-const scratch = mkdtempSync(join(tmpdir(), "baseline-consumer-"));
+const scratch = mkdtempSync(join(tmpdir(), "published-shape-"));
 const snapshot = join(scratch, "snapshot");
 const packed = join(scratch, "packed");
 const tarballs = join(scratch, "tarballs");
@@ -39,7 +39,7 @@ process.env.GIT_COMMITTER_EMAIL = process.env.GIT_AUTHOR_EMAIL;
 const env = projectEnvironment();
 
 function run(cwd, command, args) {
-  process.stdout.write(`consumer-check: ${command} ${args.join(" ")}\n`);
+  process.stdout.write(`published-shape: ${command} ${args.join(" ")}\n`);
   return projectCommand(cwd, command, args);
 }
 
@@ -112,7 +112,7 @@ function checkDbPeerFloors(manifestPath, manifest) {
   run(web, process.execPath, ["--input-type=module", "-e", "await import(process.argv[1])", name]);
   run(packed, "moon", ["run", "web:typecheck", "--force"]);
   const installed = Object.entries(floors).map(([peer, floor]) => `${peer} ${floor}`);
-  process.stdout.write(`consumer-check: db loads and typechecks on ${installed.join(", ")}.\n`);
+  process.stdout.write(`published-shape: db loads and typechecks on ${installed.join(", ")}.\n`);
 }
 
 function rejectViolation(root, file, content, target, failure) {
@@ -129,7 +129,7 @@ function rejectViolation(root, file, content, target, failure) {
     assert.match(output, failure);
     const line = output.split("\n").find((entry) => failure.test(entry));
     process.stdout.write(
-      `consumer-check: negative proof ${target}, exit ${result.status}: ${line}\n`,
+      `published-shape: negative proof ${target}, exit ${result.status}: ${line}\n`,
     );
   } finally {
     rmSync(path, { force: true });
@@ -261,7 +261,7 @@ async function exercise(root) {
     assert.match(themed, /data-mode="dark"/);
     assert.match(themed, /data-theme="canvas"/);
     process.stdout.write(
-      `consumer-check: built HTML, CSS and theme cookie round trip passed in ${root}\n`,
+      `published-shape: built HTML, CSS and theme cookie round trip passed in ${root}\n`,
     );
   } finally {
     app.kill("SIGTERM");
@@ -441,7 +441,7 @@ try {
   run(root, join(source, "node_modules/.bin/tsc"), ["--project", "tsconfig.json"]);
   run(root, join(source, "node_modules/.bin/tsc"), ["--project", "tsconfig.database.json"]);
   run(root, process.execPath, ["service.ts"]);
-  process.stdout.write(`consumer-check: packed auth-http served 401 and 200 in ${root}\n`);
+  process.stdout.write(`published-shape: packed auth-http served 401 and 200 in ${root}\n`);
   await exerciseServiceDatabase(root, dbName);
 }
 
@@ -450,7 +450,7 @@ try {
 // broken twice over, then in a scratch database built from the installed db's migrations.
 function verifyServiceRls(root, databaseUrl, loginUrl, password) {
   const rlsVerify = (url, args = []) => {
-    process.stdout.write(`consumer-check: rls-verify ${args.join(" ")}\n`);
+    process.stdout.write(`published-shape: rls-verify ${args.join(" ")}\n`);
     const result = spawnSync(join(root, "node_modules/.bin/rls-verify"), args, {
       cwd: root,
       env: { ...env, DATABASE_URL: url },
@@ -480,7 +480,7 @@ function verifyServiceRls(root, databaseUrl, loginUrl, password) {
       assert.equal(status, 1, `rls-verify accepted: ${broken}`);
       assert.match(output, failure);
       process.stdout.write(
-        `consumer-check: negative proof rls-verify, exit ${status}: ${broken}\n`,
+        `published-shape: negative proof rls-verify, exit ${status}: ${broken}\n`,
       );
     } finally {
       psqlInput(databaseUrl, restored);
@@ -495,7 +495,7 @@ function verifyServiceRls(root, databaseUrl, loginUrl, password) {
 async function exerciseServiceDatabase(root, dbName) {
   if (!process.env.CI && !dockerIsAvailable()) {
     process.stdout.write(
-      "consumer-check: service database skipped locally: Docker is unavailable.\n",
+      "published-shape: service database skipped locally: Docker is unavailable.\n",
     );
     return;
   }
@@ -513,12 +513,12 @@ async function exerciseServiceDatabase(root, dbName) {
         { cwd: root, encoding: "utf8" },
       ).trim(),
     );
-  await withPostgres("consumer-check", async (databaseUrl) => {
+  await withPostgres("published-shape", async (databaseUrl) => {
     const migrations = join(installed, "migrations");
     for (const file of readdirSync(migrations)
       .filter((name) => name.endsWith(".sql"))
       .toSorted()) {
-      process.stdout.write(`consumer-check: psql -f ${relative(root, join(migrations, file))}\n`);
+      process.stdout.write(`published-shape: psql -f ${relative(root, join(migrations, file))}\n`);
       psqlInput(databaseUrl, readFileSync(resolveExport(`migrations/${file}`)));
     }
     // Roles are cluster-wide, so the pid keeps concurrent runs apart.
@@ -552,7 +552,7 @@ async function exerciseServiceDatabase(root, dbName) {
           login_role: roles.granted,
         });
       }
-      process.stdout.write(`consumer-check: node database.ts as ${roles.granted}\n`);
+      process.stdout.write(`published-shape: node database.ts as ${roles.granted}\n`);
       execFileSync(process.execPath, ["database.ts"], {
         cwd: root,
         env: {
@@ -572,7 +572,7 @@ async function exerciseServiceDatabase(root, dbName) {
     }
   });
   process.stdout.write(
-    "consumer-check: packed db migrations and grant isolated each org; the ungranted role was refused.\n",
+    "published-shape: packed db migrations and grant isolated each org; the ungranted role was refused.\n",
   );
 }
 
@@ -645,7 +645,7 @@ try {
     writeFileSync(viewsSources, "");
     run(snapshot, "moon", ["run", "web:build"]);
     await assert.rejects(exercise(snapshot), /published views must register/);
-    process.stdout.write("consumer-check: missing CSS source registration was rejected.\n");
+    process.stdout.write("published-shape: missing CSS source registration was rejected.\n");
   } finally {
     writeFileSync(viewsSources, registeredSources);
   }
@@ -696,7 +696,7 @@ try {
   await exercise(packed);
   checkDbPeerFloors(manifestPath, manifest);
   await exerciseService(artifacts);
-  process.stdout.write("consumer-check: snapshot, packed and service consumers passed.\n");
+  process.stdout.write("published-shape: snapshot, packed and service consumers passed.\n");
 } finally {
   rmSync(scratch, { recursive: true, force: true });
 }

@@ -42,7 +42,7 @@ published from a previous build. Formatting inputs cover the files and configura
 
 The repository is a reference implementation and the source of published packages, not a
 template. Projects depend on the packages rather than copying this tree, so fixes reach them
-through upgrades; [the direction](direction.md) records why. `root:consumer-check` exercises a
+through upgrades; [the direction](direction.md) records why. `root:published-shape` exercises a
 snapshot of this workspace and packed package consumption in disposable workspaces.
 
 ## One linter, one formatter

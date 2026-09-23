@@ -61,7 +61,7 @@ catalogs:
     vite: "^8.0.0"
   # packages/db exports Drizzle types, so a second drizzle-orm copy breaks consumer typechecks
   # (TS2345 on tx.execute). drizzle-orm is 0.x and breaks in minors, so the caret holds one minor;
-  # consumer-check installs the floor. pg is used only through Pool, but the named ESM import
+  # published-shape installs the floor. pg is used only through Pool, but the named ESM import
   # (`import { Pool } from "pg"`) needs the ESM wrapper pg added in 8.15.0; earlier releases throw
   # "Named export 'Pool' not found" at load time.
   db-peer:

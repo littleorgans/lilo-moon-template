@@ -58,10 +58,10 @@ tasks:
       cache: false
       runInCI: false
 
-  consumer-check:
+  published-shape:
     description: "Build and run a snapshot of this workspace, then repeat with packed libraries"
     type: "test"
-    command: "node scripts/consumer-check.mjs"
+    command: "node scripts/published-shape.mjs"
     inputs:
       - "@globs(sources)"
       - "scripts/**/*"
@@ -261,7 +261,7 @@ tasks:
       - "pnpm-lock.yaml"
       - "pnpm-workspace.yaml"
     # The generic checks come from @littleorgans/db-tools's build, like any consumer's. A project
-    # edge rather than a named target: consumer-check's packed copy has no packages to build.
+    # edge rather than a named target: published-shape's packed copy has no packages to build.
     deps:
       - "^:build"
     checks:

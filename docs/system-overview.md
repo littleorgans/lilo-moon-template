@@ -345,7 +345,7 @@ For any login role other than a superuser, `SET LOCAL ROLE authenticated` needs 
 `authenticated`. The package and all repository gates share `packages/db/migrations/`, including
 its Atlas checksum. The login grant lives in `packages/db/grants/login-role.sql`. The
 [`@littleorgans/db` README](../packages/db/README.md#set-up-the-database) covers applying them, the
-role model, and least privilege. `root:consumer-check` applies both from the packed tarball and
+role model, and least privilege. `root:published-shape` applies both from the packed tarball and
 connects as a fresh login role.
 
 That directory is append-only, because every file in it ships.
@@ -439,12 +439,12 @@ TypeScript project references are written by `moon sync` (`typescript.syncProjec
 | Database behavior           | Real Postgres 17 in Docker        | `root:rls-verify` (7 assertions), `root:drizzle-check`, `root:atlas-lint`                         |
 | Service against Postgres    | Real Postgres 17, real listener   | `services/api/tests/integration/database.test.js`: shipped migrations and grant, tenant isolation |
 | Repository scripts          | `node --test`                     | `scripts/tests/**` (Moon task shape, hooks, pins, fixed version group, licenses)                  |
-| Workspace consumer          | Snapshot build, HTTP probes       | `root:consumer-check`: gate negative proofs, route status codes, CSS utilities, packed tarballs   |
+| Workspace consumer          | Snapshot build, HTTP probes       | `root:published-shape`: gate negative proofs, route status codes, CSS utilities, packed tarballs  |
 
 Tests reach the security logic through the seams listed above, not through mocks of framework
-internals. `consumer-check` also proves that the gates fail. It plants a type error, a failing
+internals. `published-shape` also proves that the gates fail. It plants a type error, a failing
 assertion, a floating promise and malformed formatting in a snapshot of the workspace, and asserts
-that each gate rejects its violation (`scripts/consumer-check.mjs`, `rejectViolation`). No test drives a real
+that each gate rejects its violation (`scripts/published-shape.mjs`, `rejectViolation`). No test drives a real
 browser or a live WorkOS environment. The `measured against the live API` comments in
 `packages/auth-workos` and `packages/auth-session` record manual observations.
 
@@ -453,7 +453,7 @@ browser or a live WorkOS environment. The `measured against the live API` commen
 `.github/workflows/ci.yml` runs one job on `vars.CI_RUNNER || ubuntu-latest`. It checks out full
 history, installs pnpm, Node 24.19.0 and the Moon toolchain from `.prototools`, then runs
 `pnpm install --frozen-lockfile` and `moon ci` with `MOON_BASE` and `MOON_HEAD` set for affected
-detection. Tasks marked `runInCI: "always"` run on every change. These include `consumer-check`,
+detection. Tasks marked `runInCI: "always"` run on every change. These include `published-shape`,
 `lint`, `format-check`, `secrets`, `audit`, `rls-verify` and `drizzle-check`.
 
 `.github/workflows/release.yml` runs Changesets on pushes to `main`. It opens or updates a Version

@@ -81,7 +81,7 @@ const TASK_DATABASES = {
   "atlas-diff": "atlas_diff",
   "db-test": "db_test",
   "api-test": "api_test",
-  "consumer-check": "consumer_check",
+  "published-shape": "published_shape",
   "db-tools-test": "db_tools_test",
 };
 
