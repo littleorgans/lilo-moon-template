@@ -150,14 +150,14 @@ classDiagram
 
 ### Persistence
 
-| Term                             | Meaning                                                                                                                                                               | Code                                            |
-| -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
-| **Account**                      | The tenant row, one per WorkOS organization, inserted just in time. Product tables are meant to reference it.                                                         | `db/schema.sql`                                 |
-| **Profile**                      | Per-user application state, one per WorkOS user. It deliberately has no foreign key to an account, because a user can belong to several.                              | `db/schema.sql`                                 |
-| **`authenticated` role**         | The Postgres role every scoped transaction switches to. It is named to match Supabase's role.                                                                         | `db/migrations/20260822081700_identity.sql`     |
-| **Claims GUC**                   | `request.jwt.claims`, set transaction-locally from the `Principal`, never from the raw token. It is read by `app.current_user_id()` and `app.current_org_id()`.       | `packages/db/src/scoped.ts`, identity migration |
-| **Scoped transaction**           | The only way to query as a user: one client, `BEGIN`, set role, set claims, body, `COMMIT`. Role and claims vanish at commit.                                         | `runScoped`, `Database.withPrincipal`           |
-| **Desired state vs. migrations** | `db/schema.sql` feeds `atlas migrate diff`. Policies, functions, roles and grants exist only in hand-written migrations, because Atlas Community drops them silently. | `docs/decisions.md`, `moon.yml` Atlas tasks     |
+| Term                             | Meaning                                                                                                                                                               | Code                                                 |
+| -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| **Account**                      | The tenant row, one per WorkOS organization, inserted just in time. Product tables are meant to reference it.                                                         | `db/schema.sql`                                      |
+| **Profile**                      | Per-user application state, one per WorkOS user. It deliberately has no foreign key to an account, because a user can belong to several.                              | `db/schema.sql`                                      |
+| **`authenticated` role**         | The Postgres role every scoped transaction switches to. It is named to match Supabase's role.                                                                         | `packages/db/migrations/20260822081700_identity.sql` |
+| **Claims GUC**                   | `request.jwt.claims`, set transaction-locally from the `Principal`, never from the raw token. It is read by `app.current_user_id()` and `app.current_org_id()`.       | `packages/db/src/scoped.ts`, identity migration      |
+| **Scoped transaction**           | The only way to query as a user: one client, `BEGIN`, set role, set claims, body, `COMMIT`. Role and claims vanish at commit.                                         | `runScoped`, `Database.withPrincipal`                |
+| **Desired state vs. migrations** | `db/schema.sql` feeds `atlas migrate diff`. Policies, functions, roles and grants exist only in hand-written migrations, because Atlas Community drops them silently. | `docs/decisions.md`, `moon.yml` Atlas tasks          |
 
 ### Presentation
 

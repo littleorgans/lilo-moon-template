@@ -147,7 +147,7 @@ directions, without failing. That is the exact failure shape `decisions.md` alre
 for lint and for coverage.
 
 **Everything Atlas cannot model lives in a hand-written migration**,
-`db/migrations/20260822081700_identity.sql`. Atlas leaves it alone on re-diff: with the dev URL
+`packages/db/migrations/20260822081700_identity.sql`. Atlas leaves it alone on re-diff: with the dev URL
 pinned to `search_path=public`, neither the `app` schema nor the policies appear on either side of
 the comparison, so no drift is planned and `atlas migrate lint` reports the version ok. Both were
 verified rather than assumed.

@@ -450,7 +450,9 @@ async function exerciseServiceDatabase(root, dbName) {
   const installed = join(root, "node_modules", dbName);
   await withPostgres("consumer-check", async (databaseUrl) => {
     const migrations = join(installed, "migrations");
-    for (const file of readdirSync(migrations).toSorted()) {
+    for (const file of readdirSync(migrations)
+      .filter((name) => name.endsWith(".sql"))
+      .toSorted()) {
       process.stdout.write(`consumer-check: psql -f ${relative(root, join(migrations, file))}\n`);
       psqlInput(databaseUrl, readFileSync(join(migrations, file)));
     }

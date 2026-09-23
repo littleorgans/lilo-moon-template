@@ -353,13 +353,13 @@ for 30 seconds after the old token's first use.
 `Database.withPrincipal` (`packages/db/src/database.ts`) takes one pooled client and runs
 `runScoped` (`packages/db/src/scoped.ts`). That sequence is `BEGIN`, `SET LOCAL ROLE authenticated`,
 `set_config('request.jwt.claims', <principal JSON>, true)`, the caller's body, then `COMMIT`, or
-`ROLLBACK` on error. Policies in `db/migrations/20260822081700_identity.sql` read the claims through
+`ROLLBACK` on error. Policies in `packages/db/migrations/20260822081700_identity.sql` read the claims through
 `app.current_user_id()` and `app.current_org_id()`. Both tables have RLS enabled and forced, and
 absent claims match no row.
 
 For any login role other than a superuser, `SET LOCAL ROLE authenticated` needs a grant of
-`authenticated`. The package ships these migrations in `packages/db/migrations/`, byte-identical to
-the copies in `db/migrations/`, and the grant in `packages/db/grants/login-role.sql`. The
+`authenticated`. The package and all repository gates share `packages/db/migrations/`, including its Atlas
+checksum. The login grant lives in `packages/db/grants/login-role.sql`. The
 [`@littleorgans/db` README](../packages/db/README.md#set-up-the-database) covers applying them, the
 role model, and least privilege. `root:consumer-check` applies both from the packed tarball and
 connects as a fresh login role.

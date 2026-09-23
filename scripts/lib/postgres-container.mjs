@@ -116,6 +116,7 @@ function psql(sql, capture = false) {
       "exec",
       CONTAINER,
       "psql",
+      "--no-psqlrc",
       "--username",
       "postgres",
       "--dbname",
@@ -239,6 +240,7 @@ export function psqlInput(databaseUrl, sql, variables = {}) {
       "--interactive",
       CONTAINER,
       "psql",
+      "--no-psqlrc",
       "--username",
       "postgres",
       "--dbname",
@@ -257,6 +259,6 @@ export function psqlInput(databaseUrl, sql, variables = {}) {
 // Every task here reaches the database through the migrations, never through schema.sql, so what
 // is verified is what would actually ship.
 export function applyMigrations(databaseUrl) {
-  const directory = resolve(repositoryRoot, "db", "migrations");
+  const directory = resolve(repositoryRoot, "packages", "db", "migrations");
   run("atlas", ["migrate", "apply", "--dir", `file://${directory}`, "--url", databaseUrl]);
 }

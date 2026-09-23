@@ -52,7 +52,8 @@ applies migrations. Step 4 connects as a different role.
 
    The files are not written to be applied twice. If you keep a migration history, copy them into
    your tool's migrations directory instead, and let the tool record what it applied. For Atlas,
-   copy them into `db/migrations/` and run `atlas migrate hash`.
+   use the shipped directory directly (it includes `atlas.sum`), or copy its SQL into your
+   own migration history and regenerate that history's checksum.
 
 2. **Create a login role for the service.** Choose its name and keep its password in your secret
    store:
@@ -128,3 +129,10 @@ order the migrations were written in. A released migration never changes. A late
 this package adds only new files, which sort after the existing ones, and its changelog names
 them. When you upgrade, apply only the files you have not applied yet, in file-name order. A
 migration tool does this for you.
+
+The repository uses this same directory for Atlas, Drizzle and RLS gates. `db:test` rejects
+changes or deletions relative to `MOON_BASE` (default `origin/main`), duplicate versions, and
+new versions older than the base. Fetch the base ref before running it. Atlas additionally
+checks `atlas.sum`. The old directory path in the historical SQL comment is preserved to
+keep migration bytes unchanged; use `atlas migrate hash --dir file://packages/db/migrations`
+when adding migrations. There is no package-owned history table competing with Atlas.
