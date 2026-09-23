@@ -16,17 +16,17 @@ direction](direction.md) describes the packages, publishing and services work in
 
 The baseline makes these choices, recorded in `docs/decisions.md`:
 
-| Concern         | Choice                                                      | Where                                                      |
-| --------------- | ----------------------------------------------------------- | ---------------------------------------------------------- |
-| Task graph      | Moon 2.5.5 for every language                               | `.moon/workspace.yml`, `.moon/tasks/*.yml`, `moon.yml`     |
-| JS packages     | pnpm 11 with catalogs and supply-chain policy               | `pnpm-workspace.yaml`                                      |
-| Languages       | TypeScript 7 (`tsgo`)                                       | `pnpm-workspace.yaml` catalog                              |
-| Lint and format | oxlint (type aware) and oxfmt                               | `.oxlintrc.json`, `.oxfmtrc.json`, `moon.yml` `tasks.lint` |
-| Web framework   | TanStack Start on Vite 8 and Nitro                          | `apps/web/vite.config.ts`                                  |
-| Identity        | WorkOS AuthKit: Google OAuth and email codes                | `packages/auth-workos`, `packages/auth-session`            |
-| Persistence     | Postgres, Atlas SQL migrations, Drizzle client, forced RLS  | `db/`, `packages/db`, `packages/db-tools`                  |
-| UI              | React 19, Tailwind 4, shadcn/Radix components, typed themes | `packages/ui`, `packages/views`, `packages/theme`          |
-| Delivery        | GitHub Actions running `moon ci`, Changesets, Renovate      | `.github/workflows/`, `.changeset/`, `renovate.json`       |
+| Concern         | Choice                                                      | Where                                                              |
+| --------------- | ----------------------------------------------------------- | ------------------------------------------------------------------ |
+| Task graph      | Moon 2.5.5 for every language                               | `.moon/workspace.yml`, `.moon/tasks/*.yml`, `moon.yml`             |
+| JS packages     | pnpm 11 with catalogs and supply-chain policy               | `pnpm-workspace.yaml`                                              |
+| Languages       | TypeScript 7 (`tsgo`)                                       | `pnpm-workspace.yaml` catalog                                      |
+| Lint and format | oxlint (type aware) and oxfmt                               | `packages/oxlint-config`, `.oxfmtrc.json`, `moon.yml` `tasks.lint` |
+| Web framework   | TanStack Start on Vite 8 and Nitro                          | `apps/web/vite.config.ts`                                          |
+| Identity        | WorkOS AuthKit: Google OAuth and email codes                | `packages/auth-workos`, `packages/auth-session`                    |
+| Persistence     | Postgres, Atlas SQL migrations, Drizzle client, forced RLS  | `db/`, `packages/db`, `packages/db-tools`                          |
+| UI              | React 19, Tailwind 4, shadcn/Radix components, typed themes | `packages/ui`, `packages/views`, `packages/theme`                  |
+| Delivery        | GitHub Actions running `moon ci`, Changesets, Renovate      | `.github/workflows/`, `.changeset/`, `renovate/base.json`          |
 
 ## Repository map
 
@@ -44,14 +44,17 @@ The baseline makes these choices, recorded in `docs/decisions.md`:
 │   ├── theme/              Token contract, two themes, validation, generated CSS, preference cookie
 │   ├── ui/                 shadcn primitives plus layout and typography components
 │   ├── views/              Composed reusable screens: sign-in, code entry, session error, theme lab
-│   └── vite-config/        Source-condition and client-boundary settings shared by Vite apps
+│   ├── vite-config/        Source-condition and client-boundary settings for Vite, Vitest defaults
+│   ├── tsconfig/           The shared compiler options that tsconfig.options.json extends
+│   └── oxlint-config/      The shared lint rules that .oxlintrc.json extends, with the layout rule
 ├── db/
 │   ├── schema.sql          Atlas desired state: accounts and profiles
 │   └── drizzle/_generated/ Drizzle introspection artifact, checked but not imported
 ├── scripts/                Database, security, consumer and gate scripts
 ├── .moon/                  Workspace, toolchains, and inherited task layers
 ├── .changeset/             Pending changesets
-├── .github/workflows/      ci.yml (moon ci) and release.yml (Changesets)
+├── .github/workflows/      moon-ci.yml (reusable: moon ci), its caller ci.yml, and release.yml
+├── renovate/base.json      Renovate preset projects extend; renovate.json extends it here too
 └── docs/                   Decisions, guides, specifications and this overview
 ```
 
@@ -445,7 +448,7 @@ TypeScript project references are written by `moon sync` (`typescript.syncProjec
 | --------------------------- | --------------------------------- | ------------------------------------------------------------------------------------------------- |
 | Unit                        | Vitest, shared `vitest.config.ts` | `packages/*/tests/*.test.ts`, `apps/web/tests/features/**`                                        |
 | Composition and integration | Vitest under `tests/integration/` | `apps/web/tests/integration/auth-wiring.test.ts` (real SDK, no network), `routes.test.tsx`        |
-| Coverage floor              | V8, per file: 80/75/80/80         | `vitest.config.ts` lines 14–23                                                                    |
+| Coverage floor              | V8, per file: 80/75/80/80         | `testDefaults` in `packages/vite-config/src/vitest.ts`                                            |
 | Database behavior           | Real Postgres 17 in Docker        | `root:rls-verify` (7 assertions), `root:drizzle-check`, `root:atlas-lint`                         |
 | Service against Postgres    | Real Postgres 17, real listener   | `services/api/tests/integration/database.test.js`: shipped migrations and grant, tenant isolation |
 | Repository scripts          | `node --test`                     | `scripts/tests/**` (Moon task shape, hooks, pins, fixed version group, licenses)                  |
@@ -454,16 +457,21 @@ TypeScript project references are written by `moon sync` (`typescript.syncProjec
 Tests reach the security logic through the seams listed above, not through mocks of framework
 internals. `published-shape` also proves that the gates fail. It plants a type error, a failing
 assertion, a floating promise and malformed formatting in a snapshot of the workspace, and asserts
-that each gate rejects its violation (`scripts/published-shape.mjs`, `rejectViolation`). No test drives a real
+that each gate rejects its violation (`scripts/published-shape.mjs`, `rejectViolation`). In the
+packed consumer, whose root configuration resolves the packed config packages, a feature that
+imports a route must fail `root:lint`. No test drives a real
 browser or a live WorkOS environment. The `measured against the live API` comments in
 `packages/auth-workos` and `packages/auth-session` record manual observations.
 
 ## CI and release
 
-`.github/workflows/ci.yml` runs one job on `vars.CI_RUNNER || ubuntu-latest`. It checks out full
-history, installs pnpm, Node 24.19.0 and the Moon toolchain from `.prototools`, then runs
-`pnpm install --frozen-lockfile` and `moon ci` with `MOON_BASE` and `MOON_HEAD` set for affected
-detection. Tasks marked `runInCI: "always"` run on every change. These include `lint`,
+`.github/workflows/ci.yml` calls the reusable `.github/workflows/moon-ci.yml` on
+`vars.CI_RUNNER || ubuntu-latest`, with a read-only token and no secrets. That job checks out full
+history without keeping the token, installs pnpm, the Node pinned in `.moon/toolchains.yml` and the
+Moon toolchain from `.prototools`, then runs `pnpm install --frozen-lockfile` and `moon ci` with
+`MOON_BASE` and `MOON_HEAD` set for affected detection. A second job named `CI` reports the
+required status check and fails unless `moon ci` succeeded. Projects call the same workflow at a
+release tag ([Use the shared configuration](guides/shared-config.md)). Tasks marked `runInCI: "always"` run on every change. These include `lint`,
 `format-check`, `secrets`, `audit`, `rls-verify` and `drizzle-check`. `published-shape` runs when
 its inputs change: apps, packages, services, scripts, `.moon`, the root manifests, the lockfile or
 `moon.yml`. A documentation-only change skips it.
@@ -481,8 +489,9 @@ commitlint. The root `prepare` script installs them through `scripts/install-hoo
 `lefthook install` only when the package is the root of a main checkout. Linked worktrees share its
 `.git/hooks`, and lefthook writes the installing checkout's path into each hook. A copy of the
 package below another repository's root is skipped, because lefthook would install into that
-repository and create a default `lefthook.yml` there. Renovate (`renovate.json`) groups the
-TypeScript and tsgolint pins and the three Moon pins. `root:tsgolint-lockstep` and
+repository and create a default `lefthook.yml` there. Renovate (`renovate/base.json`, which
+`renovate.json` extends) groups the TypeScript and tsgolint pins, the three Moon pins, and the
+`@littleorgans/*` packages with the `moon-ci.yml` tag. `root:tsgolint-lockstep` and
 `scripts/tests/versions.test.mjs` enforce agreement between those pins.
 
 Supply-chain policy in `pnpm-workspace.yaml` covers several risks. Dependency lifecycle scripts are

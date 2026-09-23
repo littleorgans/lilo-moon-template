@@ -52,7 +52,9 @@ would make navigation harder. Regenerate `routeTree.gen.ts` through the app buil
 `features/workspace/` demonstrates a complete feature. Its model describes the page data, its server
 modules provision and query the application's tables, and its page receives the result as props.
 The route invokes the feature loader through an explicit Start server function and passes loader
-data to the page. The page can be tested without importing the route or constructing a router.
+data to the page. The page can be tested without importing the route or constructing a router. The dependency runs one
+way: `root:lint` fails a module under `features/` that imports from `routes/` or the generated route
+tree (`no-restricted-imports` in `@littleorgans/oxlint-config`).
 
 `server/` contains application-wide adapters and service construction. Name each module for its
 service or behavior. Put a feature's query alongside that feature. The database package owns pooling

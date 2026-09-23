@@ -7,8 +7,9 @@ not a template, and projects do not copy, rename or rebase it.
 
 ## Status
 
-`0.1.0` is published. All eleven packages below are on npm at that version with provenance, and
-the `v0.1.0` tag and GitHub release mark the commit they were built from. Every package shares one
+`0.1.0` is published. Eleven of the packages below are on npm at that version with provenance,
+and the `v0.1.0` tag and GitHub release mark the commit they were built from. `@littleorgans/tsconfig`
+and `@littleorgans/oxlint-config` first publish in `0.2.0`. Every package shares one
 version (the Changesets `fixed` group), so install them all at the same version. During `0.x` a
 minor release may break. [Releasing the packages](docs/releasing.md) covers how a release is made.
 
@@ -26,10 +27,15 @@ minor release may break. [Releasing the packages](docs/releasing.md) covers how 
 | [`@littleorgans/theme`](https://www.npmjs.com/package/@littleorgans/theme)                 | Typed design token contract, product themes, preferences and the CSS generated from them.                         | none                                               |
 | [`@littleorgans/ui`](https://www.npmjs.com/package/@littleorgans/ui)                       | Shared React components: shadcn primitives, layout, typography and the Tailwind entry stylesheet.                 | `react` ^19, `react-dom` ^19, `tailwindcss` ^4     |
 | [`@littleorgans/views`](https://www.npmjs.com/package/@littleorgans/views)                 | Screens composed from `ui`, with labels and paths supplied by the application.                                    | `react` ^19, `react-dom` ^19                       |
-| [`@littleorgans/vite-config`](https://www.npmjs.com/package/@littleorgans/vite-config)     | Resolves workspace packages to source in an application's Vite config, from a supplied workspace root.            | `vite` ^8                                          |
+| [`@littleorgans/vite-config`](https://www.npmjs.com/package/@littleorgans/vite-config)     | Resolves workspace packages to source in an application's Vite config; `./vitest` holds the shared test defaults. | `vite` ^8, `vitest` ^4.1 (optional)                |
+| [`@littleorgans/tsconfig`](https://www.npmjs.com/package/@littleorgans/tsconfig)           | The strict compiler options a workspace's `tsconfig.options.json` extends.                                        | none                                               |
+| [`@littleorgans/oxlint-config`](https://www.npmjs.com/package/@littleorgans/oxlint-config) | The lint rules a workspace's `.oxlintrc.json` extends, including the feature and route layout rule.               | `oxlint` ^1.79                                     |
 
 [`auth-session`](packages/auth-session/README.md), [`auth-http`](packages/auth-http/README.md),
-[`db`](packages/db/README.md) and [`db-tools`](packages/db-tools/README.md) have their own READMEs. Applications own their tables,
+[`db`](packages/db/README.md), [`db-tools`](packages/db-tools/README.md),
+[`tsconfig`](packages/tsconfig/README.md) and [`oxlint-config`](packages/oxlint-config/README.md)
+have their own READMEs. [Use the shared configuration](docs/guides/shared-config.md) covers the
+config packages, the Renovate preset and the reusable CI workflow together. Applications own their tables,
 provisioning and login roles. Payments, CRM, Zustand persistence, Convex, system theme mode, saved
 user theme editing and service-to-service identity are not implemented.
 

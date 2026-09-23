@@ -310,6 +310,10 @@ What each part is for:
 | `.secretlintrc.json`, `.secretlintignore`, `lefthook.yml`, `commitlint.config.js`    | Secret scanning, the pre-commit subset of the gates, and Conventional Commits.               |
 | `.github/workflows/ci.yml`, `renovate.json`, `justfile`, `.editorconfig`, `.vscode/` | CI runs `moon ci`, dependency updates, command aliases, and editor settings.                 |
 
+From `0.2.0`, `tsconfig.options.json`, `.oxlintrc.json`, `vitest.config.ts`, `renovate.json` and
+`ci.yml` extend or call shared pieces from this repository instead of holding the settings
+themselves. [Use the shared configuration](shared-config.md) shows each file.
+
 A project now owns `packageManager`, `engines`, the catalog pins and the Moon version. Upgrade
 them together: `.prototools` and `versionConstraint` must name the same Moon version, and
 `tsgolint-lockstep` fails when `typescript` and `oxlint-tsgolint` disagree.
