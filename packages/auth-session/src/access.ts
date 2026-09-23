@@ -137,12 +137,19 @@ interface Proven {
  * `current` is the token when it still verifies and the refresh started early, within
  * `REFRESH_MARGIN_SECONDS` of its expiry. Then no failure of the refresh changes the session: the
  * person is served `current`, the failure is logged as `signed-in`, and the cookie is left as it
- * was, apart from the kept replacement above. A provider outage does not become an outage while
- * the token has seconds left. Nor does `invalid_grant` end the session, because inside the margin
- * it is also what a request still carrying the old cookie gets once WorkOS's reuse window has
- * passed, and ending it there would clear the newer cookie the winner wrote. A revoked session
- * still ends, at expiry, which is when it ended before the margin existed. Nothing remembers the
- * failure, so each request inside the margin tries again.
+ * was, apart from a rotated replacement whose verification was unavailable, which is kept as it is
+ * on the expired path. A provider outage does not become an outage while the token has seconds
+ * left. Nor does `invalid_grant` end the session, because inside the margin it is also what a
+ * request still carrying the old cookie gets once WorkOS's reuse window has passed, and ending it
+ * there would clear the newer cookie the winner wrote. A revoked session still ends, at expiry,
+ * which is when it ended before the margin existed: `current` verifies for at most the margin plus
+ * the clock tolerance, so nothing here outlives what the verifier already allowed.
+ *
+ * Nothing remembers the failure, so each request inside the margin tries again. A memory of it,
+ * keyed by the same digest, would need a lifetime of its own and break the rule in `inFlight` that
+ * no entry outlives its call, to save at most the margin plus the tolerance of failing calls per
+ * session: once the token expires, the expired path makes the same call for every request and
+ * returns `unavailable`. Concurrent callers in that time already share one call.
  */
 async function refreshed(
   jar: CookieJar,
@@ -184,10 +191,18 @@ async function refreshed(
  * It must stay below WorkOS's 30-second reuse window, less the verifier's clock tolerance (5 seconds
  * by default). The refresh spends the refresh token while the old access token still verifies, for
  * up to this margin plus that tolerance, and every request still carrying the old cookie in that
- * time, on this instance or another, refreshes with the spent token again. Inside the window WorkOS
- * answers with the same new pair, so each of those responses carries it too. Past it WorkOS refuses,
- * and `refreshed` serves the old token rather than ending the session, but the call is wasted and
- * that response carries no new pair.
+ * time, on this instance or another, refreshes with the spent token again. The first use is never
+ * earlier than this margin before `exp`, so the window reaches at least 30 minus this margin past
+ * `exp`, and the old token stops verifying 5 seconds past it. Inside the window WorkOS answers with
+ * the same new pair, so each of those responses carries it too. Past it WorkOS refuses, and
+ * `refreshed` serves the old token rather than ending the session, but the call is wasted and that
+ * response carries no new pair. Twenty leaves 5 seconds of the window for a slow first call.
+ *
+ * The comparison uses this process's clock, as the verifier's expiry check does. A clock more than
+ * 300 minus this margin seconds ahead of the provider's puts every fresh token inside the margin
+ * and refreshes on every request; 25 seconds more and the verifier rejects every token as expired,
+ * which it always did. There is no guard, because `iat` and `exp` are both the provider's and give
+ * no way to tell skew from age. The remedy is the clock.
  */
 export const REFRESH_MARGIN_SECONDS = 20;
 
