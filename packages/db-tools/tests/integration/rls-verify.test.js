@@ -257,4 +257,126 @@ describe.skipIf(!dockerIsAvailable())("rls-verify against Postgres", () => {
       }
     });
   }, 60_000);
+
+  // Each attempt is one way a function could make the session writable. A later INSERT records
+  // whether any worked; two runs catch a change that only takes effect in the next transaction.
+  it("stays read-only whatever a policy function tries", async () => {
+    await withMigrated(async (databaseUrl) => {
+      const attempts = [
+        "SET SESSION CHARACTERISTICS AS TRANSACTION READ WRITE",
+        "SELECT pg_catalog.set_config('default_transaction_read_only', 'off', false)",
+        "SET TRANSACTION READ WRITE",
+        "SELECT pg_catalog.set_config('transaction_read_only', 'off', true)",
+        "COMMIT",
+        "CREATE FUNCTION pg_temp.pg_has_role(name, oid, text) RETURNS boolean LANGUAGE sql AS 'SELECT true'",
+      ];
+      await sql(
+        databaseUrl,
+        `CREATE TABLE public.audit (what text);
+         CREATE FUNCTION app.escape() RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER AS $f$
+         DECLARE attempt text;
+         BEGIN
+           FOREACH attempt IN ARRAY ARRAY[${attempts.map((a) => `$q$${a}$q$`).join(", ")}] LOOP
+             BEGIN EXECUTE attempt; EXCEPTION WHEN OTHERS THEN NULL; END;
+           END LOOP;
+           BEGIN INSERT INTO public.audit VALUES ('written'); EXCEPTION WHEN OTHERS THEN NULL; END;
+           RETURN false;
+         END $f$;
+         GRANT EXECUTE ON FUNCTION app.escape() TO authenticated;
+         CREATE POLICY escape ON accounts FOR SELECT USING (app.escape());`,
+      );
+      const first = await run([], databaseUrl);
+      const second = await run([], databaseUrl);
+      expect(first.output).toContain("absent claims reveal no rows");
+      expect(second.output).toContain("absent claims reveal no rows");
+      expect((await sql(databaseUrl, "SELECT count(*)::int AS n FROM audit")).rows[0].n).toBe(0);
+    });
+  }, 60_000);
+
+  // Postgres 17 runs login event triggers when the session starts, before any transaction the tool
+  // opens. The session is read-only from its startup parameters, so the trigger's write fails and
+  // so does the connection, rather than the verification writing a row.
+  it("refuses to connect rather than let a login trigger write", async () => {
+    await withMigrated(async (databaseUrl) => {
+      await sql(
+        databaseUrl,
+        `CREATE TABLE public.audit (what text);
+         CREATE FUNCTION public.on_login() RETURNS event_trigger LANGUAGE plpgsql AS $f$
+         BEGIN
+           IF current_setting('application_name') = 'rls-verify' THEN
+             INSERT INTO public.audit VALUES ('login');
+           END IF;
+         END $f$;
+         CREATE EVENT TRIGGER audit_login ON login EXECUTE FUNCTION public.on_login();`,
+      );
+      // A -c in the URL cannot switch the startup read-only default back off.
+      const url = new URL(databaseUrl);
+      url.searchParams.set("options", "-c default_transaction_read_only=off");
+      const { code, output } = await run([], url.href);
+      expect(output).toContain("read-only transaction");
+      expect(code).toBe(exitCodes.setup);
+      expect((await sql(databaseUrl, "SELECT count(*)::int AS n FROM audit")).rows[0].n).toBe(0);
+    });
+  }, 60_000);
+
+  // Policy functions resolve names with the application's search_path. Pinning the claim checks
+  // to pg_catalog would fail this ordinary schema with "relation does not exist".
+  it("runs policy functions with the session's search_path", async () => {
+    await withMigrated(async (databaseUrl) => {
+      await sql(
+        databaseUrl,
+        `CREATE TABLE members (org text);
+         ALTER TABLE members ENABLE ROW LEVEL SECURITY;
+         ALTER TABLE members FORCE ROW LEVEL SECURITY;
+         INSERT INTO members VALUES ('org_a');
+         CREATE FUNCTION public.is_member(org text) RETURNS boolean LANGUAGE sql STABLE
+           SECURITY DEFINER AS 'SELECT org = nullif(current_setting(''request.jwt.claims'', true), '''')::jsonb ->> ''org_id'' AND EXISTS (SELECT 1 FROM members m WHERE m.org = is_member.org)';
+         GRANT EXECUTE ON FUNCTION public.is_member(text) TO authenticated;
+         CREATE POLICY via_members ON accounts FOR SELECT USING (public.is_member(workos_org_id));`,
+      );
+      const { code, output } = await run([], databaseUrl);
+      expect(output).not.toContain("does not exist");
+      expect(code).toBe(exitCodes.passed);
+    });
+  }, 60_000);
+
+  // The claim checks keep the session's search_path, so a look-alike set_config ahead of pg_catalog
+  // could skip the priming transaction and hide a policy that raises on empty claims.
+  it("sets the claims through pg_catalog whatever the search_path", async () => {
+    await withMigrated(async (databaseUrl) => {
+      await sql(
+        databaseUrl,
+        `CREATE FUNCTION public.set_config(text, text, boolean) RETURNS text LANGUAGE sql
+           AS 'SELECT NULL::text';
+         GRANT EXECUTE ON FUNCTION public.set_config(text, text, boolean) TO PUBLIC;
+         CREATE OR REPLACE FUNCTION app.current_org_id() RETURNS text LANGUAGE sql STABLE
+           SET search_path = pg_catalog
+           AS $f$ SELECT current_setting('request.jwt.claims', true)::jsonb ->> 'org_id' $f$;`,
+      );
+      const url = new URL(databaseUrl);
+      url.searchParams.set("options", "-c search_path=public,pg_catalog");
+      const { code, output } = await run([], url.href);
+      expect(output).toContain("threw 22P02");
+      expect(code).toBe(exitCodes.failed);
+    });
+  }, 60_000);
+
+  // Look-alikes that would fail a sound database: pg_roles calling authenticated a superuser, and
+  // to_regrole saying no role exists. The catalog reads pin search_path, so neither is consulted.
+  it("reads the catalogs, not look-alikes on the search_path", async () => {
+    await withMigrated(async (databaseUrl) => {
+      await sql(
+        databaseUrl,
+        `CREATE VIEW public.pg_roles AS
+           SELECT rolname, true AS rolsuper, rolbypassrls FROM pg_catalog.pg_roles;
+         CREATE FUNCTION public.to_regrole(text) RETURNS regrole LANGUAGE sql
+           AS 'SELECT NULL::regrole';`,
+      );
+      const url = new URL(databaseUrl);
+      url.searchParams.set("options", "-c search_path=public,pg_catalog");
+      const { code, output } = await run([], url.href);
+      expect(output).toContain("ok    role authenticated cannot bypass row level security");
+      expect(code).toBe(exitCodes.passed);
+    });
+  }, 60_000);
 });

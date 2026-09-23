@@ -46,7 +46,8 @@ export async function asRole<T>(
   try {
     await client.query(`SET LOCAL ROLE ${quoteIdentifier(role)}`);
     if (claims !== null) {
-      await client.query("SELECT set_config('request.jwt.claims', $1, true)", [
+      // Qualified, because the caller's search_path may put a look-alike ahead of pg_catalog.
+      await client.query("SELECT pg_catalog.set_config('request.jwt.claims', $1, true)", [
         JSON.stringify(claims),
       ]);
     }

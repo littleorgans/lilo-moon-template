@@ -32,17 +32,28 @@ its shipped migrations as the default for `--disposable`.
 DATABASE_URL=postgres://… pnpm exec rls-verify
 ```
 
-Every verification query runs inside an explicit `BEGIN READ ONLY` transaction that is rolled
-back, including catalog reads and empty-table diagnostics. Each transaction pins `search_path` to
-`pg_catalog, pg_temp`, so database objects cannot shadow the catalogs used by the checks. Ordinary
-SQL writes from policy functions, including `SECURITY DEFINER` functions, are refused. A function
-changing session defaults cannot make a later verification transaction writable. Statements time
+The session is read-only from its startup parameters, so it is read-only before any code of the
+database's runs. On Postgres 17 that includes login event triggers: a trigger that writes makes the
+connection fail with exit 3 instead of writing. Then every verification query runs inside an
+explicit `BEGIN READ ONLY` transaction that is rolled back, including catalog reads and empty-table
+diagnostics. Writes from policy functions, including `SECURITY DEFINER` ones, are refused, and a
+function that changes session defaults cannot make a later transaction writable. Statements time
 out after 60 seconds, lock waits after 5, and connections after 10.
 
+The startup parameter travels in the connection's `options`. Connect directly rather than through
+a pooler that rejects `options`, such as a PgBouncer that does not list it in
+`ignore_startup_parameters`.
+
+Catalog reads pin `search_path` to `pg_catalog, pg_temp`, so no database object can stand in for a
+catalog the checks read. The claim checks keep the session's `search_path`, so a policy function
+resolves unqualified names the way it does for the application. Every statement the tool sends in
+them is schema-qualified.
+
 Use a trusted server and a least-privilege login. READ ONLY is a Postgres transaction property, not
-a sandbox for arbitrary server code: external effects from extensions or privileged functions
-(such as network or filesystem access) are outside this guarantee. The CLI does not execute custom
-SQL or `DO` blocks in existing-database mode.
+a sandbox for server code. A function a policy calls can still act outside the transaction: open a
+new connection with `dblink` or `postgres_fdw` and write through it, run `COPY ... TO PROGRAM`, or
+write files. Those effects are outside this guarantee. The CLI does not execute custom SQL or `DO`
+blocks in existing-database mode.
 
 Connect as a user that can `SET ROLE authenticated`: a superuser, the migration owner, or a login
 role granted with `@littleorgans/db`'s `grants/login-role.sql`. The tool stops before any check
@@ -145,10 +156,10 @@ await client.end();
 process.exitCode = failures.length === 0 ? 0 : 1;
 ```
 
-`asRole` runs its body in one transaction as the role with the claims set, and always rolls back.
-A check returns `true` to pass or a string saying what it saw. Policy data errors (`22xxx`), denied
-access (`42501`), read-only write attempts (`25006`), and policy exceptions (`P0001`) are reported as
-check failures. Other thrown errors propagate with the check name; the CLI maps them to exit 3.
+`asRole` runs its body in one transaction as the role with the claims set, and always rolls back. A
+check returns `true` to pass or a string saying what it saw. Policy data errors (`22xxx`), denied
+access (`42501`), read-only write attempts (`25006`), and policy exceptions (`P0001`) are reported
+as check failures. Other thrown errors propagate with the check name; the CLI maps them to exit 3.
 
 The API runs on the client the caller supplies. `asRole` rolls back but intentionally permits write
 probes, such as testing that an INSERT is rejected by RLS. The CLI's read-only transaction wrapper

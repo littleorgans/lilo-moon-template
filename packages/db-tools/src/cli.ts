@@ -101,6 +101,15 @@ function shippedMigrations(): string {
   }
 }
 
+// A startup parameter, so the session is read-only before any code of the database's runs,
+// including a login event trigger. Appended, so a -c already in the URL cannot switch it back off.
+function readOnlyAtStartup(url: URL): URL {
+  const readOnly = new URL(url);
+  const options = [url.searchParams.get("options"), "-c default_transaction_read_only=on"];
+  readOnly.searchParams.set("options", options.filter(Boolean).join(" "));
+  return readOnly;
+}
+
 async function connect(url: URL): Promise<Client> {
   const client = new Client({
     connectionString: url.href,
@@ -137,13 +146,18 @@ interface Options {
 
 // Every query, including catalog reads and empty-table diagnostics, runs inside an explicit
 // read-only transaction. A function may change session defaults; rollback and the next BEGIN
-// READ ONLY prevent that from weakening a later query. Catalog lookup never trusts search_path.
+// READ ONLY prevent that from weakening a later query.
+//
+// Catalog reads pin search_path, so no database object can stand in for a catalog the checks read.
+// The claim checks' own transactions (asRole's BEGIN) keep the session's search_path: their
+// statements are schema-qualified, and the policy functions they execute must resolve names the
+// way they do for the application, or an unqualified table in one fails the run.
 function readOnlyClient(connection: Client): Queryable {
   let inTransaction = false;
   let pending: Promise<unknown> = Promise.resolve();
-  const begin = async () => {
+  const begin = async (pinned: boolean) => {
     await connection.query("BEGIN READ ONLY");
-    await connection.query("SET LOCAL search_path = pg_catalog, pg_temp");
+    if (pinned) await connection.query("SET LOCAL search_path = pg_catalog, pg_temp");
     await connection.query("SET LOCAL statement_timeout = '60s'");
     await connection.query("SET LOCAL lock_timeout = '5s'");
   };
@@ -151,7 +165,7 @@ function readOnlyClient(connection: Client): Queryable {
     query(text, values) {
       const execute = async () => {
         if (text === "BEGIN") {
-          await begin();
+          await begin(false);
           inTransaction = true;
           return { rows: [] };
         }
@@ -162,7 +176,7 @@ function readOnlyClient(connection: Client): Queryable {
         if (inTransaction)
           return await connection.query(text, values === undefined ? undefined : [...values]);
         try {
-          await begin();
+          await begin(true);
           return await connection.query(text, values === undefined ? undefined : [...values]);
         } finally {
           await connection.query("ROLLBACK");
@@ -180,7 +194,7 @@ function readOnlyClient(connection: Client): Queryable {
 }
 
 async function verify(options: Options, io: CliIo, mode: string): Promise<number> {
-  const connection = await connect(options.url);
+  const connection = await connect(readOnlyAtStartup(options.url));
   const client = readOnlyClient(connection);
   try {
     const { rows } = await client.query(
