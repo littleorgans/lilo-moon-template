@@ -449,7 +449,6 @@ describe("service origins", () => {
 
 type Handler = (request: IncomingMessage, response: ServerResponse) => void;
 
-/** A loopback HTTP server on a free port, so a redirect can be followed for real. */
 /** Ends kept-alive sockets as well as the listener, so nothing outlives the test that opened it. */
 function close(server: Server): Promise<void> {
   server.closeAllConnections();
@@ -458,6 +457,7 @@ function close(server: Server): Promise<void> {
   });
 }
 
+/** A loopback HTTP server on a free port, so a redirect can be followed for real. */
 function listen(handle: Handler): Promise<{ server: Server; origin: string }> {
   return new Promise((resolve) => {
     const server = createServer(handle);
