@@ -66,6 +66,23 @@ describe("setThemeResponse", () => {
   });
 
   // A redirect target taken from a request header is an open redirect unless the origin matches.
+  // Behind a TLS-terminating proxy the request arrives as http: while the page, and its referer,
+  // are https:. The configured origin decides, so the switch still lands back on the page.
+  it("sends the switch back to the page behind a proxy that rewrites the scheme", async () => {
+    const response = await setThemeResponse(
+      {
+        request: new Request("http://internal:3000/api/theme", {
+          method: "POST",
+          body: new URLSearchParams({ mode: "dark" }),
+          headers: { origin, referer: `${origin}/app?tab=2` },
+        }),
+      },
+      origin,
+    );
+    expect(response.status).toBe(303);
+    expect(response.headers.get("location")).toBe("/app?tab=2");
+  });
+
   it("refuses a cross-origin or malformed referer", async () => {
     const responses = await Promise.all(
       ["https://evil.test/phish", "not a url"].map((referer) =>

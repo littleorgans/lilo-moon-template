@@ -11,15 +11,18 @@ import { auth } from "./auth.js";
 
 /**
  * Where the redirect goes after the cookie is set: back to the page the form was on, so the
- * switcher works from anywhere. The referer only steers the redirect when it parses to this
- * origin, because a redirect target from a request header is otherwise an open redirect.
+ * switcher works from anywhere. The referer only steers the redirect when it parses to the
+ * application's own origin, because a redirect target from a request header is otherwise an open
+ * redirect. The configured origin is the reference, not the request's URL: behind a proxy that
+ * terminates TLS the request is `http:` while the referer says `https:`, and every switch would
+ * otherwise land on the fixed destination.
  */
-function returnPath(request: Request): string {
+function returnPath(request: Request, origin: string): string {
   const referer = request.headers.get("referer");
   if (referer !== null) {
     try {
       const target = new URL(referer);
-      if (target.origin === new URL(request.url).origin) return target.pathname + target.search;
+      if (target.origin === new URL(origin).origin) return target.pathname + target.search;
     } catch {
       // Not a URL; fall through to the fixed destination.
     }
@@ -49,7 +52,7 @@ export async function setThemeResponse(
   return new Response(null, {
     status: 303,
     headers: {
-      location: returnPath(request),
+      location: returnPath(request, origin),
       "set-cookie": `${name}=${serializeThemePreference(next)}; Path=/; Max-Age=31536000; SameSite=Lax`,
     },
   });
