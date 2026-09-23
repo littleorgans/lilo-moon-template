@@ -156,7 +156,7 @@ Details, all in `scripts/lib/create-project.mjs` unless noted:
   commit graph, so `git merge-base` works.
 - **Identity rewrite.** `scripts/rename-template.sh` substitutes three tokens in every tracked file
   except `.template-origin.json` and `.template/**`: `lilo-moon-template`, `littleorgans` and
-  `lilo-moon` (lines 10–15, 132–148). The npm scope is `@littleorgans`, the org token, so
+  `lilo-moon` (lines 10–16, 131–148). The npm scope is `@littleorgans`, the org token, so
   `@littleorgans` is rewritten to `@<scope>` before the org pass. The substitution covers package
   names (`@littleorgans/*` becomes `@<scope>/*`), the `@littleorgans/source` export condition,
   repository URLs, the Changesets `changelog.repo`, pending changesets, and the lockfile. It then
@@ -204,7 +204,7 @@ The documented procedure is in `docs/project-lineage.md` and `docs/how-to-instan
 | Shared ancestry                          | Lets Git compute a three-way merge between template and product                           | `create-project.mjs` line 86                  |
 | `root:scripts-test`                      | Creation, remotes, a rebase of a token-free template fix, registry rules                  | `scripts/tests/integration/projects.test.mjs` |
 | `root:consumer-check`                    | The template still produces a buildable, servable product, including from packed tarballs | `scripts/consumer-check.mjs`                  |
-| `root:rename-verifier`                   | Only that the token list and file corpus are non-empty                                    | `moon.yml` lines 308–317                      |
+| `root:rename-verifier`                   | Only that the token list and file corpus are non-empty                                    | `moon.yml` lines 311–320                      |
 | `just rename-verify` (manual, not in CI) | Template tokens left in a product's tracked files                                         | `moon.yml` lines 77–83                        |
 | Consumer registry                        | Nothing automatically. It tells maintainers where products live so they can inspect them  | `.template/projects/`                         |
 
