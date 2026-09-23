@@ -288,16 +288,16 @@ URL reports the origin it was minted under. The list is empty by default, entrie
 except on localhost, and a path in an entry is refused rather than read as a restriction. A
 service reachable only over plain http, such as one inside the same cluster, is listed on its own
 as `{ origin: "http://api:3000", insecure: true }`. There is no setting that allows http
-everywhere, and the flag is refused on an https origin. Anything
-else rejects before a request is made. Apart from the headers, `init` reaches `fetch` as given, so
-`signal`, `redirect` and undici's `dispatcher` behave as they would on a plain call. A redirect to
-another origin drops the header, per the Fetch standard; a test in
-`packages/auth-session/tests/delegate.test.ts` follows real redirects through Node's fetch to hold
-it to that. The token exists only in that function's closure: `JSON.stringify` of the result yields
-the status and the Principal, and seroval, which Start uses to serialise loader and server-function
-results, throws on the function rather than encoding it. The token is fixed for the request that
-read it, so do not hold the result beyond that request. The reference app calls no service yet, so
-it configures no origins. `services/api` is the service it would call.
+everywhere, and the flag is refused on an https origin. Anything else rejects before a request is
+made. Apart from the headers, `init` reaches `fetch` as given, so `signal`, `redirect` and undici's
+`dispatcher` behave as they would on a plain call. A redirect to another origin drops the header,
+per the Fetch standard; a test in `packages/auth-session/tests/delegate.test.ts` follows real
+redirects through Node's fetch to hold it to that. The token exists only in that function's
+closure: `JSON.stringify` of the result yields the status and the Principal, and seroval, which
+Start uses to serialise loader and server-function results, throws on the function rather than
+encoding it. The token is fixed for the request that read it, so do not hold the result beyond that
+request. The reference app calls no service yet, so it configures no origins. `services/api` is the
+service it would call.
 
 ### The reference service
 
