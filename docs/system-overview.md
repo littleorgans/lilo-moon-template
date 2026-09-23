@@ -68,7 +68,9 @@ Edges come from each member's `package.json` and nowhere else. Moon infers its p
 the `workspace:` dependencies there, and `moon sync` mirrors them into TypeScript project references
 in each `tsconfig.json`. No JavaScript member's `moon.yml` declares `dependsOn`; `scripts/tests/integration/project-graph.test.mjs`
 fails if one does or if Moon's edges stop matching the manifests. Members without a `package.json`
-keep their own dependency model, including explicit Moon edges.
+keep their own dependency model, including explicit Moon edges. Shared compiler and test settings
+are task inputs through `.moon/tasks/node.yml`, including the config packages' export manifests;
+changing either the settings or their resolution invalidates the consuming tasks.
 
 ```mermaid
 graph LR

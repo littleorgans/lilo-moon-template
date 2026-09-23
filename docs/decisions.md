@@ -315,7 +315,9 @@ nothing forced it.
 
 The config packages are not project dependencies, so Moon would not rerun a typecheck, a build or a
 test when one of them changes. The `typescript-options` and `vitest-config` file groups in
-`.moon/tasks/node.yml` name those files as task inputs instead.
+`.moon/tasks/node.yml` name those files and their packages' export manifests as task inputs instead.
+Changing an export changes which file the compiler or test runner loads, so the manifest must
+invalidate cached results too.
 
 Projects call `.github/workflows/moon-ci.yml` at an exact release tag, `@v<version>`, which
 Renovate pins to its commit digest and moves together with the packages (the `littleorgans` group in

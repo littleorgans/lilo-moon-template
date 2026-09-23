@@ -99,8 +99,8 @@ Follow this procedure so Moon, pnpm, TypeScript, and CI discover the same projec
   member TypeScript configs, and `@files(typescript-options)` alongside `@globs(sources)` because
   compiler configuration changes must invalidate cached artifacts. That file group in
   `.moon/tasks/node.yml` names the root `tsconfig.options.json` and `packages/tsconfig/base.json`,
-  which no project depends on, so only an input catches a change there. `vitest-config` does the
-  same for tests.
+  plus the config package's export manifest, which no member depends on, so task inputs must catch
+  changes there. `vitest-config` does the same for tests.
 - After renaming the repository directory, run `moon clean`, remove `node_modules`, and reinstall.
   The Moon cache and installed package links contain absolute paths from the old directory.
 
