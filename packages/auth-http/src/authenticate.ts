@@ -28,6 +28,7 @@ export interface RejectionEvent {
   readonly code: RejectionCode;
   /** The verifier's error, when verification produced the rejection. */
   readonly cause?: AuthError;
+  /** Original request, including credentials. Select safe fields; never log it wholesale. */
   readonly request: Request;
 }
 
@@ -48,10 +49,10 @@ export interface AuthenticatorOptions {
    * Observes every rejection, including its cause, so a service can log why a request failed
    * without putting the reason in the response. A 503 in particular needs an alert, not a shrug.
    *
-   * It runs beside the response, not in front of it. The response does not wait for an async
-   * observer, and an observer that throws or rejects is reported with `console.error` and
-   * otherwise ignored. A logger outage must not turn every 401 into a 500 or a hang: a client that
-   * gets a 500 for an expired token never refreshes it.
+   * It is invoked synchronously, so keep its synchronous work short. Returned promises are not
+   * awaited by authentication. An observer that throws or rejects produces a generic, best-effort
+   * `console.error` diagnostic; failures in this fallback are ignored as well. Observer failures
+   * must not replace an auth rejection with a 500.
    */
   readonly onRejection?: (event: RejectionEvent) => void | Promise<void>;
 }
@@ -114,8 +115,14 @@ export function createAuthenticator(options: AuthenticatorOptions): Authenticato
     if (onRejection === undefined) return;
     try {
       await onRejection(event);
-    } catch (error) {
-      console.error("auth-http: onRejection failed", error);
+    } catch {
+      // A thrown value can contain the event, headers, or a token. Keep the fallback generic.
+      // A replaced/broken console is another logging failure, not an unhandled rejection.
+      try {
+        console.error("auth-http: onRejection failed");
+      } catch {
+        // There is no further reporting path that cannot fail in turn.
+      }
     }
   }
 

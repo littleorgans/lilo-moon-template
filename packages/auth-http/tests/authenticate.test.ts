@@ -217,7 +217,7 @@ describe("onRejection", () => {
         },
       })(request());
       expect(rejectionOf(result)).toStrictEqual({ code: "missing_token" });
-      expect(error).toHaveBeenCalledExactlyOnceWith("auth-http: onRejection failed", broken);
+      expect(error).toHaveBeenCalledExactlyOnceWith("auth-http: onRejection failed");
       error.mockRestore();
     });
 
@@ -232,7 +232,7 @@ describe("onRejection", () => {
       })(request());
       expect(rejectionOf(result)).toStrictEqual({ code: "missing_token" });
       await vi.waitFor(() => {
-        expect(error).toHaveBeenCalledExactlyOnceWith("auth-http: onRejection failed", broken);
+        expect(error).toHaveBeenCalledExactlyOnceWith("auth-http: onRejection failed");
       });
       error.mockRestore();
     });
@@ -299,3 +299,28 @@ it("keeps verifier details out of accidental rejection serialization", async () 
   })(request("Bearer a.b.c"));
   expect(JSON.stringify(result)).toBe('{"ok":false,"rejection":{"code":"invalid_token"}}');
 });
+
+it.each(["synchronous", "asynchronous"])(
+  "contains fallback reporter failures after a %s observer failure",
+  async (kind) => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {
+      throw new Error("stderr is unavailable");
+    });
+    try {
+      const result = await createAuthenticator({
+        verify: unreachable,
+        onRejection: () => {
+          const failure = new Error("observer failed");
+          if (kind === "asynchronous") return Promise.reject(failure);
+          throw failure;
+        },
+      })(request());
+      expect(rejectionOf(result)).toStrictEqual({ code: "missing_token" });
+      // Let detached promise failures surface. Vitest fails the run on an unhandled rejection.
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      expect(error).toHaveBeenCalledExactlyOnceWith("auth-http: onRejection failed");
+    } finally {
+      error.mockRestore();
+    }
+  },
+);
