@@ -73,25 +73,32 @@ function checkDbPeerFloors(manifestPath, manifest) {
   const web = join(packed, "apps/web");
   // Creation renamed the scope, so take the package name from the generated project.
   const name = readManifest(join(generated, "packages/db")).name;
-  const pinned = resolvedPackage(web, "drizzle-orm").manifest.version;
-  const peers = resolvedPackage(web, name).manifest.peerDependencies ?? {};
+  // Every peer db declares takes part, so a peer added later is exercised without editing this.
+  const peers = Object.entries(resolvedPackage(web, name).manifest.peerDependencies ?? {});
+  assert.ok(peers.length > 0, "db must declare peer dependencies");
   const floors = Object.fromEntries(
-    ["drizzle-orm", "pg"].map((peer) => {
-      const floor = /^\^(\d+\.\d+\.\d+)$/.exec(peers[peer] ?? "")?.[1];
-      assert.ok(floor, `db must declare a caret ${peer} peer, found ${peers[peer]}`);
+    peers.map(([peer, range]) => {
+      const floor = /^\^(\d+\.\d+\.\d+)$/.exec(range)?.[1];
+      assert.ok(floor, `db must declare a caret ${peer} peer, found ${range}`);
+      const pinned = resolvedPackage(web, peer).manifest.version;
+      assert.notEqual(floor, pinned, `the ${peer} floor must differ from the consumer pin`);
       return [peer, floor];
     }),
   );
-  assert.notEqual(floors["drizzle-orm"], pinned, "the drizzle-orm floor must differ from the pin");
   Object.assign(manifest.dependencies, floors);
   writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
   run(packed, "pnpm", ["install"]);
-  const application = resolvedPackage(web, "drizzle-orm");
-  // Resolve db again: pnpm names its store directory after the peer versions it resolved.
-  const database = resolvedPackage(resolvedPackage(web, name).root, "drizzle-orm");
-  assert.equal(database.root, application.root, "db and the application resolved different copies");
-  for (const [peer, floor] of Object.entries(floors))
-    assert.equal(resolvedPackage(web, peer).manifest.version, floor, `${peer} floor`);
+  for (const [peer, floor] of Object.entries(floors)) {
+    const application = resolvedPackage(web, peer);
+    // Resolve db again: pnpm names its store directory after the peer versions it resolved.
+    const database = resolvedPackage(resolvedPackage(web, name).root, peer);
+    assert.equal(
+      database.root,
+      application.root,
+      `db and the application resolved different ${peer} copies`,
+    );
+    assert.equal(application.manifest.version, floor, `${peer} floor`);
+  }
   // The built server bundles db, so only a direct import exercises Node's own module loading.
   run(web, process.execPath, ["--input-type=module", "-e", "await import(process.argv[1])", name]);
   run(packed, "moon", ["run", "web:typecheck", "--force"]);
