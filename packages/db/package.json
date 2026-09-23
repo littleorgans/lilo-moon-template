@@ -40,6 +40,7 @@
     "pg": "catalog:"
   },
   "peerDependencies": {
+    "@types/pg": "catalog:db-peer",
     "drizzle-orm": "catalog:db-peer",
     "pg": "catalog:db-peer"
   },
