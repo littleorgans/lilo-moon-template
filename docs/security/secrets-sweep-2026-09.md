@@ -108,9 +108,9 @@ Nothing to rotate. No history rewrite is recommended.
   success and exceptions. Process termination such as SIGKILL can still leave a temp directory. Pack
   and extraction subprocess output is suppressed because it may contain secrets.
 - The original three focused tests passed. The ignored dist fixture explicitly lists its files
-  because pinned pnpm otherwise omits them during packing. Mutation checks detected omitted cleanup, disabled
-  masking, forwarded pack stderr, a successful empty-package exit, skipped dist scanning and
-  respected nested ignore files. Mutations were restored before verification.
+  because pinned pnpm otherwise omits them during packing. Mutation checks detected omitted cleanup,
+  disabled masking, forwarded pack stderr, a successful empty-package exit, skipped dist scanning
+  and respected nested ignore files. Mutations were restored before verification.
 - `changeset:publish` waits for the Moon build and packed scan, then uses `&&` to prevent
   publication on failure. The release workflow calls this command when publishing is enabled.
   Changesets subsequently packs again: the inspected archives are not the exact uploaded bytes.
@@ -135,6 +135,9 @@ Nothing to rotate. No history rewrite is recommended.
   node --test --test-name-pattern="published packages have no lifecycle" \
     scripts/tests/packed-secrets.test.mjs
   ```
+
+- Moon 2.5.5 CI passed with 59 completed actions and 5 skipped. The no-identity scripts run
+  passed 24/24 using absolute toolchain symlinks. The hook-path check printed nothing.
 
 ## Not scanned
 
