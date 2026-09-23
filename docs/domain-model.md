@@ -1,79 +1,8 @@
 # Domain model
 
-This repository has two domains. The **lineage domain** covers how the template produces and
-tracks product repositories. The **application domain** covers identity, tenancy, data and
-presentation in the reference application. This page defines the terms each domain uses and how
-they relate. Implementation detail is in the [system overview](system-overview.md).
-
-## Lineage domain
-
-```mermaid
-classDiagram
-  class Template {
-    id: uuid from .template/config.json
-    origin remote
-    full Git history
-  }
-  class TemplateRevision {
-    sha
-  }
-  class Project {
-    name, org, scope
-    origin = product remote
-    upstream = template origin
-  }
-  class OriginRecord {
-    .template-origin.json
-    id, name, createdAt
-    template.id, template.revision, template.repository
-    parameters.org, parameters.scope
-    setup: installed | pending
-  }
-  class ConsumerRecord {
-    .template/projects/ID.json, tracked
-    id, name, createdAt, templateRevision, repository
-  }
-  class LocalCheckout {
-    .template/local/ID.json, ignored
-    path
-  }
-  class IdentityTokens {
-    lilo-moon-template
-    littleorgans
-    lilo-moon
-  }
-  Template "1" --> "*" TemplateRevision : commits
-  Project "1" --> "1" TemplateRevision : born from
-  Project "1" *-- "1" OriginRecord : contains
-  Template "1" *-- "*" ConsumerRecord : registry
-  ConsumerRecord "1" --> "0..1" LocalCheckout : located by
-  ConsumerRecord "1" ..> "1" OriginRecord : mirrors, immutable birth fields
-  Project ..> IdentityTokens : rewritten at creation
-```
-
-| Term                               | Meaning                                                                                                                                                                                                                  | Code                                                                         |
-| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------- |
-| **Template**                       | This repository, identified by a stable UUID rather than by its name or URL. A checkout is the template exactly when `.template-origin.json` is absent.                                                                  | `.template/config.json`, `scripts/lib/project-registry.mjs` `templateConfig` |
-| **Template revision**              | The commit a project is born from (`--ref`, default `HEAD`). It must carry the same template id.                                                                                                                         | `scripts/lib/create-project.mjs` lines 49–59                                 |
-| **Project** (consumer, downstream) | An independent Git repository that shares the template's history up to its birth revision, plus one initialization commit. It owns its application code and may delete the examples.                                     | `createProject`                                                              |
-| **Initialization commit**          | `chore: initialize <name> from template <sha>`. Contains the identity rewrite, dependency install, `moon sync`, formatting and the origin record. On every template update it is replayed like any other product commit. | `create-project.mjs` lines 95–123                                            |
-| **Identity tokens**                | Three strings that name the template. Creation replaces them in every tracked file with the project's slug, org and scope.                                                                                               | `scripts/rename-template.sh` lines 10–15                                     |
-| **Scope**                          | The npm scope that replaces `@littleorgans`. It also renames the `@<scope>/source` export condition. It defaults to the project name.                                                                                    | `scripts/projects.mjs`, `rename-template.sh`                                 |
-| **Origin record**                  | The product's birth certificate. Its presence makes creation refuse to run and makes `consumer-check` skip.                                                                                                              | `.template-origin.json`, `project-registry.mjs` `readOrigin`                 |
-| **Consumer record**                | A portable, tracked entry in the template listing a project. Its birth fields (`name`, `createdAt`, `templateRevision`) are immutable. `repository` is refreshed on registration.                                        | `registerProject`, `projectRecords`                                          |
-| **Local checkout**                 | A machine-specific path to a project, stored outside version control.                                                                                                                                                    | `.template/local/`, ignored in `.gitignore`                                  |
-| **Remotes**                        | `origin` is the product repository and the default push target. `upstream` is the template's origin URL.                                                                                                                 | `create-project.mjs` lines 90–94                                             |
-| **Template update**                | `git fetch upstream` then `git rebase upstream/main` in the project. No tool automates or checks it.                                                                                                                     | `docs/project-lineage.md`                                                    |
-| **Consumer check**                 | A template-only gate. It creates a real project in a temporary directory, builds and serves it, repeats with packed libraries, and proves that the gates reject violations.                                              | `scripts/consumer-check.mjs`                                                 |
-
-Rules the code enforces:
-
-- Creation runs only from a full, non-shallow template checkout that has an `origin` remote, and
-  never into a destination inside it (`planProject`).
-- A project's origin differs from the template's origin (`create-project.mjs` line 43).
-- Registration runs from the template, for a Git repository root whose origin record carries the
-  same template id (`registerProject`).
-- A registered birth revision never changes. Git history records later updates.
+This page defines the terms of the application domain: identity, tenancy, data and presentation in
+the reference application and the packages it is built from, and how they relate. Implementation
+detail is in the [system overview](system-overview.md).
 
 ## Application domain
 
@@ -168,15 +97,13 @@ classDiagram
 | **Theme preference** | Mode plus theme name, stored as `mode:theme` in a cookie named per origin. Each half is validated separately and falls back to the default.                                   | `packages/theme/src/preference.ts`, `apps/web/src/server/theme.ts` |
 | **Primitive**        | A small reusable component in `packages/ui/src/components/`, such as `Button`, `Card`, `Stack` or `Heading`.                                                                  | `packages/ui`                                                      |
 | **View**             | A composed reusable screen that receives application labels and paths as props, such as `SignInPanel`, `VerifyCodePanel`, `SessionErrorPanel`, `ThemeLab` or `ThemeSwitcher`. | `packages/views/src/<view>/`                                       |
-| **Feature**          | Application-owned model, UI and server behavior under `apps/web/src/features/<name>/`. `workspace` and `tasks` are the examples.                                              | `docs/code-layout.md`                                              |
+| **Feature**          | Application-owned model, UI and server behavior under `apps/web/src/features/<name>/`. `workspace` is the example.                                                            | `docs/code-layout.md`                                              |
 | **Composition root** | `apps/web/src/server/`, where the application picks its provider, paths, organization policy, database and theme adapter.                                                     | `apps/web/src/server/*.ts`                                         |
 | **Route group**      | A `(name)/` directory that organizes routes without a URL segment and without implying authentication or a layout.                                                            | `apps/web/src/routes/(auth)/`                                      |
 
-## Boundaries between the two domains
+## Boundaries with consuming projects
 
-A project inherits the whole application domain as ordinary source. After creation, the template
-has no runtime or build-time link to the project. The only connections are shared Git history,
-the `upstream` remote and the consumer record. Package code does not know which checkout it runs in.
-The identity tokens are the exception: they are baked into package names, the source export
-condition, the session key derivation salt (`packages/auth-session/src/config.ts` line 69) and
-repository metadata. They are the main coupling point between a template update and a project.
+A project depends on the published packages and owns the application glue it takes from the
+reference app. Package code does not know which project it runs in. The package scope is the
+coupling point: it is baked into package names, the `@littleorgans/source` export condition and
+repository metadata.

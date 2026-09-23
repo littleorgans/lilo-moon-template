@@ -155,9 +155,6 @@ importers:
       '@littleorgans/auth-tanstack':
         specifier: workspace:*
         version: link:../../packages/auth-tanstack
-      '@littleorgans/collections':
-        specifier: workspace:*
-        version: link:../../packages/collections
       '@littleorgans/db':
         specifier: workspace:*
         version: link:../../packages/db
@@ -289,8 +286,6 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 24.13.3
-
-  packages/collections: {}
 
   packages/db:
     dependencies:

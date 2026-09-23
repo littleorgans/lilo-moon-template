@@ -21,9 +21,6 @@
       "path": "./packages/auth-workos"
     },
     {
-      "path": "./packages/collections"
-    },
-    {
       "path": "./packages/db"
     },
     {

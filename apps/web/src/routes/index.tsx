@@ -14,8 +14,8 @@ function SignIn() {
   const { ended } = Route.useSearch();
   return (
     <SignInPanel
-      title="Task board"
-      description="Sign in to see the tasks your workspace can see."
+      title="Workspace"
+      description="Sign in to continue to your workspace."
       oauthLabel="Continue with Google"
       oauthStartPath="/api/auth/start"
       emailStartPath="/api/auth/email/start"

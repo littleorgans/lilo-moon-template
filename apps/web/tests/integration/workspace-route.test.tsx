@@ -35,5 +35,5 @@ it("loads the workspace feature and renders its data through /app", async () => 
   expect(loadWorkspaceOrRedirect).toHaveBeenCalledOnce();
   expect(html).toContain("user_route");
   expect(html).toContain("profiles: 1");
-  expect(html).toContain("Scout baseline");
+  expect(html).toContain("No organization");
 });

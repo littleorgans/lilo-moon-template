@@ -9,8 +9,8 @@ that clears local flow cookies and redirects through the provider logout URL. Ex
 tokens remain bounded by their expiration; signature verification does not fetch current permissions.
 
 The record model, the schema and the workflows are [The user entity](user-entity.md). The package
-layout and the verification seam are [the auth proposal](auth-proposal.md). This page does not
-repeat either.
+layout and the verification seam are in [the decision record](decisions.md#identity-and-entitlements).
+This page does not repeat either.
 
 ## Why the inventory exists
 
@@ -163,10 +163,10 @@ person who creates a workspace receives the environment's default role, which is
 grants `billing:manage` today. Whether the creator of a personal workspace should own it is a
 product decision rather than a defect, and it is open: see the end of this page.
 
-**What free allows is not decided here, on purpose.** The template ships the mechanism, an
-entitlement check that gates a feature and renders an upgrade prompt. The policy, which feature and
-which limit, arrives with the first real product. A baseline that invents a limit is inventing a
-product.
+**What free allows is not decided here, on purpose.** This repository owns only the mechanism.
+The `Principal` already carries `entitlements`; an entitlement check that gates a feature and
+renders an upgrade prompt is not built yet. The policy, which feature and which limit, arrives with
+the first real product. A baseline that invents a limit is inventing a product.
 
 ### 4. Signed in, entitled
 
@@ -277,7 +277,7 @@ ones collapse.
 **`retry` is the only one that tells someone to try again**, because waiting is the entire remedy
 for exactly those two and advice that cannot work is worse than none.
 
-**`unsupported` is honest rather than reassuring.** These are real AuthKit flows the template has
+**`unsupported` is honest rather than reassuring.** These are real AuthKit flows this repository has
 not built. Saying so stops a person pressing a button that cannot ever complete.
 
 **`misconfigured` is ours.** The person reading it can do nothing about it, so it says so and the
@@ -292,7 +292,7 @@ probing the callback, and a message naming the failed check tells them which one
 ## What is settled and what is not
 
 Settled by this page: the screen list, automatic organization creation and its three rules, the
-failure mapping, and that free-tier policy is out of scope for the template. The callback turned
+failure mapping, and that free-tier policy is out of scope for the packages. The callback turned
 out not to need a screen on the success path, for the reason recorded above.
 
 **Built so far:** the signed-out page, the callback, the two-step email-code path, the screens for a
@@ -305,15 +305,15 @@ tampered signature lands on the sign-in page with the notice and a cleared cooki
 `auth.token.failed` line, and an expired token is refreshed without the person seeing anything. What
 is not built: every steady-state surface.
 
-Decided 2026-08-24: free plan limits are defined per product, never by the template. The token
+Decided 2026-08-24: free plan limits are defined per product, never by the packages. The token
 carries tier names, not quantities, so each product maps its own tiers to its own limits in its own
-code, and the template ships only the entitlement check and the upgrade prompt. Also decided: a
-`claims` failure is delivered nowhere beyond its log line for now. The screen informs the person,
-the line makes the failure findable, and paging arrives when there is something to page.
+code, and this repository's part is only the entitlement check and the upgrade prompt. Also
+decided: a `claims` failure is delivered nowhere beyond its log line for now. The screen informs the
+person, the line makes the failure findable, and paging arrives when there is something to page.
 
 Decided 2026-08-26: **whether a workspace creator holds `owner` is a per-product decision, and the
-template does not take it.** Same shape as the plan limits above. A role is a product's authority
-model written down, and a template that shipped one would be shipping an opinion about a product
+packages do not take it.** Same shape as the plan limits above. A role is a product's authority
+model written down, and a package that shipped one would be shipping an opinion about a product
 that does not exist yet.
 
 The environment was read on 2026-08-26 to see what the decision is actually between, and the answer
@@ -337,5 +337,4 @@ pass `roleSlugs` from `ensureOrganization`. `provisionOrganization` already acce
 is one argument rather than a change to the flow.
 
 Still not settled: which feature the entitlement gate protects in a real product, which arrives with
-the first product; and whether a second app in the template renders these screens differently, which
-is open question 4 in [the auth proposal](auth-proposal.md).
+the first product; and whether a second app renders these screens differently.

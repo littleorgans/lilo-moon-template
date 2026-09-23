@@ -1,9 +1,8 @@
 import { execFileSync } from "node:child_process";
 import { writeFileSync } from "node:fs";
-import { isAbsolute, relative, sep } from "node:path";
 
 export function projectEnvironment() {
-  // A generated workspace runs its own setup, including development-only Moon tasks.
+  // A child workspace runs its own setup, including development-only Moon tasks.
   // CI detection uses variable presence, so setting these flags to "false" is insufficient.
   return Object.fromEntries(
     Object.entries(process.env).filter(
@@ -56,9 +55,4 @@ export function initializeProject(root, message) {
 
 export function writeJson(path, value, options = {}) {
   writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`, options);
-}
-
-export function within(parent, path) {
-  const child = relative(parent, path);
-  return child === "" || (child !== ".." && !child.startsWith(`..${sep}`) && !isAbsolute(child));
 }

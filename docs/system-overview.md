@@ -1,18 +1,18 @@
 # System overview
 
-This page maps the repository as it stands, explains how the template produces and updates product
-repositories, and describes the runtime, build, test and CI design. Each claim names the file that
+This page maps the repository as it stands and describes the runtime, build, test and CI design. Each claim names the file that
 implements it. Rationale lives in [the decision record](decisions.md), working rules in
 [AGENTS.md](../AGENTS.md), terms in [the domain model](domain-model.md), and a critical review in
 [the assessment](assessment.md).
 
-## What problem the template solves
+## What problem the repository solves
 
 A new product needs a monorepo that has a task graph, pinned toolchains, lint and format gates, an
 identity provider, a tenant-scoped database, a component library and CI before it can do anything
-useful. This repository supplies that baseline as a working application, not as generator
-templates. A product starts as a Git descendant of this repository at a chosen commit. It then
-receives later baseline fixes through `git fetch upstream` and `git rebase upstream/main`.
+useful. This repository supplies that baseline as a working reference application and as the
+`@littleorgans/*` packages it is built from. A product adds the packages as dependencies and
+receives fixes through upgrades, not by copying or rebasing this repository. [The
+direction](direction.md) describes the packages, publishing and services work in progress.
 
 The baseline makes these choices, recorded in `docs/decisions.md`:
 
@@ -20,14 +20,13 @@ The baseline makes these choices, recorded in `docs/decisions.md`:
 | --------------- | ----------------------------------------------------------- | ---------------------------------------------------------- |
 | Task graph      | Moon 2.5.5 for every language                               | `.moon/workspace.yml`, `.moon/tasks/*.yml`, `moon.yml`     |
 | JS packages     | pnpm 11 with catalogs and supply-chain policy               | `pnpm-workspace.yaml`                                      |
-| Languages       | TypeScript 7 (`tsgo`), Rust 1.95                            | `pnpm-workspace.yaml` catalog, `.moon/toolchains.yml`      |
+| Languages       | TypeScript 7 (`tsgo`)                                       | `pnpm-workspace.yaml` catalog                              |
 | Lint and format | oxlint (type aware) and oxfmt                               | `.oxlintrc.json`, `.oxfmtrc.json`, `moon.yml` `tasks.lint` |
 | Web framework   | TanStack Start on Vite 8 and Nitro                          | `apps/web/vite.config.ts`                                  |
 | Identity        | WorkOS AuthKit: Google OAuth and email codes                | `packages/auth-workos`, `packages/auth-session`            |
 | Persistence     | Postgres, Atlas SQL migrations, Drizzle client, forced RLS  | `db/`, `packages/db`, `scripts/rls-verify.mjs`             |
 | UI              | React 19, Tailwind 4, shadcn/Radix components, typed themes | `packages/ui`, `packages/views`, `packages/theme`          |
 | Delivery        | GitHub Actions running `moon ci`, Changesets, Renovate      | `.github/workflows/`, `.changeset/`, `renovate.json`       |
-| Lineage         | Shared Git history plus a consumer registry in the template | `scripts/projects.mjs`, `scripts/lib/`, `.template/`       |
 
 ## Repository map
 
@@ -40,20 +39,16 @@ The baseline makes these choices, recorded in `docs/decisions.md`:
 │   ├── auth-session/       Framework-free HTTP sign-in flows, sealed session cookie, access states
 │   ├── auth-tanstack/      TanStack Start adapter: cookie jar, lazy runtime, POST-only handlers
 │   ├── auth-http/          Service bearer auth on Request/Response, Hono adapter, service config
-│   ├── db/                 Pooled Postgres and the one principal-scoped transaction
+│   ├── db/                 Pooled Postgres, the principal-scoped transaction, the shipped migrations
 │   ├── theme/              Token contract, two themes, validation, generated CSS, preference cookie
 │   ├── ui/                 shadcn primitives plus layout and typography components
 │   ├── views/              Composed reusable screens: sign-in, code entry, session error, theme lab
-│   ├── vite-config/        Source-condition and client-boundary settings shared by Vite apps
-│   └── collections/        Small TypeScript library example (groupBy, partition)
-├── services/ping/          Rust member example (two functions, two tests)
+│   └── vite-config/        Source-condition and client-boundary settings shared by Vite apps
 ├── db/
 │   ├── schema.sql          Atlas desired state: accounts and profiles
-│   ├── migrations/         Versioned SQL, including the hand-written RLS migration
 │   └── drizzle/_generated/ Drizzle introspection artifact, checked but not imported
-├── scripts/                Project creation, registry, database, security and gate scripts
+├── scripts/                Database, security, consumer and gate scripts
 ├── .moon/                  Workspace, toolchains, and inherited task layers
-├── .template/              Template identity and tracked consumer records
 ├── .changeset/             Pending changesets
 ├── .github/workflows/      ci.yml (moon ci) and release.yml (Changesets)
 └── docs/                   Decisions, guides, specifications and this overview
@@ -76,7 +71,6 @@ graph LR
   web --> views
   web --> ui
   web --> theme
-  web --> collections
   web -. dev .-> vite-config
   auth-tanstack --> auth-session
   auth-tanstack --> auth-workos
@@ -117,104 +111,18 @@ live framework, provider or database.
 - `apps/web/src/routes/` holds URL wiring only. `(auth)/` groups `/callback`, `/session-error` and
   `/verify-email` without adding a segment. `api/` directories add path segments.
 - `apps/web/src/features/<name>/` owns a feature's model, UI and server behavior. `workspace/` is the
-  complete example. `tasks/` is a single component. `auth/search.ts` holds a search validator.
+  complete example. `auth/search.ts` holds a search validator.
 - `apps/web/src/server/` is the composition root. `auth.ts` selects `GoogleOAuth`, `/app`,
   `personal` and `/verify-email`. `database.ts` builds the database lazily from `DATABASE_URL`.
   `theme.ts` adapts the theme cookie.
 - `apps/web/src/routeTree.gen.ts` is generated by the TanStack Start Vite plugin during a build.
 
-## How project generation works
+## How projects use this repository
 
-`just new-project <name> --dest <parent> --org <org>` calls `moon run root:new-project`
-(`justfile`, `moon.yml` `tasks.new-project`). That task runs `node scripts/projects.mjs create`,
-which calls `planProject` and `createProject` in `scripts/lib/create-project.mjs`.
-
-```mermaid
-sequenceDiagram
-  actor Dev
-  participant T as Template checkout
-  participant P as New project dir
-  participant R as .template/ registry
-  Dev->>T: just new-project atlas --dest ../projects --org acme
-  T->>T: planProject: validate names, refuse shallow clone,<br/>refuse a product checkout, require origin,<br/>resolve --ref to a commit, check template id
-  T->>T: rename-template.sh --validate
-  T->>P: mkdir (atomic reservation)
-  P->>T: git init, then git fetch from the template at the revision
-  P->>P: checkout -B main FETCH_HEAD<br/>remotes: origin = product, upstream = template origin
-  P->>P: rename-template.sh org scope name<br/>(perl substitution over tracked files, pnpm install)
-  P->>P: moon sync, then moon run root:format
-  P->>P: write .template-origin.json
-  P->>P: commit "chore: initialize atlas from template <sha>"<br/>(hooks and signing disabled)
-  P->>R: registerProject: .template/projects/ID.json (tracked)<br/>.template/local/ID.json (ignored path)
-  Note over P: On failure before the commit, the directory is removed.<br/>On registry failure, the project is kept and can be registered again.
-```
-
-Details, all in `scripts/lib/create-project.mjs` unless noted:
-
-- **Inputs.** `name`, `org` and `scope` must match `^[a-z0-9]+(?:[._-][a-z0-9]+)*$` (line 29). The
-  default origin is `git@github.com:<org>/<name>.git`, and `--remote` overrides it (line 42).
-  `--ref` selects any committed revision whose `.template/config.json` id matches (lines 49–59).
-- **History.** The project fetches the selected commit and its ancestors from the local template
-  (line 86). Uncommitted and ignored files are never copied. The project shares the template's
-  commit graph, so `git merge-base` works.
-- **Identity rewrite.** `scripts/rename-template.sh` substitutes three tokens in every tracked file
-  except `.template-origin.json` and `.template/**`: `lilo-moon-template`, `littleorgans` and
-  `lilo-moon` (lines 10–16, 131–148). The npm scope is `@littleorgans`, the org token, so
-  `@littleorgans` is rewritten to `@<scope>` before the org pass. The substitution covers package
-  names (`@littleorgans/*` becomes `@<scope>/*`), the `@littleorgans/source` export condition,
-  repository URLs, the Changesets `changelog.repo`, pending changesets, and the lockfile. It then
-  runs `pnpm install` and `--verify`, which fails if any token remains.
-- **Provenance.** `.template-origin.json` records the template id, the starting revision, the
-  template repository URL and the `org` and `scope` parameters (lines 106–119). Its presence marks a
-  checkout as a product: `planProject` refuses to create from it (line 36), and
-  `scripts/consumer-check.mjs` skips there (line 22).
-- **Registry.** `registerProject` in `scripts/lib/project-registry.mjs` writes one tracked file per
-  consumer to avoid concurrent-writer races (lines 63–99). It strips passwords, HTTP usernames and
-  query strings from stored URLs (lines 42–61) and refuses to change a recorded birth revision (lines
-  76–82). The new record is left uncommitted in the template. A maintainer commits it.
-- **Listing.** `just projects [--json]` prints name, starting revision, repository and local path
-  (`scripts/projects.mjs` lines 61–74).
-
-Verified by running (see [the assessment](assessment.md#verification-log)): `just new-project` with
-install and `--ref`, and `scripts/projects.mjs create --no-install`. Both produced a two-remote
-repository whose `HEAD^` is the selected template commit. The generated project then passed 47 Moon
-tasks.
-
-## How template updates and drift are handled
-
-The repository no longer contains a drift guard. `scripts/template-drift.mjs` and the
-`.moon/templates/` generators were introduced in #88 and deleted in #94 (`1edabaf`). Their
-replacement is plain Git: the template and every product share history.
-
-```mermaid
-flowchart LR
-  subgraph Template repo
-    T0((T0)) --> T1((T1)) --> T2((T2))
-  end
-  subgraph Product repo
-    T0 -.shared history.-> I((init:<br/>rename + origin))
-    I --> P1((product<br/>commits))
-  end
-  T2 -- "git fetch upstream<br/>git rebase upstream/main" --> I2(("init (replayed)")) --> P2(("product (replayed)"))
-```
-
-The documented procedure is in `docs/project-lineage.md` and `docs/how-to-instantiate.md`:
-`git fetch upstream`, `git rebase upstream/main`, `pnpm install`, `moon sync`, `just check`,
-`just ci`. Several mechanisms support it:
-
-| Mechanism                                | What it catches                                                                           | Where                                         |
-| ---------------------------------------- | ----------------------------------------------------------------------------------------- | --------------------------------------------- |
-| Shared ancestry                          | Lets Git compute a three-way merge between template and product                           | `create-project.mjs` line 86                  |
-| `root:scripts-test`                      | Creation, remotes, a rebase of a token-free template fix, registry rules                  | `scripts/tests/integration/projects.test.mjs` |
-| `root:consumer-check`                    | The template still produces a buildable, servable product, including from packed tarballs | `scripts/consumer-check.mjs`                  |
-| `root:rename-verifier`                   | Only that the token list and file corpus are non-empty                                    | `moon.yml` lines 312–321                      |
-| `just rename-verify` (manual, not in CI) | Template tokens left in a product's tracked files                                         | `moon.yml` lines 77–83                        |
-| Consumer registry                        | Nothing automatically. It tells maintainers where products live so they can inspect them  | `.template/projects/`                         |
-
-The product replays its initialization commit, which contains the whole identity rewrite, on
-every rebase. Upstream changes that touch a token line conflict with it, and upstream files that add
-a token are not rewritten. [The assessment](assessment.md#the-ugly) records both behaviors,
-reproduced in a disposable pair of repositories.
+Projects do not copy this repository. They add the published packages and take the application glue
+from the reference app once, then own it. The template machinery that created, renamed and rebased
+product repositories was removed in phase 1; [the direction](direction.md#e-scaffolding) describes
+the replacement.
 
 ## Runtime architecture
 
@@ -412,13 +320,12 @@ different localhost ports therefore keep separate preferences.
 
 Moon owns every command. `justfile` holds aliases only. Tasks come from layered files:
 
-| File                               | Inherited by                              | Tasks                                                                                               |
-| ---------------------------------- | ----------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| `.moon/tasks/node.yml`             | every JavaScript project                  | `typecheck`, `test`, `test-coverage`, `test-watch`                                                  |
-| `.moon/tasks/node-library.yml`     | JavaScript projects with `layer: library` | `build` (clean `dist`, emit JS, emit declarations)                                                  |
-| `.moon/tasks/node-application.yml` | JavaScript applications tagged `web-app`  | `build` (`vite build`), `dev`, `preview` (both load `/.env.local`)                                  |
-| `.moon/tasks/rust.yml`             | Rust projects                             | `build`, `test`, `lint` (clippy `-D warnings`)                                                      |
-| `moon.yml`                         | the root project only                     | lint, format, secrets, audit, lockstep, project refs, Atlas, Drizzle, RLS, creation, consumer check |
+| File                               | Inherited by                              | Tasks                                                                                     |
+| ---------------------------------- | ----------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `.moon/tasks/node.yml`             | every JavaScript project                  | `typecheck`, `test`, `test-coverage`, `test-watch`                                        |
+| `.moon/tasks/node-library.yml`     | JavaScript projects with `layer: library` | `build` (clean `dist`, emit JS, emit declarations)                                        |
+| `.moon/tasks/node-application.yml` | JavaScript applications tagged `web-app`  | `build` (`vite build`), `dev`, `preview` (both load `/.env.local`)                        |
+| `moon.yml`                         | the root project only                     | lint, format, secrets, audit, lockstep, project refs, Atlas, Drizzle, RLS, consumer check |
 
 ```mermaid
 graph LR
@@ -453,14 +360,13 @@ TypeScript project references are written by `moon sync` (`typescript.syncProjec
 | Composition and integration | Vitest under `tests/integration/` | `apps/web/tests/integration/auth-wiring.test.ts` (real SDK, no network), `routes.test.tsx`      |
 | Coverage floor              | V8, per file: 80/75/80/80         | `vitest.config.ts` lines 14–23                                                                  |
 | Database behavior           | Real Postgres 17 in Docker        | `root:rls-verify` (6 assertions), `root:drizzle-check`, `root:atlas-lint`                       |
-| Repository scripts          | `node --test`                     | `scripts/tests/**` (26 tests: creation, rebase, registry, Moon task shape, pins)                |
-| Generated consumer          | Real creation, build, HTTP probes | `root:consumer-check`: gate negative proofs, route status codes, CSS utilities, packed tarballs |
-| Rust                        | `cargo test`, clippy              | `services/ping/tests/ping.rs`                                                                   |
+| Repository scripts          | `node --test`                     | `scripts/tests/**` (Moon task shape, hooks, pins, fixed version group, licenses)                |
+| Workspace consumer          | Snapshot build, HTTP probes       | `root:consumer-check`: gate negative proofs, route status codes, CSS utilities, packed tarballs |
 
 Tests reach the security logic through the seams listed above, not through mocks of framework
 internals. `consumer-check` also proves that the gates fail. It plants a type error, a failing
-assertion, a floating promise and malformed formatting in the generated project, and asserts that
-each gate rejects its violation (`scripts/consumer-check.mjs` lines 226–253). No test drives a real
+assertion, a floating promise and malformed formatting in a snapshot of the workspace, and asserts
+that each gate rejects its violation (`scripts/consumer-check.mjs`, `rejectViolation`). No test drives a real
 browser or a live WorkOS environment. The `measured against the live API` comments in
 `packages/auth-workos` and `packages/auth-session` record manual observations.
 

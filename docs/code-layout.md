@@ -26,7 +26,6 @@ apps/web/src/
 │               └── verify.ts
 ├── features/
 │   ├── auth/search.ts
-│   ├── tasks/task-board.tsx
 │   └── workspace/
 │       ├── model.ts
 │       ├── workspace-page.tsx
@@ -54,7 +53,6 @@ would make navigation harder. Regenerate `routeTree.gen.ts` through the app buil
 modules provision and query the application's tables, and its page receives the result as props.
 The route invokes the feature loader through an explicit Start server function and passes loader
 data to the page. The page can be tested without importing the route or constructing a router.
-The task board has one file because its current behavior fits there.
 
 `server/` contains application-wide adapters and service construction. Name each module for its
 service or behavior. Put a feature's query alongside that feature. The database package owns pooling
@@ -70,7 +68,6 @@ application tables just to make the example run.
 - `views/src/<view>/` groups composed reusable screens and exposes them through subpath exports.
 - Auth packages separate verification, provider API calls, session handling and framework adaptation.
 - `theme/` owns token validation, concrete themes and its generated stylesheet.
-- `collections/` and `services/ping/` demonstrate small JavaScript and Rust members.
 
 Package exports name implemented files. Add a hook or an adapter when behavior needs it; avoid
 placeholder exports and empty extension directories.
@@ -80,7 +77,7 @@ placeholder exports and empty extension directories.
 Focused tests live under `tests/` and mirror feature groups. In the web app, workspace tests live
 under `tests/features/workspace/`; router and auth composition tests live under `tests/integration/`.
 Tests that start a build, process, database or network listener belong in `tests/integration/`.
-Rust retains its native integration test directory convention.
+A member in another language keeps that language's native test convention.
 
 Moon discovers workspace members across languages. Generic JavaScript checks apply to JavaScript
 members. Vite/Nitro commands apply only to applications tagged `web-app`; other runtimes declare
@@ -92,9 +89,9 @@ the tool unchanged. Explicit `script` tasks own any required shell syntax.
 For a new member, follow [Add a workspace member](../AGENTS.md#add-a-workspace-member). Verify the
 resolved Moon project and tasks, then prove the relevant checks reject a deliberate failure.
 
-## Applying the pattern downstream
+## Applying the pattern in a project
 
-A downstream project owns its copy. Replace the workspace diagnostics, alter the task example or
-remove the reference application as needed. Retain useful ownership boundaries as the product grows.
-Use the upstream consumer list to inspect real implementations before promoting an improvement back
-into this template.
+A project owns the application glue it takes from the reference app. Replace the workspace
+diagnostics as needed, and retain useful ownership boundaries as the product grows. Behavior with a
+reusable contract belongs in a published package, where an upgrade delivers it, rather than in each
+project's copy.

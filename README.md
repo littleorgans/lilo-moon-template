@@ -1,31 +1,29 @@
 # lilo-moon-template
 
-A language agnostic monorepo baseline. Moon owns the task graph for every language.
-pnpm manages JavaScript packages.
+A reference implementation of a TypeScript web application, and the source of the `@littleorgans/*`
+npm packages it is built from. Once published, projects add the packages as dependencies and
+follow the reference app for the thin glue they own. They do not copy, rename or rebase this
+repository.
 
-Start with [the instantiation guide](docs/how-to-instantiate.md). Follow [AGENTS.md](AGENTS.md)
-while working in the repository. [The decision record](docs/decisions.md) explains the tool choices.
+Moon owns the task graph. pnpm manages JavaScript packages. Follow [AGENTS.md](AGENTS.md) while
+working in the repository. [The decision record](docs/decisions.md) explains the tool choices.
 
-[The system overview](docs/system-overview.md) maps packages, seams, project creation, runtime and
-CI. [The domain model](docs/domain-model.md) defines the terms. [The assessment](docs/assessment.md)
-reviews strengths, risks and a roadmap as of 2026-09-23. [The direction](docs/direction.md)
-proposes turning the template into a reference implementation, published packages and skills.
+[The direction](docs/direction.md) sets out the plan: the reference implementation, the published
+packages, and skills that teach how frontends and services are built here. [The system
+overview](docs/system-overview.md) maps packages, seams, runtime and CI. [The domain
+model](docs/domain-model.md) defines the terms. [The assessment](docs/assessment.md) is a review as
+of 2026-09-23, from before the template machinery was removed.
 
-## Implemented capabilities
+## Status
 
-| Area        | Implementation                                                                                            |
-| ----------- | --------------------------------------------------------------------------------------------------------- |
-| Workspace   | Moon tasks and project creation, pinned toolchains, pnpm catalogs, a Rust example                         |
-| Identity    | WorkOS Google OAuth and email codes, encrypted cookies, token verification, TanStack Start adapter        |
-| Persistence | Postgres, Drizzle queries, Atlas SQL migrations, transaction scoped identity and real RLS verification    |
-| UI          | React, Tailwind 4, shadcn/Radix components, layout and typography components                              |
-| Themes      | Typed tokens, generated CSS, runtime validation, light and dark modes, preference cookies and a theme lab |
-| Delivery    | CI, formatting, type aware lint, coverage, dependency audit, secret scanning and Changesets               |
+Nothing is published yet. Every package is at `0.0.0`, and the release workflow publishes only after
+the repository variable `NPM_PUBLISH_ENABLED` is set to `true`. The first release, `0.1.0`, follows
+the phase 1 work in [the direction](docs/direction.md#f-phased-plan).
 
-Payments, CRM, Zustand persistence, Convex, system theme mode and saved user theme editing are
-not implemented. Billing design notes describe proposed workflows, not working payment integration.
+## Packages
 
-## Package ownership
+Every package below is publishable, and none is published yet. They release together at one
+version (the Changesets `fixed` group), because their internal dependencies are exact pins.
 
 - `auth` verifies tokens and maps claims to a `Principal`.
 - `auth-workos` wraps the WorkOS SDK. `auth-session` handles WorkOS browser sessions.
@@ -36,12 +34,36 @@ not implemented. Billing design notes describe proposed workflows, not working p
 - `theme` owns token contracts, validation and CSS generation. Consumers can supply theme preferences.
 - `ui` owns shared components. `views` composes them into reference screens.
 - `vite-config` discovers packages from an explicitly supplied consumer workspace root.
-- `collections` and `services/ping` demonstrate TypeScript and Rust members.
 
-Application code lives under `apps/<name>/src`: grouped routes wire URLs, named server modules
-compose services, and `features/<name>/` owns each feature's model, UI and server behavior. The
-workspace example demonstrates that ownership without putting product diagnostics in shared packages.
-See [Code layout](docs/code-layout.md) for the structure to follow when adding features and members.
+## Implemented capabilities
+
+| Area        | Implementation                                                                                            |
+| ----------- | --------------------------------------------------------------------------------------------------------- |
+| Workspace   | Moon tasks, pinned toolchains, pnpm catalogs                                                              |
+| Identity    | WorkOS Google OAuth and email codes, encrypted cookies, token verification, TanStack Start adapter        |
+| Services    | Bearer authentication on Fetch `Request` and `Response`, with a Hono adapter                              |
+| Persistence | Postgres, Drizzle queries, Atlas SQL migrations, transaction scoped identity and real RLS verification    |
+| UI          | React, Tailwind 4, shadcn/Radix components, layout and typography components                              |
+| Themes      | Typed tokens, generated CSS, runtime validation, light and dark modes, preference cookies and a theme lab |
+| Delivery    | CI, formatting, type aware lint, coverage, dependency audit, secret scanning and Changesets               |
+
+Payments, CRM, Zustand persistence, Convex, system theme mode and saved user theme editing are
+not implemented.
+
+## The reference app
+
+`apps/web` is private and never published. It consumes the packages from workspace source and
+shows the glue a project owns: grouped routes wire URLs, named server modules compose services, and
+`features/<name>/` owns each feature's model, UI and server behavior. See [Code
+layout](docs/code-layout.md) for the structure to follow when adding features and members.
+
+The signed-in page shows the session's user and organization, and the rows a scoped transaction can
+see. `/theme` is a reference page for the components and themes.
+
+Each application selects `organizationPolicy` in `src/server/auth.ts`: `personal` provisions a
+personal workspace, while `existing` leaves organization membership unchanged. Each application
+imports the UI stylesheet and the views source registration in `src/styles.css`, and registers its
+own source directory. Published packages do not scan neighboring repositories.
 
 ## Start locally
 
@@ -61,32 +83,8 @@ must match the running app. `DATABASE_URL` is optional. An app without it can st
 moon run web:dev
 ```
 
-The reference app runs on port 5199. `/theme` displays the component and theme examples.
-The signed-in page contains diagnostic examples that a product should replace.
-
-## Create a new repository
-
-```bash
-just new-project atlas --dest ../projects --org your-org
-just projects
-```
-
-The creator preserves Git history, sets the new project's `origin` and this template as `upstream`,
-then commits naming and setup changes on top of the selected template revision. This template keeps
-one tracked consumer record per project; local checkout paths remain ignored. Use the list to inspect
-real projects for improvements worth bringing back into the baseline. See
-[project creation and consumer tracking](docs/project-lineage.md).
-
-## Develop your project
-
-Adapt `apps/web` directly. Downstream projects may replace or delete the examples. For additional
-members, follow [Add a workspace member](AGENTS.md#add-a-workspace-member).
-
-Each application selects `organizationPolicy` in `src/server/auth.ts`: `personal` provisions a
-personal workspace, while `existing` leaves organization membership unchanged.
-
-Each application imports the UI stylesheet and the views source registration in `src/styles.css`,
-and registers its own source directory. Published packages do not scan neighboring repositories.
+The reference app runs on port 5199. [Set up and operate this repository](docs/how-to-instantiate.md)
+covers toolchains, ports, the database and publishing until the adoption guides replace it.
 
 ## Verification
 
@@ -94,17 +92,11 @@ and registers its own source directory. Published packages do not scan neighbori
 CI runs the coverage task once per JavaScript project; `test` remains available for focused local runs.
 Docker enables the real Postgres checks. CI requires those checks when a schema exists.
 
-The template producer also runs `root:consumer-check`. It creates a repository using the real script,
-builds its application and verifies HTTP and CSS behavior. It repeats the check with packed libraries
-installed outside their source workspace. Git integration tests exercise fetching and rebasing a
-later template update while preserving product changes. Fixtures use disposable repositories.
+`root:consumer-check` copies this workspace into a disposable repository, builds the reference app,
+proves its typecheck, test, lint and format gates reject deliberate violations, and verifies HTTP
+and CSS behavior. It repeats the check with the libraries packed and installed outside their source
+workspace, including on `db`'s lowest peer versions, and runs a service against the packed
+`auth-http` and `db`, applying the shipped migrations and login grant to a real Postgres.
 
 Postgres containers and their default ports are derived from the checkout path. `just clean`
 removes only that checkout's container and Moon cache. Change `LILO_PG_PORT` if a port is occupied.
-
-## Distribution
-
-This repository supports both copied workspace libraries and packed package consumption. Copying
-and renaming libraries creates independent implementations. Published package consumers can instead
-receive fixes through dependency upgrades. Registry publishing is separately enabled in the release
-workflow and is not required to start a project.

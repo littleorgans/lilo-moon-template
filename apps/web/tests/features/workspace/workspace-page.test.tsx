@@ -13,13 +13,21 @@ const principal: Principal = {
 };
 
 describe("WorkspacePage", () => {
-  it("prints the whole Principal so the claims can be read off the screen", () => {
+  it("names the user and organization without dumping the rest of the Principal", () => {
     const html = renderToStaticMarkup(
       <WorkspacePage principal={principal} rows={null} databaseError={null} />,
     );
     expect(html).toContain("user_01HBEQ");
     expect(html).toContain("org_01M0");
-    expect(html).toContain("billing:manage");
+    expect(html).not.toContain("billing:manage");
+    expect(html).not.toContain("owner");
+  });
+
+  it("says so when the session has no organization", () => {
+    const html = renderToStaticMarkup(
+      <WorkspacePage principal={{ ...principal, orgId: null }} rows={null} databaseError={null} />,
+    );
+    expect(html).toContain("No organization");
   });
 
   it("says plainly that no transaction ran when there is no database", () => {
@@ -46,14 +54,6 @@ describe("WorkspacePage", () => {
     );
     expect(html).toContain("accounts: 1");
     expect(html).toContain("profiles: 1");
-  });
-
-  it("includes the task board in the workspace", () => {
-    const html = renderToStaticMarkup(
-      <WorkspacePage principal={principal} rows={null} databaseError={null} />,
-    );
-    expect(html).toContain("The product");
-    expect(html).toContain("Scout baseline");
   });
 });
 

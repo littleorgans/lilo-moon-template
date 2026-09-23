@@ -9,7 +9,6 @@
       "@littleorgans/auth-session",
       "@littleorgans/auth-tanstack",
       "@littleorgans/auth-workos",
-      "@littleorgans/collections",
       "@littleorgans/db",
       "@littleorgans/theme",
       "@littleorgans/ui",

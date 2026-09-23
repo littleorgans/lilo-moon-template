@@ -8,12 +8,11 @@ import {
   CardTitle,
 } from "@littleorgans/ui/components/card";
 import { Container, Row, Stack } from "@littleorgans/ui/components/layout";
-import { Code, CodeBlock, Heading, Text } from "@littleorgans/ui/components/text";
+import { Code, Heading, Text } from "@littleorgans/ui/components/text";
 
-import { TaskBoard } from "../tasks/task-board.js";
 import type { WorkspaceView } from "./model.js";
 
-/** The example workspace owns its diagnostics and product composition. */
+/** The signed-in page: who the session belongs to, what the scoped transaction sees, and sign out. */
 export function WorkspacePage({ principal, rows, databaseError }: WorkspaceView) {
   return (
     <main>
@@ -30,14 +29,24 @@ export function WorkspacePage({ principal, rows, databaseError }: WorkspaceView)
 
           <Card>
             <CardHeader>
-              <CardTitle>Principal</CardTitle>
-              <CardDescription>
-                Verified identity claims for this session. <Code>orgId</Code> identifies the current
-                organization; <Code>entitlements</Code> lists the features granted by the provider.
-              </CardDescription>
+              <CardTitle>Session</CardTitle>
+              <CardDescription>The verified identity this page runs as.</CardDescription>
             </CardHeader>
             <CardContent>
-              <CodeBlock>{JSON.stringify(principal, null, 2)}</CodeBlock>
+              <Stack gap="sm">
+                <Text>
+                  User <Code>{principal.userId}</Code>
+                </Text>
+                <Text tone={principal.orgId === null ? "muted" : "default"}>
+                  {principal.orgId === null ? (
+                    "No organization"
+                  ) : (
+                    <>
+                      Organization <Code>{principal.orgId}</Code>
+                    </>
+                  )}
+                </Text>
+              </Stack>
             </CardContent>
           </Card>
 
@@ -60,11 +69,6 @@ export function WorkspacePage({ principal, rows, databaseError }: WorkspaceView)
               )}
             </CardContent>
           </Card>
-
-          <Stack gap="sm">
-            <Heading level={2}>The product</Heading>
-            <TaskBoard />
-          </Stack>
         </Stack>
       </Container>
     </main>

@@ -40,7 +40,7 @@ async function redirectedBy(deps: WorkspaceDeps): Promise<{ to?: string; search?
 }
 
 describe("buildWorkspaceView", () => {
-  // Sign-in has to work before Postgres exists, or the template cannot be run at all until
+  // Sign-in has to work before Postgres exists, or the reference app cannot be run at all until
   // somebody provisions a database.
   it("treats an absent database as a runnable state, not an error", async () => {
     expect(await buildWorkspaceView(principal, null)).toStrictEqual({
