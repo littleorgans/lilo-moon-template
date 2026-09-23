@@ -54,6 +54,8 @@ function translate(error: unknown): AuthError {
     case "ERR_JWKS_NO_MATCHING_KEY":
     case "ERR_JWKS_MULTIPLE_MATCHING_KEYS":
       return new AuthError("signature", message, { cause: error });
+    case "ERR_JWKS_INVALID":
+    case "ERR_JWK_INVALID":
     case "ERR_JWKS_TIMEOUT":
     case "ERR_JOSE_GENERIC":
       return new AuthError("unavailable", message, { cause: error });
@@ -63,10 +65,22 @@ function translate(error: unknown): AuthError {
       if (claim === "aud") return new AuthError("audience", message, { cause: error });
       return new AuthError("claims", message, { cause: error });
     }
+    case "ERR_JWS_INVALID":
+    case "ERR_JWT_INVALID":
+    case "ERR_JOSE_ALG_NOT_ALLOWED":
+    case "ERR_JOSE_NOT_SUPPORTED":
+      return new AuthError("malformed", message, { cause: error });
     default:
-      return new AuthError(error instanceof TypeError ? "unavailable" : "malformed", message, {
-        cause: error,
-      });
+      // Fetch failures are TypeErrors; WebCrypto rejects corrupt provider key material with
+      // DataError. Neither says anything about the caller's token. Unknown failures are bugs
+      // or unsupported runtime failures and belong to the application's 500 handler.
+      if (
+        error instanceof TypeError ||
+        (error instanceof DOMException && error.name === "DataError")
+      ) {
+        return new AuthError("unavailable", message, { cause: error });
+      }
+      throw error;
   }
 }
 

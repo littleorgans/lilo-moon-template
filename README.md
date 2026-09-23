@@ -30,6 +30,8 @@ not implemented. Billing design notes describe proposed workflows, not working p
 - `auth` verifies tokens and maps claims to a `Principal`.
 - `auth-workos` wraps the WorkOS SDK. `auth-session` handles WorkOS browser sessions.
 - `auth-tanstack` binds sessions to TanStack Start requests.
+- `auth-http` authenticates bearer tokens for services on Fetch `Request` and `Response`, with a
+  Hono adapter and a service config loader.
 - `db` runs Postgres transactions under a principal. Applications own tables and provisioning.
 - `theme` owns token contracts, validation and CSS generation. Consumers can supply theme preferences.
 - `ui` owns shared components. `views` composes them into reference screens.

@@ -49,7 +49,7 @@ Destinations:
 | `packages/views`          | Pkg (phase 1)         | React peers become `^19`.                                                                                                                                                                       |
 | `packages/vite-config`    | Pkg (phase 1)         | The `publishConfig` export redirect already produces a `dist` export [V]. The peer becomes `vite: ^8`. Later it can also export the shared Vitest configuration.                                |
 | `packages/collections`    | Delete                | An example with one caller, the task board. Real packages now demonstrate library shape.                                                                                                        |
-| new `packages/auth-http`  | Pkg (phase 1)         | Service seam: a Fetch-standard `Request` → `Principal` bearer authenticator with `AuthError` → 401/503 mapping, plus a small Node adapter.                                                      |
+| new `packages/auth-http`  | Pkg (phase 1)         | Service seam: a Fetch-standard `Request` → `Principal` bearer authenticator with `AuthError` → 401/503 mapping, plus a small Hono adapter.                                                      |
 | new `packages/db-tools`   | Pkg (phase 1 minimal) | CLI. Phase 1: `rls-verify` (generic: every `public` table has RLS enabled and forced, and absent claims return nothing). Phase 2: Atlas and Drizzle wrappers and the Postgres container helper. |
 | new `packages/create-app` | Pkg (phase 2)         | `pnpm create @littleorgans/app` scaffolder (see [e](#e-scaffolding)).                                                                                                                           |
 | new config packages       | Shared (phase 2)      | `@littleorgans/tsconfig` (from `tsconfig.options.json`), `@littleorgans/oxlint-config` (from `.oxlintrc.json`, if oxlint package `extends` works [I]), and Vitest defaults in `vite-config`.    |
@@ -266,7 +266,7 @@ Gap size, about 8–9 days:
 
 | Item                                                                                               | Days |
 | -------------------------------------------------------------------------------------------------- | ---- |
-| `auth-http`: Fetch-standard `Request` → `Principal`, a Node adapter, and the service config loader | 2    |
+| `auth-http`: Fetch-standard `Request` → `Principal`, a Hono adapter, and the service config loader | 2    |
 | Token accessor in `auth-session` and `auth-tanstack`                                               | 1    |
 | `db`: ship migrations, role-grant step, peer dependencies                                          | 1    |
 | `db-tools` minimal `rls-verify`                                                                    | 1.5  |

@@ -6,6 +6,9 @@ settings:
 
 catalogs:
   default:
+    '@hono/node-server':
+      specifier: 2.1.1
+      version: 2.1.1
     '@tailwindcss/vite':
       specifier: 4.3.3
       version: 4.3.3
@@ -48,6 +51,9 @@ catalogs:
     drizzle-orm:
       specifier: 0.45.2
       version: 0.45.2
+    hono:
+      specifier: 4.13.8
+      version: 4.13.8
     jose:
       specifier: 6.2.9
       version: 6.2.9
@@ -220,6 +226,24 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 24.13.3
+
+  packages/auth-http:
+    devDependencies:
+      '@hono/node-server':
+        specifier: 'catalog:'
+        version: 2.1.1(hono@4.13.8)
+      '@littleorgans/auth':
+        specifier: workspace:*
+        version: link:../auth
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.13.3
+      hono:
+        specifier: 'catalog:'
+        version: 4.13.8
+      jose:
+        specifier: 'catalog:'
+        version: 6.2.9
 
   packages/auth-session:
     dependencies:
@@ -936,6 +960,12 @@ packages:
 
   '@floating-ui/utils@0.2.12':
     resolution: {integrity: sha512-HpCo8tmWzLVad5s2d19EhAz5zqrrQ6s69qd6moPMQvkOuSwDT1YgRfWSVuc4ennqrgv3OHppiOGMQ7oC13yIww==}
+
+  '@hono/node-server@2.1.1':
+    resolution: {integrity: sha512-ELuehkj5VCBdgEw9zs+ivkKwyzzUCSQuE96YmiPvn1ECBoZCczbFXJLeEGMTYjphP6gydh4pHMqEYPVMYUVgQg==}
+    engines: {node: '>=20'}
+    peerDependencies:
+      hono: ^4
 
   '@jridgewell/gen-mapping@0.3.13':
     resolution: {integrity: sha512-2kkt/7niJ6MgEPxF0bYdQ6etZaA+fQvDcLKckhy1yIQOzaoKjBBjSj63/aLVjYE3qhRt5dvM+uUyfCg6UKCBbA==}
@@ -3013,6 +3043,10 @@ packages:
     resolution: {integrity: sha512-CsNUt5x9LUdx6hnk/E2SZLsDyvfqANZSUq4+D3D8RzDJ2M+HDTIkF60ibS1vHaK55vzgiZw1bEPFG9yH7l33wA==}
     engines: {node: '>=12'}
 
+  hono@4.13.8:
+    resolution: {integrity: sha512-/Gng7NfoykZl2pjukW5Z6+8Yxm3BPRf86GTbQnt0SbySkvax4fyL4H3HhY1cCpBGmiW9XDRFzRV+CXK2W8QudQ==}
+    engines: {node: '>=16.9.0'}
+
   hookable@6.1.1:
     resolution: {integrity: sha512-U9LYDy1CwhMCnprUfeAZWZGByVbhd54hwepegYTK7Pi5NvqEj63ifz5z+xukznehT7i6NIZRu89Ay1AZmRsLEQ==}
 
@@ -4651,6 +4685,10 @@ snapshots:
       react-dom: 19.2.8(react@19.2.8)
 
   '@floating-ui/utils@0.2.12': {}
+
+  '@hono/node-server@2.1.1(hono@4.13.8)':
+    dependencies:
+      hono: 4.13.8
 
   '@jridgewell/gen-mapping@0.3.13':
     dependencies:
@@ -6502,6 +6540,8 @@ snapshots:
   has-flag@4.0.0: {}
 
   has-flag@5.0.1: {}
+
+  hono@4.13.8: {}
 
   hookable@6.1.1: {}
 

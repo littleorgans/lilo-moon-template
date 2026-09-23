@@ -16,7 +16,12 @@ import { dirname, join, relative } from "node:path";
 import { setTimeout } from "node:timers/promises";
 
 import { createProject } from "./lib/create-project.mjs";
-import { initializeProject, projectEnvironment, projectCommand } from "./lib/project-files.mjs";
+import {
+  initializeProject,
+  projectEnvironment,
+  projectCommand,
+  writeJson,
+} from "./lib/project-files.mjs";
 import { pruneReferences } from "./lib/typescript-references.mjs";
 
 if (existsSync(".template-origin.json")) {
@@ -252,6 +257,84 @@ async function exercise(root) {
   }
 }
 
+// A service outside any workspace, installing the packed auth and auth-http tarballs. It proves
+// the published exports, including the ./hono subpath and its declarations, resolve from
+// tarballs, and that auth resolves as the peer the service installs itself.
+function exerciseService(artifacts) {
+  const root = join(scratch, "service");
+  mkdirSync(root);
+  const httpName = [...artifacts.keys()].find((name) => name.endsWith("/auth-http"));
+  assert.ok(httpName, "auth-http must be packed");
+  const scope = httpName.slice(0, httpName.indexOf("/"));
+  // Pin what this workspace resolved, so the check exercises the versions the unit tests ran.
+  const installed = (project, name) =>
+    readManifest(join(source, project, "node_modules", name)).version;
+  writeJson(join(root, "package.json"), {
+    name: "service-consumer",
+    private: true,
+    type: "module",
+    dependencies: {
+      [`${scope}/auth`]: `file:${artifacts.get(`${scope}/auth`)}`,
+      [httpName]: `file:${artifacts.get(httpName)}`,
+      "@types/node": installed("packages/auth-http", "@types/node"),
+      hono: installed("packages/auth-http", "hono"),
+      jose: installed("packages/auth-http", "jose"),
+    },
+  });
+  writeJson(join(root, "tsconfig.json"), {
+    compilerOptions: {
+      target: "ES2024",
+      lib: ["ES2024"],
+      types: ["node"],
+      module: "NodeNext",
+      strict: true,
+      noEmit: true,
+      skipLibCheck: false,
+    },
+    include: ["service.ts"],
+  });
+  writeFileSync(
+    join(root, "service.ts"),
+    `import assert from "node:assert/strict";
+
+import { createVerifier } from "${scope}/auth";
+import { loadServiceConfig } from "${httpName}";
+import { requireAuth } from "${httpName}/hono";
+import type { AuthEnv } from "${httpName}/hono";
+import { Hono } from "hono";
+import { SignJWT, exportJWK, generateKeyPair } from "jose";
+
+const issuer = "https://issuer.example";
+const { publicKey, privateKey } = await generateKeyPair("ES256");
+const verify = createVerifier({ issuer, jwks: { keys: [await exportJWK(publicKey)] } });
+const app = new Hono<AuthEnv>().use(requireAuth({ verify })).get("/me", (c) => c.json(c.var.principal));
+
+const anonymous = await app.request("/me");
+assert.equal(anonymous.status, 401);
+assert.equal(anonymous.headers.get("www-authenticate"), "Bearer");
+const token = await new SignJWT({ sub: "user_consumer" })
+  .setProtectedHeader({ alg: "ES256" })
+  .setIssuer(issuer)
+  .setExpirationTime("5m")
+  .sign(privateKey);
+const signedIn = await app.request("/me", { headers: { authorization: \`Bearer \${token}\` } });
+assert.equal(signedIn.status, 200);
+assert.deepEqual(await signedIn.json(), {
+  userId: "user_consumer",
+  orgId: null,
+  roles: [],
+  permissions: [],
+  entitlements: [],
+});
+assert.throws(() => loadServiceConfig({}), /PORT is missing/);
+`,
+  );
+  run(root, "pnpm", ["install"]);
+  run(root, join(source, "node_modules/.bin/tsc"), ["--project", "tsconfig.json"]);
+  run(root, process.execPath, ["service.ts"]);
+  process.stdout.write(`consumer-check: packed auth-http served 401 and 200 in ${root}\n`);
+}
+
 try {
   mkdirSync(seed);
   const files = execFileSync(
@@ -380,7 +463,8 @@ try {
   run(packed, "moon", ["run", "web:build", "web:typecheck", "web:test"]);
   await exercise(packed);
   checkDbPeerFloors(manifestPath, manifest);
-  process.stdout.write("consumer-check: generated and packed consumers passed.\n");
+  exerciseService(artifacts);
+  process.stdout.write("consumer-check: generated, packed and service consumers passed.\n");
 } finally {
   rmSync(scratch, { recursive: true, force: true });
 }

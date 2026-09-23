@@ -9,6 +9,9 @@
       "path": "./packages/auth"
     },
     {
+      "path": "./packages/auth-http"
+    },
+    {
       "path": "./packages/auth-session"
     },
     {
