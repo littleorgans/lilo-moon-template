@@ -1,4 +1,4 @@
-import type { AuthFailureReport } from "@lilo-moon/auth-session";
+import type { AuthFailureReport } from "@littleorgans/auth-session";
 
 /**
  * The default destination for every auth failure: one JSON line each, on stderr.

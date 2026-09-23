@@ -1,7 +1,7 @@
-import { Button } from "@lilo-moon/ui/components/button";
-import { Input } from "@lilo-moon/ui/components/input";
-import { Container, Stack } from "@lilo-moon/ui/components/layout";
-import { Heading, Text } from "@lilo-moon/ui/components/text";
+import { Button } from "@littleorgans/ui/components/button";
+import { Input } from "@littleorgans/ui/components/input";
+import { Container, Stack } from "@littleorgans/ui/components/layout";
+import { Heading, Text } from "@littleorgans/ui/components/text";
 
 export interface VerifyCodePanelProps {
   /** The server route the code is posted to. */

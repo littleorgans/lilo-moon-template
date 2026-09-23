@@ -221,7 +221,7 @@ is the worst available response, and a failure nobody is told about is one that 
 Nothing in the repo pages anyone today, so "log it" currently means a structured log line and
 nothing more. That is enough to make the failure findable and is not enough to make it noticed.
 
-**Built 2026-08-25.** `readAccess` in `@lilo-moon/auth-session` turns the session cookie into one
+**Built 2026-08-25.** `readAccess` in `@littleorgans/auth-session` turns the session cookie into one
 of five states, and `apps/web`'s signed-in loader is the single place they become screens:
 
 | State       | Reached by                                     | Where the browser goes         |

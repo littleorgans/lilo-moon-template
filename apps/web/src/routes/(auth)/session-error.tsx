@@ -1,4 +1,4 @@
-import { SessionErrorPanel } from "@lilo-moon/views/session-error";
+import { SessionErrorPanel } from "@littleorgans/views/session-error";
 import { createFileRoute } from "@tanstack/react-router";
 
 import { retrySearch } from "../../features/auth/search.js";

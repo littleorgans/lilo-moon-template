@@ -1,5 +1,5 @@
 {
-  "name": "@lilo-moon/vite-config",
+  "name": "@littleorgans/vite-config",
   "version": "0.0.0",
   "description": "Workspace source resolution for the Vite configs of applications in this repo.",
   "license": "MIT",

@@ -1,4 +1,4 @@
-import type { Principal } from "@lilo-moon/auth";
+import type { Principal } from "@littleorgans/auth";
 import type { SQL } from "drizzle-orm";
 import { sql } from "drizzle-orm";
 

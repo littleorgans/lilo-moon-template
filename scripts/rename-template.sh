@@ -133,6 +133,8 @@ while IFS= read -r -d '' file; do
       SOURCE_SCOPE="$source_scope" TARGET_SCOPE="$target_scope" \
       perl -0pi -e '
         s/\Q$ENV{SOURCE_SLUG}\E/$ENV{TARGET_SLUG}/g;
+        # The npm scope is the org token; rename it to the scope before the org pass.
+        s/\@\Q$ENV{SOURCE_ORG}\E(?![\w.-])/\@$ENV{TARGET_SCOPE}/g;
         s/\Q$ENV{SOURCE_ORG}\E/$ENV{TARGET_ORG}/g;
         s/\Q$ENV{SOURCE_SCOPE}\E/$ENV{TARGET_SCOPE}/g;
       ' -- "$file"

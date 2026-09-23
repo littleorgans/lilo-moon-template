@@ -1,7 +1,7 @@
 ---
-"@lilo-moon/views": minor
-"@lilo-moon/ui": patch
-"@lilo-moon/web": patch
+"@littleorgans/views": minor
+"@littleorgans/ui": patch
+"@littleorgans/web": patch
 ---
 
 Group application routes and move workspace diagnostics into an application-owned feature.

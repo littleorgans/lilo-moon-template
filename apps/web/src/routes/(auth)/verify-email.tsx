@@ -1,4 +1,4 @@
-import { VerifyCodePanel } from "@lilo-moon/views/verify-code";
+import { VerifyCodePanel } from "@littleorgans/views/verify-code";
 import { createFileRoute } from "@tanstack/react-router";
 
 import { retrySearch } from "../../features/auth/search.js";

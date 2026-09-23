@@ -96,16 +96,16 @@ graph LR
 Each seam is a narrow structural interface. Tests use it to exercise the security logic without a
 live framework, provider or database.
 
-| Seam                            | Declared in                                                                   | Implemented by                                    | Purpose                                                       |
-| ------------------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------- | ------------------------------------------------------------- |
-| `Verifier` / `Principal`        | `packages/auth/src/verify.ts`, `principal.ts`                                 | `createVerifier` (jose + JWKS)                    | Vendor-neutral identity: `userId`, `orgId`, roles, and more   |
-| `WorkOSClient`                  | `packages/auth-workos/src/client.ts`                                          | `@workos-inc/node` `WorkOS`                       | The exact SDK slice used; tests inject a recording client     |
-| `CookieJar`                     | `packages/auth-session/src/cookies.ts`                                        | `packages/auth-tanstack/src/cookies.ts`           | Keeps session logic free of any web framework                 |
-| `Access` union                  | `packages/auth-session/src/access.ts`                                         | `readAccess`                                      | Five session states the app branches on, never an exception   |
-| `ScopedClient` / `ScopedRunner` | `packages/db/src/scoped.ts`, `apps/web/src/features/workspace/server/rows.ts` | `pg` client, `Database.withPrincipal`             | The only way claims enter Postgres                            |
-| `ThemeTarget`                   | `packages/theme/src/apply.ts`                                                 | `element.style`                                   | Applies data themes without DOM types                         |
-| `@lilo-moon/source` condition   | every library `package.json` `exports`                                        | `packages/vite-config/src/index.ts`               | Dev resolves `src`, builds and Node resolve `dist`            |
-| Composition root                | `apps/web/src/server/*.ts`                                                    | `createAuthRuntime`, `getDatabase`, theme adapter | Application policy (paths, provider, org policy) in one place |
+| Seam                             | Declared in                                                                   | Implemented by                                    | Purpose                                                       |
+| -------------------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------- | ------------------------------------------------------------- |
+| `Verifier` / `Principal`         | `packages/auth/src/verify.ts`, `principal.ts`                                 | `createVerifier` (jose + JWKS)                    | Vendor-neutral identity: `userId`, `orgId`, roles, and more   |
+| `WorkOSClient`                   | `packages/auth-workos/src/client.ts`                                          | `@workos-inc/node` `WorkOS`                       | The exact SDK slice used; tests inject a recording client     |
+| `CookieJar`                      | `packages/auth-session/src/cookies.ts`                                        | `packages/auth-tanstack/src/cookies.ts`           | Keeps session logic free of any web framework                 |
+| `Access` union                   | `packages/auth-session/src/access.ts`                                         | `readAccess`                                      | Five session states the app branches on, never an exception   |
+| `ScopedClient` / `ScopedRunner`  | `packages/db/src/scoped.ts`, `apps/web/src/features/workspace/server/rows.ts` | `pg` client, `Database.withPrincipal`             | The only way claims enter Postgres                            |
+| `ThemeTarget`                    | `packages/theme/src/apply.ts`                                                 | `element.style`                                   | Applies data themes without DOM types                         |
+| `@littleorgans/source` condition | every library `package.json` `exports`                                        | `packages/vite-config/src/index.ts`               | Dev resolves `src`, builds and Node resolve `dist`            |
+| Composition root                 | `apps/web/src/server/*.ts`                                                    | `createAuthRuntime`, `getDatabase`, theme adapter | Application policy (paths, provider, org policy) in one place |
 
 ### Application layout
 
@@ -156,10 +156,11 @@ Details, all in `scripts/lib/create-project.mjs` unless noted:
   commit graph, so `git merge-base` works.
 - **Identity rewrite.** `scripts/rename-template.sh` substitutes three tokens in every tracked file
   except `.template-origin.json` and `.template/**`: `lilo-moon-template`, `littleorgans` and
-  `lilo-moon` (lines 6–12, 127–141). The substitution covers package names (`@lilo-moon/*` becomes
-  `@<scope>/*`), the `@lilo-moon/source` export condition, repository URLs, the Changesets
-  `changelog.repo`, pending changesets, and the lockfile. It then runs `pnpm install` and
-  `--verify`, which fails if any token remains.
+  `lilo-moon` (lines 6–12, 127–143). The npm scope is `@littleorgans`, the org token, so
+  `@littleorgans` is rewritten to `@<scope>` before the org pass. The substitution covers package
+  names (`@littleorgans/*` becomes `@<scope>/*`), the `@littleorgans/source` export condition,
+  repository URLs, the Changesets `changelog.repo`, pending changesets, and the lockfile. It then
+  runs `pnpm install` and `--verify`, which fails if any token remains.
 - **Provenance.** `.template-origin.json` records the template id, the starting revision, the
   template repository URL and the `org` and `scope` parameters (lines 106–119). Its presence marks a
   checkout as a product: `planProject` refuses to create from it (line 36), and
@@ -399,7 +400,7 @@ graph LR
 ```
 
 Libraries export `dist` for Node and for production builds. During `vite` serve,
-`workspaceSourceConfig` adds the `@lilo-moon/source` condition so apps resolve library `src`
+`workspaceSourceConfig` adds the `@littleorgans/source` condition so apps resolve library `src`
 directly (`packages/vite-config/src/index.ts` lines 64–76). The same helper installs a Rolldown
 plugin that fails a build when a server-only module reaches a client chunk (lines 42–62).
 TypeScript project references are written by `moon sync` (`typescript.syncProjectReferences` in

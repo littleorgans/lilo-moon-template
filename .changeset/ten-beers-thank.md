@@ -1,5 +1,5 @@
 ---
-"@lilo-moon/db": minor
+"@littleorgans/db": minor
 ---
 
 Add the Principal-scoped Postgres access layer: withPrincipal is the only

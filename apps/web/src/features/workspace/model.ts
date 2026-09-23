@@ -1,4 +1,4 @@
-import type { Principal } from "@lilo-moon/auth";
+import type { Principal } from "@littleorgans/auth";
 
 export interface VisibleRows {
   readonly accounts: number;

@@ -1,6 +1,6 @@
 /* Shared UI styles scan their own package. Consumers register their own sources. */
 @import "tailwindcss" source(none);
-@import "@lilo-moon/theme/themes.css";
+@import "@littleorgans/theme/themes.css";
 
 @source "./";
 

@@ -1,4 +1,4 @@
-import { COLOR_TOKENS } from "@lilo-moon/theme";
+import { COLOR_TOKENS } from "@littleorgans/theme";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 

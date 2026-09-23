@@ -1,8 +1,8 @@
-import { THEME_NAMES } from "@lilo-moon/theme";
-import type { ThemeMode, ThemePreference } from "@lilo-moon/theme";
-import { Button } from "@lilo-moon/ui/components/button";
-import { Row, Stack } from "@lilo-moon/ui/components/layout";
-import { Text } from "@lilo-moon/ui/components/text";
+import { THEME_NAMES } from "@littleorgans/theme";
+import type { ThemeMode, ThemePreference } from "@littleorgans/theme";
+import { Button } from "@littleorgans/ui/components/button";
+import { Row, Stack } from "@littleorgans/ui/components/layout";
+import { Text } from "@littleorgans/ui/components/text";
 
 export interface ThemeSwitcherProps {
   /** What the viewer currently has, so the active choices render pressed. */

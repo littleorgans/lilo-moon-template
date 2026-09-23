@@ -1,4 +1,4 @@
-import type { Principal } from "@lilo-moon/auth";
+import type { Principal } from "@littleorgans/auth";
 import { describe, expect, it } from "vitest";
 
 import type { ScopedClient } from "../src/index.js";

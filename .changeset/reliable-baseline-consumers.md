@@ -1,13 +1,13 @@
 ---
-"@lilo-moon/auth": minor
-"@lilo-moon/auth-session": minor
-"@lilo-moon/auth-workos": minor
-"@lilo-moon/auth-tanstack": minor
-"@lilo-moon/db": minor
-"@lilo-moon/theme": minor
-"@lilo-moon/ui": minor
-"@lilo-moon/views": minor
-"@lilo-moon/vite-config": minor
+"@littleorgans/auth": minor
+"@littleorgans/auth-session": minor
+"@littleorgans/auth-workos": minor
+"@littleorgans/auth-tanstack": minor
+"@littleorgans/db": minor
+"@littleorgans/theme": minor
+"@littleorgans/ui": minor
+"@littleorgans/views": minor
+"@littleorgans/vite-config": minor
 ---
 
 Prepare the baseline libraries for independent consumers. Require expiring access tokens, preserve

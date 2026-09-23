@@ -63,14 +63,14 @@ export function workspaceSourceConfig(
     },
     resolve: {
       conditions: serving
-        ? [...defaultClientConditions, "@lilo-moon/source"]
+        ? [...defaultClientConditions, "@littleorgans/source"]
         : [...defaultClientConditions],
     },
     optimizeDeps: { exclude: [...workspacePackages(workspaceRoot)] },
     ssr: {
       resolve: {
         conditions: serving
-          ? [...defaultServerConditions, "@lilo-moon/source"]
+          ? [...defaultServerConditions, "@littleorgans/source"]
           : [...defaultServerConditions],
       },
     },

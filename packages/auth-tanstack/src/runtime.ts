@@ -7,15 +7,15 @@ import {
   signOut,
   startAuthorization,
   startEmailSignIn,
-} from "@lilo-moon/auth-session";
+} from "@littleorgans/auth-session";
 import type {
   Access,
   AuthConfig,
   AuthFailureReport,
   AuthServices,
   CookieJar,
-} from "@lilo-moon/auth-session";
-import type { AuthorizationProvider } from "@lilo-moon/auth-workos";
+} from "@littleorgans/auth-session";
+import type { AuthorizationProvider } from "@littleorgans/auth-workos";
 
 import { requestCookies } from "./cookies.js";
 import { reportAuthFailure } from "./log.js";

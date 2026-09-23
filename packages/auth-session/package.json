@@ -1,5 +1,5 @@
 {
-  "name": "@lilo-moon/auth-session",
+  "name": "@littleorgans/auth-session",
   "version": "0.0.0",
   "description": "Sealed session cookies, CSRF state, and the redirect sign-in handlers.",
   "license": "MIT",
@@ -18,7 +18,7 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "@lilo-moon/source": "./src/index.ts",
+      "@littleorgans/source": "./src/index.ts",
       "import": "./dist/index.js",
       "default": "./dist/index.js"
     }
@@ -27,8 +27,8 @@
     "access": "public"
   },
   "dependencies": {
-    "@lilo-moon/auth": "workspace:*",
-    "@lilo-moon/auth-workos": "workspace:*",
+    "@littleorgans/auth": "workspace:*",
+    "@littleorgans/auth-workos": "workspace:*",
     "jose": "catalog:"
   },
   "devDependencies": {

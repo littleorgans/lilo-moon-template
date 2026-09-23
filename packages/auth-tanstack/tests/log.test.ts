@@ -1,4 +1,4 @@
-import { WorkOSAuthError } from "@lilo-moon/auth-workos";
+import { WorkOSAuthError } from "@littleorgans/auth-workos";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { reportAuthFailure } from "../src/log.js";

@@ -1,5 +1,5 @@
 {
-  "name": "@lilo-moon/ui",
+  "name": "@littleorgans/ui",
   "version": "0.0.0",
   "description": "Shared React components: shadcn primitives, layout, and the Tailwind entry stylesheet.",
   "license": "MIT",
@@ -20,13 +20,13 @@
     "./globals.css": "./src/globals.css",
     "./components/*": {
       "types": "./dist/components/*.d.ts",
-      "@lilo-moon/source": "./src/components/*.tsx",
+      "@littleorgans/source": "./src/components/*.tsx",
       "import": "./dist/components/*.js",
       "default": "./dist/components/*.js"
     },
     "./lib/*": {
       "types": "./dist/lib/*.d.ts",
-      "@lilo-moon/source": "./src/lib/*.ts",
+      "@littleorgans/source": "./src/lib/*.ts",
       "import": "./dist/lib/*.js",
       "default": "./dist/lib/*.js"
     }
@@ -35,7 +35,7 @@
     "access": "public"
   },
   "dependencies": {
-    "@lilo-moon/theme": "workspace:*",
+    "@littleorgans/theme": "workspace:*",
     "class-variance-authority": "catalog:",
     "clsx": "catalog:",
     "radix-ui": "catalog:",

@@ -1,4 +1,4 @@
-import type { WorkOSAuth } from "@lilo-moon/auth-workos";
+import type { WorkOSAuth } from "@littleorgans/auth-workos";
 
 import { ensureOrganization, establishSession } from "./callback.js";
 import type { SessionDeps } from "./callback.js";

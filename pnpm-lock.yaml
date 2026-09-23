@@ -143,25 +143,25 @@ importers:
 
   apps/web:
     dependencies:
-      '@lilo-moon/auth':
+      '@littleorgans/auth':
         specifier: workspace:*
         version: link:../../packages/auth
-      '@lilo-moon/auth-tanstack':
+      '@littleorgans/auth-tanstack':
         specifier: workspace:*
         version: link:../../packages/auth-tanstack
-      '@lilo-moon/collections':
+      '@littleorgans/collections':
         specifier: workspace:*
         version: link:../../packages/collections
-      '@lilo-moon/db':
+      '@littleorgans/db':
         specifier: workspace:*
         version: link:../../packages/db
-      '@lilo-moon/theme':
+      '@littleorgans/theme':
         specifier: workspace:*
         version: link:../../packages/theme
-      '@lilo-moon/ui':
+      '@littleorgans/ui':
         specifier: workspace:*
         version: link:../../packages/ui
-      '@lilo-moon/views':
+      '@littleorgans/views':
         specifier: workspace:*
         version: link:../../packages/views
       '@tanstack/react-router':
@@ -180,7 +180,7 @@ importers:
         specifier: 'catalog:'
         version: 19.2.8(react@19.2.8)
     devDependencies:
-      '@lilo-moon/vite-config':
+      '@littleorgans/vite-config':
         specifier: workspace:*
         version: link:../../packages/vite-config
       '@tailwindcss/vite':
@@ -220,10 +220,10 @@ importers:
 
   packages/auth-session:
     dependencies:
-      '@lilo-moon/auth':
+      '@littleorgans/auth':
         specifier: workspace:*
         version: link:../auth
-      '@lilo-moon/auth-workos':
+      '@littleorgans/auth-workos':
         specifier: workspace:*
         version: link:../auth-workos
       jose:
@@ -236,13 +236,13 @@ importers:
 
   packages/auth-tanstack:
     dependencies:
-      '@lilo-moon/auth':
+      '@littleorgans/auth':
         specifier: workspace:*
         version: link:../auth
-      '@lilo-moon/auth-session':
+      '@littleorgans/auth-session':
         specifier: workspace:*
         version: link:../auth-session
-      '@lilo-moon/auth-workos':
+      '@littleorgans/auth-workos':
         specifier: workspace:*
         version: link:../auth-workos
     devDependencies:
@@ -267,7 +267,7 @@ importers:
 
   packages/db:
     dependencies:
-      '@lilo-moon/auth':
+      '@littleorgans/auth':
         specifier: workspace:*
         version: link:../auth
       drizzle-orm:
@@ -288,7 +288,7 @@ importers:
 
   packages/ui:
     dependencies:
-      '@lilo-moon/theme':
+      '@littleorgans/theme':
         specifier: workspace:*
         version: link:../theme
       class-variance-authority:
@@ -322,10 +322,10 @@ importers:
 
   packages/views:
     dependencies:
-      '@lilo-moon/theme':
+      '@littleorgans/theme':
         specifier: workspace:*
         version: link:../theme
-      '@lilo-moon/ui':
+      '@littleorgans/ui':
         specifier: workspace:*
         version: link:../ui
     devDependencies:

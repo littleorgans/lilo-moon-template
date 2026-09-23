@@ -1,8 +1,8 @@
-import { groupBy } from "@lilo-moon/collections";
-import { Badge } from "@lilo-moon/ui/components/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@lilo-moon/ui/components/card";
-import { Row, Stack } from "@lilo-moon/ui/components/layout";
-import { Text } from "@lilo-moon/ui/components/text";
+import { groupBy } from "@littleorgans/collections";
+import { Badge } from "@littleorgans/ui/components/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@littleorgans/ui/components/card";
+import { Row, Stack } from "@littleorgans/ui/components/layout";
+import { Text } from "@littleorgans/ui/components/text";
 
 /** The demo product's data. The board is its only reader, so it lives beside the board. */
 const TASKS = [

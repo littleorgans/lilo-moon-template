@@ -1,4 +1,4 @@
-import type { Principal } from "@lilo-moon/auth";
+import type { Principal } from "@littleorgans/auth";
 import { drizzle } from "drizzle-orm/node-postgres";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
