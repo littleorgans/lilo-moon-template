@@ -1,0 +1,14 @@
+-- Lets a login role run @littleorgans/db transactions. Apply it after the migrations, once per login
+-- role, as the role that applied them:
+--
+--   psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -v login_role=<role> -f grants/login-role.sql
+--
+-- Not a migration, because the role name belongs to the deployment. createDatabase runs every
+-- transaction under SET LOCAL ROLE authenticated, and Postgres allows that only to a member of
+-- authenticated with the SET option. Without this grant every withPrincipal call fails with 42501.
+--
+-- INHERIT FALSE keeps authenticated's table privileges off the login role itself, so it reaches the
+-- tables only inside a scoped transaction, where row level security applies to the claims. The
+-- options need Postgres 16 or later. Re-running is safe: Postgres reports the existing membership
+-- as a NOTICE and keeps it.
+GRANT authenticated TO :"login_role" WITH INHERIT FALSE, SET TRUE;

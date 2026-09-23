@@ -4,11 +4,16 @@ tags:
   - "ts-library"
 
 # The docker-backed tests import the shared container helper from outside this project, so it has
-# to be an explicit input or a helper change replays a stale pass from cache.
+# to be an explicit input or a helper change replays a stale pass from cache. The migration tests
+# compare the shipped migrations with the repository copies in db/migrations, so both are inputs.
 tasks:
   test:
     inputs:
+      - "migrations/**/*"
+      - "/db/migrations/**/*"
       - "/scripts/lib/postgres-container.mjs"
   test-coverage:
     inputs:
+      - "migrations/**/*"
+      - "/db/migrations/**/*"
       - "/scripts/lib/postgres-container.mjs"

@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawn, spawnSync } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import {
   cpSync,
   existsSync,
@@ -16,6 +17,7 @@ import { dirname, join, relative } from "node:path";
 import { setTimeout } from "node:timers/promises";
 
 import { createProject } from "./lib/create-project.mjs";
+import { dockerIsAvailable, psqlInput, withPostgres } from "./lib/postgres-container.mjs";
 import {
   initializeProject,
   projectEnvironment,
@@ -280,15 +282,17 @@ async function exercise(root) {
   }
 }
 
-// A service outside any workspace, installing the packed auth and auth-http tarballs. It proves
+// A service outside any workspace, installing the packed auth, auth-http and db tarballs. It proves
 // the published exports, including the ./hono subpath and its declarations, resolve from
 // tarballs, and that auth resolves as the peer the service installs itself.
-function exerciseService(artifacts) {
+async function exerciseService(artifacts) {
   const root = join(scratch, "service");
   mkdirSync(root);
   const httpName = [...artifacts.keys()].find((name) => name.endsWith("/auth-http"));
   assert.ok(httpName, "auth-http must be packed");
   const scope = httpName.slice(0, httpName.indexOf("/"));
+  const dbName = `${scope}/db`;
+  assert.ok(artifacts.has(dbName), "db must be packed");
   // Pin what this workspace resolved, so the check exercises the versions the unit tests ran.
   const installed = (project, name) =>
     readManifest(join(source, project, "node_modules", name)).version;
@@ -299,7 +303,11 @@ function exerciseService(artifacts) {
     dependencies: {
       [`${scope}/auth`]: `file:${artifacts.get(`${scope}/auth`)}`,
       [httpName]: `file:${artifacts.get(httpName)}`,
+      [dbName]: `file:${artifacts.get(dbName)}`,
       "@types/node": installed("packages/auth-http", "@types/node"),
+      "@types/pg": installed("packages/db", "@types/pg"),
+      "drizzle-orm": installed("packages/db", "drizzle-orm"),
+      pg: installed("packages/db", "pg"),
       hono: installed("packages/auth-http", "hono"),
       jose: installed("packages/auth-http", "jose"),
     },
@@ -316,6 +324,18 @@ function exerciseService(artifacts) {
     },
     include: ["service.ts"],
   });
+  // drizzle-orm's own declarations fail skipLibCheck: false (for example, the gel driver's missing
+  // types). The db declarations are still checked through their use in database.ts.
+  writeJson(join(root, "tsconfig.database.json"), {
+    extends: "./tsconfig.json",
+    compilerOptions: { skipLibCheck: true },
+    include: ["database.ts"],
+  });
+  // db depends on auth at the unpublished release version, so the registry cannot supply it.
+  writeFileSync(
+    join(root, "pnpm-workspace.yaml"),
+    `overrides:\n${[...artifacts].map(([name, file]) => `  "${name}": "file:${file}"`).join("\n")}\n`,
+  );
   writeFileSync(
     join(root, "service.ts"),
     `import assert from "node:assert/strict";
@@ -352,10 +372,132 @@ assert.deepEqual(await signedIn.json(), {
 assert.throws(() => loadServiceConfig({}), /PORT is missing/);
 `,
   );
+  writeFileSync(
+    join(root, "database.ts"),
+    `import assert from "node:assert/strict";
+
+import type { Principal } from "${scope}/auth";
+import { createDatabase } from "${dbName}";
+import { sql } from "drizzle-orm";
+import { Client } from "pg";
+
+const { GRANTED_URL, UNGRANTED_URL } = process.env;
+assert.ok(GRANTED_URL && UNGRANTED_URL, "the login role URLs are required");
+const principal = (orgId: string): Principal => ({
+  userId: \`user_\${orgId}\`,
+  orgId,
+  roles: [],
+  permissions: [],
+  entitlements: [],
+});
+const orgs = ["org_a", "org_b"];
+
+const granted = createDatabase({ connectionString: GRANTED_URL });
+try {
+  for (const org of orgs) {
+    await granted.withPrincipal(principal(org), (tx) =>
+      tx.execute(sql\`INSERT INTO accounts (workos_org_id) VALUES (\${org})\`),
+    );
+  }
+  for (const org of orgs) {
+    const seen = await granted.withPrincipal(principal(org), async (tx) =>
+      (await tx.execute(sql\`SELECT workos_org_id FROM accounts\`)).rows,
+    );
+    assert.deepEqual(seen, [{ workos_org_id: org }], \`\${org} must see only its own account\`);
+  }
+} finally {
+  await granted.close();
+}
+
+// Outside a scoped transaction the login role has no table privileges of its own.
+const direct = new Client({ connectionString: GRANTED_URL });
+await direct.connect();
+try {
+  await assert.rejects(direct.query("SELECT workos_org_id FROM accounts"), { code: "42501" });
+} finally {
+  await direct.end();
+}
+
+const ungranted = createDatabase({ connectionString: UNGRANTED_URL });
+try {
+  await assert.rejects(
+    ungranted.withPrincipal(principal("org_a"), (tx) => tx.execute(sql\`SELECT 1\`)),
+    { code: "42501", message: 'permission denied to set role "authenticated"' },
+  );
+} finally {
+  await ungranted.close();
+}
+`,
+  );
   run(root, "pnpm", ["install"]);
   run(root, join(source, "node_modules/.bin/tsc"), ["--project", "tsconfig.json"]);
+  run(root, join(source, "node_modules/.bin/tsc"), ["--project", "tsconfig.database.json"]);
   run(root, process.execPath, ["service.ts"]);
   process.stdout.write(`consumer-check: packed auth-http served 401 and 200 in ${root}\n`);
+  await exerciseServiceDatabase(root, dbName);
+}
+
+// The db README's setup, run from the installed tarball against Postgres 17: the shipped migrations
+// in file-name order, then the shipped grant for one fresh login role and not for another. The
+// service connects as each, never as the superuser that applied the migrations.
+async function exerciseServiceDatabase(root, dbName) {
+  if (!process.env.CI && !dockerIsAvailable()) {
+    process.stdout.write(
+      "consumer-check: service database skipped locally: Docker is unavailable.\n",
+    );
+    return;
+  }
+  const installed = join(root, "node_modules", dbName);
+  await withPostgres("consumer-check", async (databaseUrl) => {
+    const migrations = join(installed, "migrations");
+    for (const file of readdirSync(migrations).toSorted()) {
+      process.stdout.write(`consumer-check: psql -f ${relative(root, join(migrations, file))}\n`);
+      psqlInput(databaseUrl, readFileSync(join(migrations, file)));
+    }
+    // Roles are cluster-wide, so the pid keeps concurrent runs apart.
+    const roles = {
+      granted: `consumer_login_${process.pid}`,
+      ungranted: `consumer_ungranted_${process.pid}`,
+    };
+    const password = randomBytes(16).toString("hex");
+    const connectAs = (role) => {
+      const url = new URL(databaseUrl);
+      url.username = role;
+      url.password = password;
+      return url.href;
+    };
+    try {
+      for (const role of Object.values(roles)) {
+        psqlInput(
+          databaseUrl,
+          `DROP ROLE IF EXISTS :"role"; CREATE ROLE :"role" LOGIN PASSWORD :'password';`,
+          { role, password },
+        );
+      }
+      psqlInput(databaseUrl, readFileSync(join(installed, "grants/login-role.sql")), {
+        login_role: roles.granted,
+      });
+      process.stdout.write(`consumer-check: node database.ts as ${roles.granted}\n`);
+      execFileSync(process.execPath, ["database.ts"], {
+        cwd: root,
+        env: {
+          ...env,
+          GRANTED_URL: connectAs(roles.granted),
+          UNGRANTED_URL: connectAs(roles.ungranted),
+        },
+        stdio: "inherit",
+      });
+    } finally {
+      psqlInput(
+        databaseUrl,
+        `DROP ROLE IF EXISTS :"granted"; DROP ROLE IF EXISTS :"ungranted";`,
+        roles,
+      );
+    }
+  });
+  process.stdout.write(
+    "consumer-check: packed db migrations and grant isolated each org; the ungranted role was refused.\n",
+  );
 }
 
 try {
@@ -486,7 +628,7 @@ try {
   run(packed, "moon", ["run", "web:build", "web:typecheck", "web:test"]);
   await exercise(packed);
   checkDbPeerFloors(manifestPath, manifest);
-  exerciseService(artifacts);
+  await exerciseService(artifacts);
   process.stdout.write("consumer-check: generated, packed and service consumers passed.\n");
 } finally {
   rmSync(scratch, { recursive: true, force: true });

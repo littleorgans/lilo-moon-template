@@ -357,6 +357,13 @@ for 30 seconds after the old token's first use.
 `app.current_user_id()` and `app.current_org_id()`. Both tables have RLS enabled and forced, and
 absent claims match no row.
 
+For any login role other than a superuser, `SET LOCAL ROLE authenticated` needs a grant of
+`authenticated`. The package ships these migrations in `packages/db/migrations/`, byte-identical to
+the copies in `db/migrations/`, and the grant in `packages/db/grants/login-role.sql`. The
+[`@littleorgans/db` README](../packages/db/README.md#set-up-the-database) covers applying them, the
+role model, and least privilege. `root:consumer-check` applies both from the packed tarball and
+connects as a fresh login role.
+
 The workspace feature is the only database caller. `countVisibleRows` (`features/workspace/server/
 rows.ts`) inserts the caller's `accounts` and `profiles` rows just in time, then counts what the
 policies expose. Without `DATABASE_URL`, `getDatabase()` returns `null` and the page reports that no

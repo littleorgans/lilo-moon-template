@@ -80,6 +80,7 @@ const TASK_DATABASES = {
   "atlas-lint": "atlas_lint",
   "atlas-diff": "atlas_diff",
   "db-test": "db_test",
+  "consumer-check": "consumer_check",
 };
 
 function port() {
@@ -225,6 +226,32 @@ export async function withPostgres(task, callback) {
       { stdio: "ignore" },
     );
   }
+}
+
+// Runs SQL the way a consumer's `psql -v ON_ERROR_STOP=1 --single-transaction -f` would, with the
+// psql inside the container, so no host client is needed. The SQL arrives on stdin and each
+// variable becomes a `--set`, which is how files such as packages/db/grants take their parameters.
+export function psqlInput(databaseUrl, sql, variables = {}) {
+  execFileSync(
+    "docker",
+    [
+      "exec",
+      "--interactive",
+      CONTAINER,
+      "psql",
+      "--username",
+      "postgres",
+      "--dbname",
+      new URL(databaseUrl).pathname.slice(1),
+      "--set",
+      "ON_ERROR_STOP=1",
+      ...Object.entries(variables).flatMap(([name, value]) => ["--set", `${name}=${value}`]),
+      "--single-transaction",
+      "--file",
+      "-",
+    ],
+    { input: sql, stdio: ["pipe", "inherit", "inherit"] },
+  );
 }
 
 // Every task here reaches the database through the migrations, never through schema.sql, so what
