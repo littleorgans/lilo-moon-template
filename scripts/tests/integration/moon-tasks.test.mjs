@@ -60,6 +60,66 @@ await test("web task inheritance requires the web-app tag and has no shared prev
   }
 });
 
+await test("service task inheritance requires the node-service tag and stays apart from web apps", (t) => {
+  const layers = ["node.yml", "node-application.yml", "node-service.yml"];
+  const root = moonFixture(t, {
+    ".moon/workspace.yml":
+      'projects:\n  globs: ["apps/*", "services/*"]\nvcs:\n  defaultBranch: "main"\n',
+    ".moon/toolchains.yml": 'javascript:\n  packageManager: "pnpm"\n',
+    ...Object.fromEntries(
+      layers.map((file) => [`.moon/tasks/${file}`, readFileSync(`.moon/tasks/${file}`, "utf8")]),
+    ),
+    "apps/site/moon.yml": 'language: "javascript"\nlayer: "application"\ntags: ["web-app"]\n',
+    "apps/site/package.json": '{"name":"fixture-site","private":true}\n',
+    "services/api/moon.yml":
+      'language: "javascript"\nlayer: "application"\ntags: ["node-service"]\n',
+    "services/api/package.json": '{"name":"fixture-api","private":true}\n',
+    "services/worker/moon.yml": 'language: "javascript"\nlayer: "application"\n',
+    "services/worker/package.json": '{"name":"fixture-worker","private":true}\n',
+    // The tag without the layer: a library that happens to carry it must not become a service.
+    "services/tagged-library/moon.yml":
+      'language: "javascript"\nlayer: "library"\ntags: ["node-service"]\n',
+    "services/tagged-library/package.json": '{"name":"fixture-tagged-library","private":true}\n',
+  });
+  const tasksOf = (id) =>
+    Object.keys(JSON.parse(projectCommand(root, "moon", ["project", id, "--json"], true)).tasks);
+  const task = (target) =>
+    JSON.parse(projectCommand(root, "moon", ["task", target, "--json"], true));
+
+  const expected = {
+    dev: ["node", ["--watch", "src/main.ts"]],
+    start: ["node", ["dist/main.js"]],
+  };
+  for (const [name, [command, args]] of Object.entries(expected)) {
+    const inherited = task(`api:${name}`);
+    assert.deepEqual([inherited.command, inherited.args], [command, args]);
+    assert.equal(inherited.env?.PORT, undefined, "each service owns its port");
+    assert.equal(inherited.options.persistent, true);
+    assert.equal(inherited.options.runInCI, false);
+  }
+  assert.deepEqual(
+    task("api:start").deps.map((dep) => dep.target),
+    ["api:build"],
+  );
+  const build = task("api:build");
+  assert.match(build.script, /tsc --project tsconfig\.build\.json/);
+  assert.doesNotMatch(build.script, /vite/);
+  assert.ok(build.inputs.some((input) => input.file === "tsconfig.build.json"));
+
+  const api = tasksOf("api");
+  for (const name of ["build", "dev", "start", "typecheck", "test", "test-coverage"]) {
+    assert.ok(api.includes(name), `a node-service did not inherit ${name}`);
+  }
+  assert.ok(!api.includes("preview"), "a node-service inherited the web app's preview");
+  assert.ok(!tasksOf("site").includes("start"), "a web app inherited the service's start");
+  assert.equal(task("site:dev").command, "vite");
+  for (const id of ["worker", "tagged-library"]) {
+    for (const name of ["build", "dev", "start"]) {
+      assert.ok(!tasksOf(id).includes(name), `${id} inherited ${name} without being a service`);
+    }
+  }
+});
+
 await test("format checking invalidates cached success when documentation changes", (t) => {
   const formatter = resolve("node_modules/.bin/oxfmt");
   const root = moonFixture(t, {

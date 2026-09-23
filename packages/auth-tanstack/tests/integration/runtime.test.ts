@@ -4,6 +4,7 @@ import type {
   AuthFailureReport,
   CookieJar,
   CookieOptions,
+  ServiceOrigin,
   Throttle,
   ThrottleKey,
 } from "@littleorgans/auth-session";
@@ -313,7 +314,7 @@ describe("asUser", () => {
   });
 
   /** A runtime holding a session whose token the real verifier accepts, and what reached the wire. */
-  function signedInRuntime(serviceOrigins?: readonly string[]) {
+  function signedInRuntime(serviceOrigins?: readonly ServiceOrigin[]) {
     const present: Record<string, string> = {};
     const runtime = createAuthRuntime({
       provider: "GoogleOAuth",
@@ -357,6 +358,24 @@ describe("asUser", () => {
     expect(await (await user.fetch(`${service}/v1/me`)).text()).toBe("ok");
     expect(sent).toStrictEqual([{ url: `${service}/v1/me`, authorization: `Bearer ${token}` }]);
     expect(JSON.stringify(user)).not.toContain(token);
+  });
+
+  it("calls a plain http service only when its origin is marked insecure", async () => {
+    const inCluster = "http://api:3000";
+    const { runtime, token, sent } = signedInRuntime([
+      service,
+      { origin: inCluster, insecure: true },
+    ]);
+    const user = await runtime.asUser();
+    if (user.status !== "signed-in") throw new Error(`Expected signed-in, got ${user.status}`);
+
+    await user.fetch(`${inCluster}/v1/account`);
+    await expect(user.fetch("http://api.example.com/v1/me")).rejects.toThrow(
+      "not in serviceOrigins",
+    );
+    expect(sent).toStrictEqual([
+      { url: `${inCluster}/v1/account`, authorization: `Bearer ${token}` },
+    ]);
   });
 
   it("sends the token nowhere when the application configured no services", async () => {

@@ -42,6 +42,8 @@ Follow this procedure so Moon, pnpm, TypeScript, and CI discover the same projec
    `inheritedBy.toolchains` and `inheritedBy.layers` in `.moon/tasks/node-library.yml` give a
    JavaScript library `build`. The `ts-library` tag includes it in root lint's declaration builds.
    Vite/Nitro applications also declare `tags: ["web-app"]` to inherit `.moon/tasks/node-application.yml`.
+   Node HTTP services declare `layer: "application"` and `tags: ["node-service"]` to inherit
+   `.moon/tasks/node-service.yml`; `services/api` is the example.
    Other application runtimes own their build and serve commands. App ports belong in app configuration.
 
 3. For a JavaScript or TypeScript member, add `package.json` with a unique workspace name. Put

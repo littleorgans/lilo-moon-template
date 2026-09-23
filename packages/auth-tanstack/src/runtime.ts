@@ -16,6 +16,7 @@ import type {
   AuthFailureReport,
   AuthServices,
   CookieJar,
+  ServiceOrigin,
   Throttle,
   UserAccess,
 } from "@littleorgans/auth-session";
@@ -53,10 +54,11 @@ export interface AuthRuntimeOptions {
   readonly log?: (failure: AuthFailureReport) => void;
   /**
    * The only origins `asUser().fetch` sends the person's access token to, such as
-   * `https://api.example.com`. HTTPS except on localhost. Defaults to none, so an application that
-   * calls no services cannot send the token anywhere.
+   * `https://api.example.com`. HTTPS except on localhost. A service on a network you trust, such
+   * as a cluster, is listed one origin at a time as `{ origin: "http://api:3000", insecure: true }`.
+   * Defaults to none, so an application that calls no services cannot send the token anywhere.
    */
-  readonly serviceOrigins?: readonly string[];
+  readonly serviceOrigins?: readonly ServiceOrigin[];
 }
 
 /**

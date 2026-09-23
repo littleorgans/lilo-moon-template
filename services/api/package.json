@@ -1,0 +1,26 @@
+{
+  "name": "@littleorgans/api",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The reference HTTP service: Hono, bearer auth from auth-http, and Postgres under row level security.",
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "dependencies": {
+    "@hono/node-server": "catalog:",
+    "@littleorgans/auth": "workspace:*",
+    "@littleorgans/auth-http": "workspace:*",
+    "@littleorgans/db": "workspace:*",
+    "drizzle-orm": "catalog:",
+    "hono": "catalog:",
+    "pg": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "jose": "catalog:"
+  },
+  "engines": {
+    "node": ">=24.19.0"
+  }
+}

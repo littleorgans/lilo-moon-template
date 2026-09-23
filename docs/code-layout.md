@@ -80,8 +80,8 @@ Tests that start a build, process, database or network listener belong in `tests
 A member in another language keeps that language's native test convention.
 
 Moon discovers workspace members across languages. Generic JavaScript checks apply to JavaScript
-members. Vite/Nitro commands apply only to applications tagged `web-app`; other runtimes declare
-appropriate commands. Library examples carry `ts-library` so root lint builds their declarations.
+members. Vite/Nitro commands apply only to applications tagged `web-app`, and Node service commands
+only to applications tagged `node-service`; other runtimes declare appropriate commands. Library examples carry `ts-library` so root lint builds their declarations.
 The application owns its ports. Shared coverage settings do not exempt a named application's route.
 Command tasks run without a shell so paths containing route groups, spaces and `$` parameters reach
 the tool unchanged. Explicit `script` tasks own any required shell syntax.
