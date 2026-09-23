@@ -138,7 +138,7 @@ while IFS= read -r -d '' file; do
       perl -0pi -e '
         s/\Q$ENV{SOURCE_SLUG}\E/$ENV{TARGET_SLUG}/g;
         # `@` plus the org token is the npm scope. Rewrite it before the bare org pass, and only
-        # where nothing extends the name, so a longer scope such as `@<org>-dev` is left alone.
+        # where nothing extends the name; `@<org>-dev` falls through to the org pass instead.
         s/\@\Q$ENV{SOURCE_ORG}\E(?![\w.-])/\@$ENV{TARGET_SCOPE}/g;
         s/\Q$ENV{SOURCE_ORG}\E/$ENV{TARGET_ORG}/g;
         s/\Q$ENV{SOURCE_LEGACY_SCOPE}\E/$ENV{TARGET_SCOPE}/g;
