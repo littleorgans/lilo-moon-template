@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "changeset": "changeset",
-    "changeset:publish": "moon run :build && changeset publish",
+    "changeset:publish": "moon run :build root:packed-secrets && changeset publish",
     "changeset:version": "changeset version && pnpm install --lockfile-only",
     "prepare": "node scripts/install-hooks.mjs"
   },
