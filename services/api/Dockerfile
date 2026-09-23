@@ -8,7 +8,9 @@ FROM node:24.19.0-alpine@sha256:d32cdf619f63fe0471182d08996dd516c6275bb5fd31ae06
 
 ENV NODE_ENV=production
 WORKDIR /app
-COPY --chown=node:node . .
+# Owned by root and readable by everyone, so the process cannot rewrite its own code or modules.
+# Nothing here is written at runtime. Only the process runs as `node`.
+COPY . .
 USER node
 
 # PORT, DATABASE_URL and WORKOS_CLIENT_ID come from the orchestrator. `docker stop` sends SIGTERM,
