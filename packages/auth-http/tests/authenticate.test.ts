@@ -26,6 +26,10 @@ function request(authorization?: string): Request {
   return new Request("https://service.example/things", { headers });
 }
 
+function reported() {
+  return vi.spyOn(console, "error").mockImplementation(() => undefined);
+}
+
 function rejectionOf(result: Authentication): Rejection {
   if (result.ok) throw new Error("Expected a rejection, but the request authenticated.");
   return result.rejection;
@@ -81,14 +85,16 @@ describe("verification failures", () => {
     ["audience", "invalid_token"],
     ["claims", "invalid_token"],
     ["unavailable", "auth_unavailable"],
-  ])("maps %s to %s and keeps the cause for logs", async (reason, code) => {
+  ])("maps %s to %s and gives the cause to the observer only", async (reason, code) => {
     const cause = new AuthError(reason, "internal detail");
     const verify: Verifier = async () => {
       throw cause;
     };
-    const rejection = rejectionOf(await createAuthenticator({ verify })(request("Bearer a.b.c")));
-    expect(rejection).toStrictEqual({ code });
-    expect(rejection.cause).toBe(cause);
+    const onRejection = vi.fn();
+    const incoming = request("Bearer a.b.c");
+    const result = await createAuthenticator({ verify, onRejection })(incoming);
+    expect(rejectionOf(result)).toStrictEqual({ code });
+    expect(onRejection).toHaveBeenCalledExactlyOnceWith({ code, cause, request: incoming });
   });
 
   // Not an AuthError means a bug in our code, which must surface as a 500, never as a 401.
@@ -175,7 +181,69 @@ describe("onRejection", () => {
     await authenticate(incoming);
     fail = false;
     await authenticate(request("Bearer a.b.c"));
-    expect(onRejection).toHaveBeenCalledExactlyOnceWith({ code: "auth_unavailable" }, incoming);
+    expect(onRejection).toHaveBeenCalledExactlyOnceWith({
+      code: "auth_unavailable",
+      cause,
+      request: incoming,
+    });
+  });
+
+  // Spreads, JSON loggers and util.inspect all drop non-enumerable properties. The cause must
+  // survive the ordinary ways a service logs an object.
+  it("gives the observer a cause that survives spreading and JSON logging", async () => {
+    const lines: string[] = [];
+    await createAuthenticator({
+      verify: async () => {
+        throw new AuthError("unavailable", "JWKS fetch failed");
+      },
+      onRejection: ({ request: _request, ...event }) => {
+        lines.push(JSON.stringify({ ...event }));
+      },
+    })(request("Bearer a.b.c"));
+    expect(lines.map((line) => JSON.parse(line) as unknown)).toStrictEqual([
+      { code: "auth_unavailable", cause: { name: "AuthError", reason: "unavailable" } },
+    ]);
+  });
+
+  // The observer is a logger. Its outage must not change or delay what the client is told.
+  describe("when the observer fails", () => {
+    it("still answers the rejection when the observer throws", async () => {
+      const error = reported();
+      const broken = new Error("logger is down");
+      const result = await createAuthenticator({
+        verify: unreachable,
+        onRejection: () => {
+          throw broken;
+        },
+      })(request());
+      expect(rejectionOf(result)).toStrictEqual({ code: "missing_token" });
+      expect(error).toHaveBeenCalledExactlyOnceWith("auth-http: onRejection failed", broken);
+      error.mockRestore();
+    });
+
+    it("still answers the rejection when an async observer rejects", async () => {
+      const error = reported();
+      const broken = new Error("log shipper refused");
+      const result = await createAuthenticator({
+        verify: unreachable,
+        onRejection: async () => {
+          throw broken;
+        },
+      })(request());
+      expect(rejectionOf(result)).toStrictEqual({ code: "missing_token" });
+      await vi.waitFor(() => {
+        expect(error).toHaveBeenCalledExactlyOnceWith("auth-http: onRejection failed", broken);
+      });
+      error.mockRestore();
+    });
+
+    it("does not wait for an observer that never settles", { timeout: 1000 }, async () => {
+      const onRejection = vi.fn(async () => await new Promise<void>(() => undefined));
+      const result = await createAuthenticator({ verify: unreachable, onRejection })(request());
+      expect(rejectionOf(result)).toStrictEqual({ code: "missing_token" });
+      // A synchronous observer, or the synchronous start of an async one, still runs first.
+      expect(onRejection).toHaveBeenCalledOnce();
+    });
   });
 });
 
@@ -198,8 +266,12 @@ describe("rejectionResponse", () => {
   });
 
   it("never puts the verifier's message or reason in the body", async () => {
-    const cause = new AuthError("signature", "kid=test-key no matching key in JWKS at 10.0.0.7");
-    const body = await rejectionResponse({ code: "invalid_token", cause }).text();
+    const result = await createAuthenticator({
+      verify: async () => {
+        throw new AuthError("signature", "kid=test-key no matching key in JWKS at 10.0.0.7");
+      },
+    })(request("Bearer a.b.c"));
+    const body = await rejectionResponse(rejectionOf(result)).text();
     expect(body).toBe('{"error":"invalid_token"}');
   });
 });
@@ -211,28 +283,6 @@ it.each(["Bearer\ta.b.c", "Basic abc, Bearer a.b.c", "Bearer,a.b.c", `Bearer ${"
     expect(await codeFor(unreachable, authorization)).toBe("malformed_token");
   },
 );
-
-it("awaits asynchronous rejection logging", async () => {
-  const events: string[] = [];
-  const authenticate = createAuthenticator({
-    verify: unreachable,
-    onRejection: async () => {
-      await new Promise<void>((resolve) => setTimeout(resolve, 5));
-      events.push("logged");
-    },
-  });
-  await authenticate(request());
-  expect(events).toStrictEqual(["logged"]);
-});
-
-it("propagates asynchronous logging failures to the framework", async () => {
-  const failed = Promise.reject(new Error("logging failed"));
-  // Also observe it here so the old implementation cannot create an unhandled rejection.
-  await expect(failed).rejects.toThrow("logging failed");
-  await expect(
-    createAuthenticator({ verify: unreachable, onRejection: () => failed })(request()),
-  ).rejects.toThrow("logging failed");
-});
 
 it("prevents shared caches from retaining authentication rejections", () => {
   expect(rejectionResponse({ code: "auth_unavailable" }).headers.get("cache-control")).toBe(
@@ -248,5 +298,4 @@ it("keeps verifier details out of accidental rejection serialization", async () 
     },
   })(request("Bearer a.b.c"));
   expect(JSON.stringify(result)).toBe('{"ok":false,"rejection":{"code":"invalid_token"}}');
-  expect(rejectionOf(result).cause).toBe(cause);
 });

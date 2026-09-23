@@ -16,10 +16,19 @@ export type RejectionCode =
   | "forbidden"
   | "auth_unavailable";
 
+/** What the client is told. Only the code, so serialising a rejection can never leak more. */
 export interface Rejection {
   readonly code: RejectionCode;
-  /** The verifier's error, non-enumerable for server logs. Never serialize it to clients. */
+}
+
+/**
+ * What `onRejection` observes: the code, and what the client is not told. Server side only.
+ */
+export interface RejectionEvent {
+  readonly code: RejectionCode;
+  /** The verifier's error, when verification produced the rejection. */
   readonly cause?: AuthError;
+  readonly request: Request;
 }
 
 export type Authentication =
@@ -37,10 +46,14 @@ export interface AuthenticatorOptions {
   readonly authorize?: (principal: Principal, request: Request) => boolean | Promise<boolean>;
   /**
    * Observes every rejection, including its cause, so a service can log why a request failed
-   * without putting the reason in the response. Async observers are awaited; failures propagate
-   * to the framework error handler. A 503 in particular needs an alert, not a shrug.
+   * without putting the reason in the response. A 503 in particular needs an alert, not a shrug.
+   *
+   * It runs beside the response, not in front of it. The response does not wait for an async
+   * observer, and an observer that throws or rejects is reported with `console.error` and
+   * otherwise ignored. A logger outage must not turn every 401 into a 500 or a hang: a client that
+   * gets a 500 for an expired token never refreshes it.
    */
-  readonly onRejection?: (rejection: Rejection, request: Request) => void | Promise<void>;
+  readonly onRejection?: (event: RejectionEvent) => void | Promise<void>;
 }
 
 // Only `expired` gets its own code, because it is the one failure a client can fix by itself by
@@ -77,8 +90,8 @@ const responses = {
 } as const satisfies Record<RejectionCode, { status: number; challenge: string | null }>;
 
 /**
- * Renders a rejection as a JSON response: `{"error": "<code>"}` and nothing else. The cause stays
- * on the Rejection for the server's logs.
+ * Renders a rejection as a JSON response: `{"error": "<code>"}` and nothing else. `no-store`
+ * keeps a misconfigured shared cache from replaying a 401, or prolonging an outage's 503.
  */
 export function rejectionResponse(rejection: Rejection): Response {
   const { status, challenge } = responses[rejection.code];
@@ -95,30 +108,39 @@ export function rejectionResponse(rejection: Rejection): Response {
  * Reading it as a 401 would hide the bug behind a client error.
  */
 export function createAuthenticator(options: AuthenticatorOptions): Authenticator {
-  async function reject(request: Request, rejection: Rejection): Promise<Authentication> {
-    await options.onRejection?.(rejection, request);
-    return { ok: false, rejection };
+  const { onRejection } = options;
+
+  async function observe(event: RejectionEvent): Promise<void> {
+    if (onRejection === undefined) return;
+    try {
+      await onRejection(event);
+    } catch (error) {
+      console.error("auth-http: onRejection failed", error);
+    }
+  }
+
+  function reject(request: Request, code: RejectionCode, cause?: AuthError): Authentication {
+    // Deliberately not awaited: see `onRejection`. A synchronous observer still runs here, before
+    // the response is returned.
+    void observe(cause === undefined ? { code, request } : { code, cause, request });
+    return { ok: false, rejection: { code } };
   }
 
   return async function authenticate(request: Request): Promise<Authentication> {
     const bearer = readBearerToken(request.headers);
-    if (bearer.kind === "missing") return reject(request, { code: "missing_token" });
-    if (bearer.kind === "malformed") return reject(request, { code: "malformed_token" });
+    if (bearer.kind === "missing") return reject(request, "missing_token");
+    if (bearer.kind === "malformed") return reject(request, "malformed_token");
 
     let principal: Principal;
     try {
       principal = await options.verify(bearer.token);
     } catch (error) {
       if (!(error instanceof AuthError)) throw error;
-      // Keep diagnostics available to the logger, but out of JSON.stringify and object spreads.
-      const rejection: Rejection = Object.defineProperty({ code: codeFor[error.reason] }, "cause", {
-        value: error,
-      });
-      return reject(request, rejection);
+      return reject(request, codeFor[error.reason], error);
     }
 
     if (options.authorize !== undefined && !(await options.authorize(principal, request))) {
-      return reject(request, { code: "forbidden" });
+      return reject(request, "forbidden");
     }
     return { ok: true, principal };
   };

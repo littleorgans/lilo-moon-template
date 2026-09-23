@@ -36,8 +36,8 @@ const app = new Hono<AuthEnv>()
     "/api/*",
     requireAuth({
       verify,
-      onRejection: (rejection) => {
-        if (rejection.code === "auth_unavailable") console.error(rejection.cause);
+      onRejection: ({ code, cause }) => {
+        if (code === "auth_unavailable") console.error(cause);
       },
     }),
   )
@@ -73,13 +73,17 @@ function loadServiceConfig(env?: Environment): ServiceConfig; // throws ConfigEr
 interface AuthenticatorOptions {
   verify: Verifier; // from createVerifier in @littleorgans/auth
   authorize?: (principal: Principal, request: Request) => boolean | Promise<boolean>;
-  onRejection?: (rejection: Rejection, request: Request) => void | Promise<void>;
+  onRejection?: (event: RejectionEvent) => void | Promise<void>; // not awaited
 }
 type Authenticator = (request: Request) => Promise<Authentication>;
 type Authentication = { ok: true; principal: Principal } | { ok: false; rejection: Rejection };
 interface Rejection {
+  code: RejectionCode; // all the client is told
+}
+interface RejectionEvent {
   code: RejectionCode;
-  cause?: AuthError; // for server logs only
+  cause?: AuthError; // present when verification failed; server side only
+  request: Request;
 }
 
 // @littleorgans/auth-http/hono
@@ -92,22 +96,21 @@ interface AuthEnv {
 ## Responses
 
 Every rejection body is `{"error": "<code>"}` with `Content-Type: application/json`. The body never
-contains the verifier's message, the failed check, or a key id. `onRejection` receives the
-`AuthError` cause so the server can log it. The cause is non-enumerable, so serializing or
-spreading the rejection does not copy verifier diagnostics. Explicitly copying or serializing
-`rejection.cause` can still expose details; keep it in trusted server logs and redact credentials.
-`rejectionResponse` sets `Cache-Control: no-store`.
+contains the verifier's message, the failed check, or a key id. A `Rejection` holds only the code,
+so serializing an `Authentication` result cannot leak more. The `AuthError` cause goes to
+`onRejection` as an ordinary field, so it survives spreading and JSON loggers. Keep it in trusted
+server logs. `rejectionResponse` sets `Cache-Control: no-store` on every rejection, 503 included.
 
-| Condition                                                         | Status                                   | `WWW-Authenticate`             | `error`            |
-| ----------------------------------------------------------------- | ---------------------------------------- | ------------------------------ | ------------------ |
-| No Authorization header, or a scheme other than Bearer            | 401                                      | `Bearer`                       | `missing_token`    |
-| Malformed, combined, non-ASCII, or oversized credentials          | 401                                      | `Bearer error="invalid_token"` | `malformed_token`  |
-| Verifier: `malformed`                                             | 401                                      | `Bearer error="invalid_token"` | `malformed_token`  |
-| Verifier: `expired`                                               | 401                                      | `Bearer error="invalid_token"` | `expired_token`    |
-| Verifier: `signature`, `issuer`, `audience`, `claims`             | 401                                      | `Bearer error="invalid_token"` | `invalid_token`    |
-| `authorize` returned false                                        | 403                                      | none                           | `forbidden`        |
-| Verifier: `unavailable` (JWKS or provider down)                   | 503                                      | none                           | `auth_unavailable` |
-| Any other error thrown by `verify`, `authorize`, or `onRejection` | propagates, so the framework answers 500 |                                |                    |
+| Condition                                                | Status                                   | `WWW-Authenticate`             | `error`            |
+| -------------------------------------------------------- | ---------------------------------------- | ------------------------------ | ------------------ |
+| No Authorization header, or a scheme other than Bearer   | 401                                      | `Bearer`                       | `missing_token`    |
+| Malformed, combined, non-ASCII, or oversized credentials | 401                                      | `Bearer error="invalid_token"` | `malformed_token`  |
+| Verifier: `malformed`                                    | 401                                      | `Bearer error="invalid_token"` | `malformed_token`  |
+| Verifier: `expired`                                      | 401                                      | `Bearer error="invalid_token"` | `expired_token`    |
+| Verifier: `signature`, `issuer`, `audience`, `claims`    | 401                                      | `Bearer error="invalid_token"` | `invalid_token`    |
+| `authorize` returned false                               | 403                                      | none                           | `forbidden`        |
+| Verifier: `unavailable` (JWKS or provider down)          | 503                                      | none                           | `auth_unavailable` |
+| Any other error thrown by `verify` or `authorize`        | propagates, so the framework answers 500 |                                |                    |
 
 Notes on the table:
 
@@ -135,10 +138,14 @@ Cookies belong to `@littleorgans/auth-session`, which pairs them with CSRF defen
 
 `authorize(principal, request)` runs only after verification. It may perform an async policy
 lookup; return a boolean rather than throwing an `AuthError` for a denied permission.
-`onRejection` is awaited and receives the request for correlation. It covers expected auth
-rejections; use the framework's error handler for unexpected failures, including logging-hook
-failures. Those errors propagate and stop the protected handler. The default Hono error handler
-returns a generic 500; a custom handler must avoid returning error messages or stacks.
+`onRejection` receives the request for correlation. It covers expected auth rejections. The
+response does not wait for it: a synchronous observer runs before the response is returned, but
+an async one is not awaited. An observer that throws or rejects is reported with `console.error`
+and does not change the response, so a logging outage cannot turn every 401 into a 500 or a hang.
+On a runtime that stops work when the response is sent, finish async logging synchronously or
+hand it to the runtime's own background mechanism. Unexpected errors from `verify` or
+`authorize` propagate to the framework's error handler. The default Hono error handler returns a
+generic 500; a custom handler must avoid returning error messages or stacks.
 
 These operations are not constant-time: malformed syntax, signature checks, and JWKS fetches
 take different paths. The response does not distinguish signature, issuer, audience, or claim

@@ -9,7 +9,7 @@ import { afterAll, beforeAll, expect, it } from "vitest";
 
 import { requireAuth } from "../../src/hono.js";
 import type { AuthEnv } from "../../src/hono.js";
-import type { Rejection } from "../../src/index.js";
+import type { RejectionEvent } from "../../src/index.js";
 import { createSigner, issuer, userId } from "../tokens.js";
 import type { Signer } from "../tokens.js";
 
@@ -26,7 +26,7 @@ const provider = createServer((_request, response) => {
     .end(JSON.stringify({ keys: [signer.jwk] }));
 });
 
-const rejections: Rejection[] = [];
+const rejections: RejectionEvent[] = [];
 let service: ServerType;
 let origin: string;
 
@@ -58,8 +58,8 @@ beforeAll(async () => {
     .use(
       requireAuth({
         verify,
-        onRejection: (rejection) => {
-          rejections.push(rejection);
+        onRejection: (event) => {
+          rejections.push(event);
         },
       }),
     )
