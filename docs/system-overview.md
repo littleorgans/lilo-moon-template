@@ -204,7 +204,7 @@ The documented procedure is in `docs/project-lineage.md` and `docs/how-to-instan
 | Shared ancestry                          | Lets Git compute a three-way merge between template and product                           | `create-project.mjs` line 86                  |
 | `root:scripts-test`                      | Creation, remotes, a rebase of a token-free template fix, registry rules                  | `scripts/tests/integration/projects.test.mjs` |
 | `root:consumer-check`                    | The template still produces a buildable, servable product, including from packed tarballs | `scripts/consumer-check.mjs`                  |
-| `root:rename-verifier`                   | Only that the token list and file corpus are non-empty                                    | `moon.yml` lines 311–320                      |
+| `root:rename-verifier`                   | Only that the token list and file corpus are non-empty                                    | `moon.yml` lines 312–321                      |
 | `just rename-verify` (manual, not in CI) | Template tokens left in a product's tracked files                                         | `moon.yml` lines 77–83                        |
 | Consumer registry                        | Nothing automatically. It tells maintainers where products live so they can inspect them  | `.template/projects/`                         |
 
