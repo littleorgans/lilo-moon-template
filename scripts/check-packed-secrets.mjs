@@ -29,7 +29,9 @@ try {
         stdio: "ignore",
       });
     } catch {
-      throw new Error(`Packed secrets: pack failed in ${directory}; output suppressed`);
+      throw new Error(
+        `Packed secrets: pack failed in ${directory}; output suppressed. Run \`pnpm pack\` there to see why.`,
+      );
     }
   }
 
