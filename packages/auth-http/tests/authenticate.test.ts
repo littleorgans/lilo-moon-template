@@ -367,3 +367,94 @@ it.each<[string, unknown, string]>([
     error.mockRestore();
   }
 });
+
+it.each<[string, unknown]>([
+  [
+    "alphabetic bearer in a custom error name",
+    new (class SecretBearerCredential extends Error {
+      override name = "SecretBearerCredential";
+    })(),
+  ],
+  ["JWT fragment in a name", Object.assign(new Error(), { name: "eyJhbGciOiJIUzI" })],
+  ["uppercase bearer in a code", { code: "TOKEN_SECRET_0123456789" }],
+  ["JWT fragment in a code", { code: "ABCDEF" }],
+])("does not log %s", async (_case, thrown) => {
+  const error = reported();
+  try {
+    await createAuthenticator({
+      verify: unreachable,
+      onRejection: () => {
+        throw thrown;
+      },
+    })(request());
+    expect(error).toHaveBeenCalledExactlyOnceWith(
+      "auth-http: onRejection failed while observing missing_token (object)",
+    );
+  } finally {
+    error.mockRestore();
+  }
+});
+
+it("validates and logs the same name when a getter changes its value", async () => {
+  const error = reported();
+  let reads = 0;
+  const thrown = Object.defineProperty(new Error(), "name", {
+    get: () => (++reads === 1 ? "Error" : "Bearer secret.token.value"),
+  });
+  try {
+    await createAuthenticator({
+      verify: unreachable,
+      onRejection: () => {
+        throw thrown;
+      },
+    })(request());
+    expect(error).toHaveBeenCalledExactlyOnceWith(
+      "auth-http: onRejection failed while observing missing_token (Error)",
+    );
+    expect(reads).toBe(1);
+  } finally {
+    error.mockRestore();
+  }
+});
+
+it("does not coerce an error name into text", async () => {
+  const error = reported();
+  const stringify = vi
+    .fn()
+    .mockReturnValueOnce("Error")
+    .mockReturnValue("Bearer secret.token.value");
+  const thrown = Object.defineProperty(new Error(), "name", { value: { toString: stringify } });
+  try {
+    await createAuthenticator({
+      verify: unreachable,
+      onRejection: () => {
+        throw thrown;
+      },
+    })(request());
+    expect(error).toHaveBeenCalledExactlyOnceWith(
+      "auth-http: onRejection failed while observing missing_token (object)",
+    );
+    expect(stringify).not.toHaveBeenCalled();
+  } finally {
+    error.mockRestore();
+  }
+});
+
+it("keeps the original rejection code when the observer mutates the event", async () => {
+  const error = reported();
+  try {
+    const result = await createAuthenticator({
+      verify: unreachable,
+      onRejection: (event) => {
+        Reflect.set(event, "code", "Bearer secret.token.value");
+        throw new Error("logger failed");
+      },
+    })(request());
+    expect(rejectionOf(result)).toStrictEqual({ code: "missing_token" });
+    expect(error).toHaveBeenCalledExactlyOnceWith(
+      "auth-http: onRejection failed while observing missing_token (Error)",
+    );
+  } finally {
+    error.mockRestore();
+  }
+});

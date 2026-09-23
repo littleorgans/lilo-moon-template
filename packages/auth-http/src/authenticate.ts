@@ -102,17 +102,48 @@ export function rejectionResponse(rejection: Rejection): Response {
   return new Response(JSON.stringify({ error: rejection.code }), { status, headers });
 }
 
-// Names what failed without repeating it. A message or stack can hold a header or a token, so
-// neither is read. The rejection code is our own vocabulary, and an error's name and errno-style
-// `code` are identifiers, admitted only when they look like one. That is enough to tell a missing
-// logger method (TypeError) from a refused log shipper (ECONNREFUSED).
+// Identifier syntax is not redaction: opaque credentials and JWT fragments can be identifiers.
+// Keep the diagnostic vocabulary finite. Custom error names/codes belong in application logging
+// under its own redaction policy.
+const observerErrorNames = new Set([
+  "Error",
+  "TypeError",
+  "RangeError",
+  "ReferenceError",
+  "SyntaxError",
+  "URIError",
+  "EvalError",
+  "AggregateError",
+  "AbortError",
+  "TimeoutError",
+]);
+const observerErrorCodes = new Set([
+  "ECONNREFUSED",
+  "ECONNRESET",
+  "ETIMEDOUT",
+  "ENOTFOUND",
+  "EAI_AGAIN",
+  "EPIPE",
+  "ENETUNREACH",
+  "EHOSTUNREACH",
+  "EACCES",
+  "ENOSPC",
+  "EIO",
+  "EBADF",
+]);
+
 function observerFailure(code: RejectionCode, error: unknown): string {
-  const name = error instanceof Error && /^[A-Za-z]{1,64}$/.test(error.name) ? error.name : null;
+  // Read once: a getter can return a safe name for validation and a credential on its next read.
+  const candidateName: unknown = error instanceof Error ? error.name : undefined;
+  const name =
+    typeof candidateName === "string" && observerErrorNames.has(candidateName)
+      ? candidateName
+      : null;
   const errno: unknown =
     typeof error === "object" && error !== null ? Reflect.get(error, "code") : undefined;
   const kind = [
     name ?? typeof error,
-    typeof errno === "string" && /^[A-Z][A-Z0-9_]{0,63}$/.test(errno) ? errno : null,
+    typeof errno === "string" && observerErrorCodes.has(errno) ? errno : null,
   ]
     .filter((part) => part !== null)
     .join(" ");
@@ -131,12 +162,14 @@ export function createAuthenticator(options: AuthenticatorOptions): Authenticato
 
   async function observe(event: RejectionEvent): Promise<void> {
     if (onRejection === undefined) return;
+    // Snapshot our code before giving the observer an event it can mutate at runtime.
+    const code = event.code;
     try {
       await onRejection(event);
     } catch (error) {
       // A replaced/broken console is another logging failure, not an unhandled rejection.
       try {
-        console.error(observerFailure(event.code, error));
+        console.error(observerFailure(code, error));
       } catch {
         // There is no further reporting path that cannot fail in turn.
       }

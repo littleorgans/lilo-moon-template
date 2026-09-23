@@ -153,9 +153,14 @@ an async one is not awaited. Keep synchronous work short: an async function stil
 synchronous prefix on the response path, and the library cannot interrupt blocking code.
 A throw or rejected promise produces one `console.error` line such as
 `auth-http: onRejection failed while observing auth_unavailable (Error ECONNREFUSED)`. It names the
-rejection code, the error's class and an errno-style `code`, each only when it looks like an
-identifier. The message, stack and any other thrown value are never logged, because they may
-contain credentials. A throwing fallback reporter is also contained. For a custom error sink, catch and
+original rejection code, an allowlisted error `name`, and an allowlisted errno-style `code`.
+Identifier syntax alone cannot exclude opaque credentials or JWT fragments. Names are limited
+to standard errors (`Error`, `TypeError`, `RangeError`, `ReferenceError`, `SyntaxError`,
+`URIError`, `EvalError`, `AggregateError`, `AbortError`, `TimeoutError`); unknown names fall back
+to the JavaScript value type. Codes are limited to `ECONNREFUSED`, `ECONNRESET`, `ETIMEDOUT`,
+`ENOTFOUND`, `EAI_AGAIN`, `EPIPE`, `ENETUNREACH`, `EHOSTUNREACH`, `EACCES`, `ENOSPC`, `EIO`, and
+`EBADF`; other codes are omitted. The name is read once without coercion. The message and stack
+are never read or logged, because they may contain credentials. A throwing fallback reporter is also contained. For a custom error sink, catch and
 report failures inside your observer using the application's redaction policy.
 On a runtime that stops work when the response is sent, hand the logging promise to the runtime's
 own background mechanism. Detached work is best-effort and is not a durable audit log.
