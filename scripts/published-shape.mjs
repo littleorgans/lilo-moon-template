@@ -277,6 +277,7 @@ async function exercise(root) {
 // Export conditions a packed manifest may use. Anything else is a condition some consumer's
 // resolver may select, as `@littleorgans/source` was before publishConfig.exports omitted it.
 const EXPORT_CONDITIONS = ["types", "import", "default"];
+const SOURCE_CONDITION = "@littleorgans/source";
 
 // Every publint and attw finding is fixed in the package or suppressed here, one reason per rule.
 // publint runs --strict with nothing suppressed. attw's esm-only profile skips the node10 and
@@ -382,6 +383,21 @@ function inspectTarball(artifact) {
     Object.keys(workspace.exports).toSorted(),
     `${manifest.name} publishConfig must preserve every workspace subpath`,
   );
+  // publishConfig.exports repeats exports without the workspace source condition, so each packed
+  // entry must be its workspace entry minus that condition. The one exception is an entry with no
+  // source condition to drop, vite-config's redirect from src to dist, which keeps only its subpath.
+  for (const [subpath, target] of Object.entries(workspace.exports)) {
+    if (typeof target === "object" && !(SOURCE_CONDITION in target)) continue;
+    const published =
+      typeof target === "string"
+        ? target
+        : Object.fromEntries(Object.entries(target).filter(([key]) => key !== SOURCE_CONDITION));
+    assert.deepEqual(
+      manifest.exports[subpath],
+      published,
+      `${manifest.name} publishConfig.exports["${subpath}"] must equal exports["${subpath}"] without ${SOURCE_CONDITION}`,
+    );
+  }
   const entries = Object.entries(manifest.exports).flatMap(([subpath, target]) => {
     const conditions = typeof target === "string" ? { default: target } : target;
     for (const [condition, path] of Object.entries(conditions)) {

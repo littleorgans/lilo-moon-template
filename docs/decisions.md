@@ -234,11 +234,11 @@ condition `@littleorgans/source` points at `src` for Vite `serve` only. Applicat
 condition in `vite.config.ts` when `command === "serve"`. They do not add it to the production
 build.
 
-The condition stays in the workspace. Each library’s `publishConfig.exports` omits it from the packed manifest,
-because an application that installs the packages and runs `vite dev` through
+The condition stays in the workspace. Each library's `publishConfig.exports` repeats `exports`
+without it, because an application that installs the packages and runs `vite dev` through
 `@littleorgans/vite-config` would otherwise resolve them to `src` inside `node_modules`.
 `root:published-shape` rejects any tarball whose `exports` use a condition other than `types`,
-`import` and `default`.
+`import` and `default`, or differ from the workspace `exports` in anything but that condition.
 
 Node's standard conditions, including `development` and `production`, must not select source. A
 consumer who installs the package, or a moon task that runs against `dist`, would otherwise execute
