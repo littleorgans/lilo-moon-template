@@ -187,6 +187,9 @@ work; the green run proves the valid state.
   the repository has one implementation of each concept.
 - Describe only state present on the current branch. Mark filed work with its issue number until
   the implementation lands.
+- Work in a linked Git worktree freely. `pnpm install` there leaves the shared `.git/hooks` alone,
+  so commits run the hooks the main checkout installed. Run `pnpm install` in the main checkout
+  once to install them.
 - Keep a change within its owning project. Moon uses project boundaries for dependencies, caching,
   and affected checks, so unrelated root changes widen every run.
 - Let Renovate open dependency PRs from `renovate.json`. The npm manager updates

@@ -439,7 +439,9 @@ command, `pnpm changeset:publish`, builds and publishes but does not rerun tests
 protected-branch CI, as `docs/decisions.md` explains.
 
 Local hooks in `lefthook.yml` run `format-check`, `lint` and `secrets` on staged files, plus
-commitlint. Renovate (`renovate.json`) groups the TypeScript and tsgolint pins and the three Moon
+commitlint. The root `prepare` script installs them through `scripts/install-hooks.mjs`, which runs
+`lefthook install` only in the main checkout. Linked worktrees share its `.git/hooks`, and lefthook
+writes the installing checkout's path into each hook. Renovate (`renovate.json`) groups the TypeScript and tsgolint pins and the three Moon
 pins. `root:tsgolint-lockstep` and `scripts/tests/versions.test.mjs` enforce agreement between those
 pins.
 
