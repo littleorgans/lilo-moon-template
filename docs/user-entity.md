@@ -153,20 +153,27 @@ of the comparison, so no drift is planned and `atlas migrate lint` reports the v
 verified rather than assumed.
 
 **`root:rls-verify` is the authority.** It applies the migrations to a real Postgres and observes
-behaviour, because no artifact can be reviewed for this. Six assertions:
+behaviour, because no artifact can be reviewed for this. Seven assertions. The first three are
+specific to this schema and live in `scripts/rls-verify.mjs`:
 
 - accounts are scoped to the org in the claims
 - profiles are scoped to the subject in the claims
-- absent claims reveal nothing rather than everything
 - an account cannot be created for another org
-- claims do not survive the transaction that set them
+
+The other four hold for any schema scoped this way. They come from `@littleorgans/db-tools`, which
+a consumer runs as the `rls-verify` command against its own database:
+
+- `authenticated` cannot bypass row level security
 - every table in `public` has row level security enabled and forced
+- absent claims reveal no rows
+- claims do not survive the transaction that set them
 
 The last one is the one that will earn its keep: a table added to `db/schema.sql` without a matching
 policy migration is readable by every tenant, and nothing else in the repo would notice.
 
-Each assertion was proven to fail. Removing `FORCE` fails the sixth. Weakening `accounts_select` to
-`USING (true)` fails three. Removing the `nullif` guard fails two with `22P02`.
+Each assertion was proven to fail. Removing `FORCE` fails the forced check. Weakening
+`accounts_select` to `USING (true)` fails three. Removing the `nullif` guard fails the two claim
+checks with `22P02`. Giving `authenticated` `BYPASSRLS` fails six.
 
 ### Three details that are load-bearing
 

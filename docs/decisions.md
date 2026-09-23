@@ -216,10 +216,12 @@ schema and the policies appear on neither side of a re-diff, so no drift is plan
 Because both generated artifacts misrepresent the security model without failing, neither can be
 reviewed for it. `moon.yml` `tasks.rls-verify` applies the migrations to a real Postgres and asserts
 behaviour instead: tenant scoping, fail-closed on absent claims, rejection of cross-tenant inserts,
-that claims do not outlive their transaction, and that every table in `public` has row level security
-enabled and forced. That last assertion is the one that catches a future table added without a
-policy. This is the third instance of the pattern in this record, after `--type-aware` and coverage:
-a gate that reports green while proving nothing.
+that claims do not outlive their transaction, and that every table in `public` has row level
+security enabled and forced. That last assertion is the one that catches a future table added
+without a policy. The assertions that hold for any schema later moved into `@littleorgans/db-tools`,
+whose `rls-verify` command runs them against a consumer's own database; the task calls the package.
+This is the third instance of the pattern in this record, after `--type-aware` and coverage: a gate
+that reports green while proving nothing.
 
 Which capabilities stay portable across hosts is
 [Supabase as a Postgres host](supabase-boundary.md). The record model and the workflows above it are

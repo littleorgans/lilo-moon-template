@@ -253,12 +253,17 @@ tasks:
     command: "node scripts/rls-verify.mjs"
     inputs:
       - "packages/db/migrations/**/*"
+      - "packages/db-tools/src/**/*"
       - "db/schema.sql"
       - "scripts/rls-verify.mjs"
       - "scripts/lib/postgres-container.mjs"
       - "package.json"
       - "pnpm-lock.yaml"
       - "pnpm-workspace.yaml"
+    # The generic checks come from @littleorgans/db-tools's build, like any consumer's. A project
+    # edge rather than a named target: consumer-check's packed copy has no packages to build.
+    deps:
+      - "^:build"
     checks:
       - check: "condition"
         script: "test ! -f db/schema.sql"

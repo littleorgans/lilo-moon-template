@@ -24,6 +24,9 @@
       "path": "./packages/db"
     },
     {
+      "path": "./packages/db-tools"
+    },
+    {
       "path": "./packages/theme"
     },
     {

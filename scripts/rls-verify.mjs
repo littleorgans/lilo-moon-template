@@ -3,136 +3,85 @@
 // policies. Both exit 0 while doing it. So neither file can be reviewed for correctness, and the
 // only honest check is to apply the migrations and observe the database.
 //
+// The checks that hold for any schema, and the harness that runs them, come from
+// @littleorgans/db-tools, which a consumer runs as `rls-verify` against its own database. This
+// script adds only what is specific to this repository's accounts and profiles.
+//
 // Every assertion below has been proven to fail when the protection it names is removed.
 
+import { asRole, rlsChecks, runChecks } from "@littleorgans/db-tools";
 import { Client } from "pg";
 
 import { applyMigrations, dockerIsAvailable, withPostgres } from "./lib/postgres-container.mjs";
 
-const failures = [];
-
-// A body returns true to pass, or a string describing what it saw. A throw is a failure and is
-// reported as one: a policy that raises instead of returning NULL is a real defect, and a stack
-// trace hides which check found it.
-async function verify(name, body) {
-  let detail;
-  try {
-    const outcome = await body();
-    if (outcome === true) {
-      process.stdout.write(`  ok    ${name}\n`);
-      return;
-    }
-    detail = outcome;
-  } catch (error) {
-    detail = `threw ${error.code ?? ""} ${error.message}`.trim();
-  }
-  failures.push(`${name}: ${detail}`);
-  process.stdout.write(`  FAIL  ${name}\n        ${detail}\n`);
-}
-
-// The only shape the application ever uses: one client, one explicit transaction, role and claims
-// both transaction-local. packages/db owns the production copy of this sequence.
-async function asPrincipal(client, claims, body) {
-  await client.query("BEGIN");
-  try {
-    await client.query("SET LOCAL ROLE authenticated");
-    if (claims !== null) {
-      await client.query("SELECT set_config('request.jwt.claims', $1, true)", [
-        JSON.stringify(claims),
-      ]);
-    }
-    const result = await body();
-    await client.query("COMMIT");
-    return result;
-  } catch (error) {
-    await client.query("ROLLBACK");
-    throw error;
-  }
-}
-
 const column = (result, name) => result.rows.map((row) => row[name]);
+const principalA = { sub: "user_AAA", org_id: "org_AAA" };
+
+function scopedTo(client, sql, name, expected) {
+  return async () => {
+    const seen = await asRole(client, "authenticated", principalA, async () =>
+      column(await client.query(sql), name),
+    );
+    return (
+      (seen.length === 1 && seen[0] === expected) ||
+      `expected ['${expected}'], saw ${JSON.stringify(seen)}`
+    );
+  };
+}
 
 if (!process.env.CI && !dockerIsAvailable()) {
   process.stdout.write("RLS verify skipped locally: Docker is unavailable; CI will run it.\n");
   process.exit(0);
 }
 
-await withPostgres("rls-verify", async (databaseUrl) => {
+const failures = await withPostgres("rls-verify", async (databaseUrl) => {
   applyMigrations(databaseUrl);
   const client = new Client({ connectionString: databaseUrl });
   await client.connect();
   try {
-    // Seeding runs as the superuser, which bypasses RLS by design. Nothing below trusts it.
+    // Seeding runs as the superuser, which bypasses RLS by design. Nothing below trusts it. The
+    // rows also keep the package's claim checks from passing on empty tables.
     await client.query("INSERT INTO accounts (workos_org_id) VALUES ('org_AAA'), ('org_BBB')");
     await client.query("INSERT INTO profiles (workos_user_id) VALUES ('user_AAA'), ('user_BBB')");
 
-    const principalA = { sub: "user_AAA", org_id: "org_AAA" };
-    const count = async () =>
-      Number((await client.query("SELECT count(*)::int AS n FROM accounts")).rows[0].n);
-
-    await verify("accounts are scoped to the org in the claims", async () => {
-      const seen = await asPrincipal(client, principalA, async () =>
-        column(
-          await client.query("SELECT workos_org_id FROM accounts ORDER BY 1"),
+    const repositoryChecks = [
+      {
+        name: "accounts are scoped to the org in the claims",
+        run: scopedTo(
+          client,
+          "SELECT workos_org_id FROM accounts ORDER BY 1",
           "workos_org_id",
+          "org_AAA",
         ),
-      );
-      return (
-        (seen.length === 1 && seen[0] === "org_AAA") ||
-        `expected ['org_AAA'], saw ${JSON.stringify(seen)}`
-      );
-    });
-
-    await verify("profiles are scoped to the subject in the claims", async () => {
-      const seen = await asPrincipal(client, principalA, async () =>
-        column(
-          await client.query("SELECT workos_user_id FROM profiles ORDER BY 1"),
+      },
+      {
+        name: "profiles are scoped to the subject in the claims",
+        run: scopedTo(
+          client,
+          "SELECT workos_user_id FROM profiles ORDER BY 1",
           "workos_user_id",
+          "user_AAA",
         ),
-      );
-      return (
-        (seen.length === 1 && seen[0] === "user_AAA") ||
-        `expected ['user_AAA'], saw ${JSON.stringify(seen)}`
-      );
-    });
-
-    await verify("absent claims reveal nothing rather than everything", async () => {
-      const seen = await asPrincipal(client, null, count);
-      return seen === 0 || `expected 0 rows without claims, saw ${seen}`;
-    });
-
-    await verify("an account cannot be created for another org", async () => {
-      try {
-        await asPrincipal(client, principalA, () =>
-          client.query("INSERT INTO accounts (workos_org_id) VALUES ('org_CCC')"),
-        );
-      } catch (error) {
-        return error.code === "42501" || `rejected with ${error.code}, expected 42501`;
-      }
-      return "insert of org_CCC under org_AAA claims was accepted";
-    });
-
-    // The pooling safety property: transaction-local values are gone at COMMIT, so identity
-    // cannot leak to the next borrower of a pooled connection.
-    await verify("claims do not survive the transaction that set them", async () => {
-      const seen = await asPrincipal(client, null, count);
-      return seen === 0 || `a later transaction on the same client saw ${seen} rows`;
-    });
-
-    // Catches the failure mode nobody notices: a table added to schema.sql with no matching
-    // policy migration is readable by every tenant.
-    await verify("every table in public has row level security enabled and forced", async () => {
-      const unprotected = (
-        await client.query(`
-          SELECT c.relname, c.relrowsecurity AS enabled, c.relforcerowsecurity AS forced
-          FROM pg_class c
-          JOIN pg_namespace n ON n.oid = c.relnamespace
-          WHERE n.nspname = 'public' AND c.relkind = 'r'
-          ORDER BY c.relname
-        `)
-      ).rows.filter((row) => !row.enabled || !row.forced);
-      return unprotected.length === 0 || `unprotected: ${JSON.stringify(unprotected)}`;
-    });
+      },
+      {
+        name: "an account cannot be created for another org",
+        async run() {
+          try {
+            await asRole(client, "authenticated", principalA, () =>
+              client.query("INSERT INTO accounts (workos_org_id) VALUES ('org_CCC')"),
+            );
+          } catch (error) {
+            return error.code === "42501" || `rejected with ${error.code}, expected 42501`;
+          }
+          return "insert of org_CCC under org_AAA claims was accepted";
+        },
+      },
+    ];
+    // Repository checks first, so the package's claim checks run on a connection that has
+    // already carried claims: the case a pooled connection is in.
+    return await runChecks(client, [...repositoryChecks, ...rlsChecks()], (line) =>
+      process.stdout.write(line),
+    );
   } finally {
     await client.end();
   }

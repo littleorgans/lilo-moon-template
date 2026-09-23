@@ -81,6 +81,7 @@ const TASK_DATABASES = {
   "atlas-diff": "atlas_diff",
   "db-test": "db_test",
   "consumer-check": "consumer_check",
+  "db-tools-test": "db_tools_test",
 };
 
 function port() {
