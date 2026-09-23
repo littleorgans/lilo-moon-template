@@ -188,11 +188,11 @@ would surface in production first. The structural `WorkOSClient` catches type-le
 only.
 
 **U7. The template maintainer is a single point of knowledge.** The docs explain decisions through
-incidents the maintainer lived through. The release workflow carries a personal secret name
-(`HELIOY_PAT`, `.github/workflows/release.yml` lines 20–32) that the rename does not touch. The
-consumer registry depends on maintainers remembering to inspect products. Nothing turns what
+incidents the maintainer lived through, so the reasoning lives with one person and a long narrative.
+The consumer registry depends on maintainers remembering to inspect products. Nothing turns what
 products learn into template changes, and nothing tells a product that its template revision is
-stale.
+stale. (The release workflow's `HELIOY_PAT` is an org-level token, not a personal credential, so it
+is not part of this risk.)
 
 **U8. CI cost grows with every change.** `consumer-check` runs `runInCI: "always"` with
 `cache: false`. It performs two full installs, two builds and server probes on every pull request,
@@ -235,18 +235,17 @@ Sizes: S is up to half a day, M is one to three days, L is a week or more.
 | 11  | Return 503 for `retry` dispositions, and give email failures their own log `kind`.                                                                                                                                                                                                                                                  | B4. Makes monitoring and alerting meaningful.                                                              | S    | —                                   |
 | 12  | Let Moon infer `apps/web` project edges from `package.json`, or add a check that the two agree.                                                                                                                                                                                                                                     | B6. One source of truth for dependencies.                                                                  | S    | Confirm Moon 2.5 inference behavior |
 | 13  | Scope `consumer-check` in CI: run it when `scripts/`, `packages/`, `apps/`, `.moon/` or manifests change, not on docs-only changes.                                                                                                                                                                                                 | U8. Faster pull requests without weakening the gate on relevant changes.                                   | S    | —                                   |
-| 14  | Replace `HELIOY_PAT` with a neutral secret name, for example `RELEASE_TOKEN`, preferably a GitHub App token, and document it.                                                                                                                                                                                                       | U7. Removes a personal identifier that every product inherits.                                             | S    | —                                   |
 
 ### Later
 
 | #   | Item                                                                                                                                                                                  | Why                                                                            | Size | Depends on                |
 | --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ | ---- | ------------------------- |
-| 15  | Add a scheduled contract test against a WorkOS staging environment for the measured behaviors, and one browser end-to-end sign-in via email code.                                     | U6. Detects provider drift before production.                                  | M    | Staging credentials in CI |
-| 16  | Support multiple cookie keys (current plus previous) for session unsealing, with documented rotation. Consider a shorter session lifetime with sliding renewal.                       | U5. Enables key rotation without a mass logout.                                | M    | —                         |
-| 17  | Add a staleness report to `just projects`: behind-by commit count per consumer, from the recorded repository and `git ls-remote`, and optionally an issue in each product repository. | U7. Closes the feedback loop the registry exists for.                          | M    | 8                         |
-| 18  | Define an upgrade policy for pre-release pins (Nitro beta, TypeScript 7, TanStack Start): who bumps them, how products follow, and a tested rollback.                                 | U4. Products are told not to change the pins, so the template owns their risk. | M    | 8                         |
-| 19  | Condense `docs/decisions.md` and long code comments into a short rules section plus an archived history, and link incidents instead of re-narrating them.                             | B8, U7. Lowers onboarding cost for people and agents.                          | M    | —                         |
-| 20  | Make the reference app's product-facing strings (title, sign-in copy) configuration in `server/`, and gate `/theme` behind a development flag.                                        | B10. Reduces demo residue shipped by products.                                 | S    | —                         |
+| 14  | Add a scheduled contract test against a WorkOS staging environment for the measured behaviors, and one browser end-to-end sign-in via email code.                                     | U6. Detects provider drift before production.                                  | M    | Staging credentials in CI |
+| 15  | Support multiple cookie keys (current plus previous) for session unsealing, with documented rotation. Consider a shorter session lifetime with sliding renewal.                       | U5. Enables key rotation without a mass logout.                                | M    | —                         |
+| 16  | Add a staleness report to `just projects`: behind-by commit count per consumer, from the recorded repository and `git ls-remote`, and optionally an issue in each product repository. | U7. Closes the feedback loop the registry exists for.                          | M    | 8                         |
+| 17  | Define an upgrade policy for pre-release pins (Nitro beta, TypeScript 7, TanStack Start): who bumps them, how products follow, and a tested rollback.                                 | U4. Products are told not to change the pins, so the template owns their risk. | M    | 8                         |
+| 18  | Condense `docs/decisions.md` and long code comments into a short rules section plus an archived history, and link incidents instead of re-narrating them.                             | B8, U7. Lowers onboarding cost for people and agents.                          | M    | —                         |
+| 19  | Make the reference app's product-facing strings (title, sign-in copy) configuration in `server/`, and gate `/theme` behind a development flag.                                        | B10. Reduces demo residue shipped by products.                                 | S    | —                         |
 
 ## Verification log
 
