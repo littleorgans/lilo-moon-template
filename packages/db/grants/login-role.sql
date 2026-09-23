@@ -1,5 +1,5 @@
--- Lets a login role run @littleorgans/db transactions. Apply it after the migrations, once per login
--- role, as the role that applied them:
+-- Lets a login role run @littleorgans/db transactions. Apply it after the migrations, once per
+-- login role, as the role that applied them:
 --
 --   psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -v login_role=<role> -f grants/login-role.sql
 --

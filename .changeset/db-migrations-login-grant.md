@@ -9,6 +9,7 @@ without this repository. `migrations/` holds the raw SQL that creates the `accou
 Atlas is not required.
 
 `grants/login-role.sql` grants `authenticated` to the role your service logs in as, with
-`INHERIT FALSE, SET TRUE, ADMIN FALSE`. Pass the role name as the psql variable `login_role`. Without this
-grant every `withPrincipal` call fails with `permission denied to set role "authenticated"`. It
-needs Postgres 16 or later. The new README covers setup, the role model and least privilege.
+`INHERIT FALSE, SET TRUE, ADMIN FALSE`. Pass the role name as the psql variable `login_role`.
+Without this grant every `withPrincipal` call fails with
+`permission denied to set role "authenticated"`. It needs Postgres 16 or later. The new README
+covers setup, the role model and least privilege.

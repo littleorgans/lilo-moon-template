@@ -145,23 +145,23 @@ moon run root:atlas-diff
 moon run root:drizzle-generate
 ```
 
-`packages/db/migrations/` gains a versioned file and `db/drizzle/_generated/schema.ts` is rewritten. Never
-edit the generated Drizzle schema by hand. Security policies require hand-authored SQL migrations.
-Never move `db/schema.sql` into `packages/db/migrations/`. Atlas checksums that
+`packages/db/migrations/` gains a versioned file and `db/drizzle/_generated/schema.ts` is
+rewritten. Never edit the generated Drizzle schema by hand. Security policies require hand-authored
+SQL migrations. Never move `db/schema.sql` into `packages/db/migrations/`. Atlas checksums that
 directory in `atlas.sum` and reads every `.sql` file in it as a versioned migration.
 
 **A new table needs a policy migration as well as a schema entry.** Atlas does not model row level
 security and drops it from a diff without saying so, so policies are hand-written under
 `packages/db/migrations/` and the checksum is regenerated with
-`atlas migrate hash --dir file://packages/db/migrations`. `moon.yml` `tasks.rls-verify` fails when any table
-in `public` lacks row level security enabled and forced, which is what stops a new table shipping
-readable by every tenant.
+`atlas migrate hash --dir file://packages/db/migrations`. `moon.yml` `tasks.rls-verify` fails when
+any table in `public` lacks row level security enabled and forced, which is what stops a new table
+shipping readable by every tenant.
 
 Delete the whole `db/` directory only if this repo has no database at all. The six
 `test ! -f db/schema.sql` checks in `moon.yml` make an absent schema skip every Atlas, Drizzle and
 RLS task before Atlas or Docker starts. Deleting `db/schema.sql` on its own skips those tasks as
-well, which leaves `packages/db/migrations/` and `db/drizzle/_generated/` in the tree with nothing checking
-them.
+well, which leaves `packages/db/migrations/` and `db/drizzle/_generated/` in the tree with nothing
+checking them.
 
 ## What you must not delete
 

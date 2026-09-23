@@ -59,10 +59,12 @@ does not authorize role grants. Step 4 connects as a separate, unprivileged serv
 
    The subshell fixes sorting across locales and stops on the first failed file; `-X` ignores
    local psql startup commands. Earlier files remain committed if a later file fails.
-   This loop is for a fresh database only. The files are not written to be applied twice. If you keep a migration history, copy them into
-   your tool's migrations directory instead, and let the tool record what it applied. For Atlas,
-   use the shipped directory directly (it includes `atlas.sum`), or copy its SQL into your
-   own migration history and regenerate that history's checksum.
+
+   This loop is for a fresh database only. The files are not written to be applied twice. If you
+   keep a migration history, copy them into your tool's migrations directory instead, and let the
+   tool record what it applied. For Atlas, copy the `.sql` files into your own migration directory
+   and run `atlas migrate hash`. You can point `atlas migrate apply` at the shipped directory
+   itself, which includes `atlas.sum`, only while you have no migrations of your own.
 
 2. **Create a login role for the service.** Choose its name and keep its password in your secret
    store:
@@ -125,10 +127,10 @@ pooled connection does not carry them to the next request.
 
 - The login role holds no table privileges of its own. The grant gives it membership without
   `INHERIT`, so a query outside `withPrincipal`, such as a raw `pg` query on the same connection
-  string, fails with `permission denied`. `SET TRUE` also permits a caller to issue `SET ROLE` directly,
-  including outside a transaction. This grant cannot force use of `withPrincipal`. The service
-  must verify principals before setting claims; any holder of its SQL credentials can set
-  arbitrary claims. Keep those credentials on trusted servers.
+  string, fails with `permission denied`. `SET TRUE` also lets any code holding the connection
+  run `SET ROLE authenticated` itself, inside or outside a transaction, and set whatever claims it
+  likes. The grant cannot force the use of `withPrincipal`. Treat the login role's credentials
+  like the service's other secrets, and let only code that verified the principal set claims.
 - Give each service its own login role. Then you can revoke one without touching the others:
   `REVOKE authenticated FROM orders_api`.
 - Keep the migration owner's credentials out of the service. That role can disable row level
@@ -144,32 +146,30 @@ this package adds only new files, which sort after the existing ones, and its ch
 them. When you upgrade, apply only the files you have not applied yet, in file-name order. A
 migration tool does this for you.
 
-The repository uses this same directory for Atlas, Drizzle and RLS gates. `db:test` rejects
-changes or deletions relative to `MOON_BASE` (default `origin/main`), duplicate versions, and
-new versions older than the base. Fetch the base ref before running it. Atlas additionally
-checks `atlas.sum`. The old directory path in the historical SQL comment is preserved to
-keep migration bytes unchanged; use `atlas migrate hash --dir file://packages/db/migrations`
-when adding migrations. There is no package-owned history table competing with Atlas.
-
 ## Supabase compatibility
 
 This is a direct Postgres connection integration, researched against Supabase's documentation
 and provisioning SQL; it has not been tested on a hosted Supabase project.
 
-- Supabase currently defaults to PostgreSQL 17; older projects may still use 15. Check
+- Supabase defaults to PostgreSQL 17 on its platform; older projects may still use 15. Check
   `SHOW server_version_num` before setup. Values below `160000` cannot execute the shipped grant;
-  upgrade first. See [Supabase's version announcement](https://supabase.com/changelog/46080-self-hosted-supabase-upgrading-from-pg-15-to-17-breaking-change)
+  upgrade first. See
+  [Supabase's version announcement](https://supabase.com/changelog/46080-self-hosted-supabase-upgrading-from-pg-15-to-17-breaking-change)
   and [upgrade guide](https://supabase.com/docs/guides/platform/upgrading).
 - Supabase already creates `authenticated`. The identity migration catches that role's
   duplicate-creation error and reuses it; it does not replace or harden an existing role.
   Existing `public.accounts`, `public.profiles`, or `app` functions can still collide: this
   is a fresh-schema setup, not a merger of an existing application's schema.
-- Supabase's [PG16+ provisioning migration](https://github.com/supabase/postgres/blob/develop/migrations/db/migrations/20250605172253_grant_with_admin_to_postgres_16_and_above.sql)
+- Supabase's
+  [PG16+ provisioning migration](https://github.com/supabase/postgres/blob/develop/migrations/db/migrations/20250605172253_grant_with_admin_to_postgres_16_and_above.sql)
   gives `postgres` `ADMIN OPTION` on `authenticated`, so that configured role can issue the
   grant. Older or customized deployments must check `pg_auth_members` first. Use `postgres`
-  for setup only; it has `BYPASSRLS` even though it is not a full superuser. See
-  [Supabase's role documentation](https://supabase.com/docs/guides/database/postgres/roles-superuser).
-- Supabase's [initial grants](https://github.com/supabase/postgres/blob/develop/migrations/db/init-scripts/00000000000000-initial-schema.sql)
+  for setup only, never as the service's login role: it is not a full superuser, but it holds
+  extra privileges (see
+  [Supabase's role documentation](https://supabase.com/docs/guides/database/postgres/roles-superuser)).
+  Check `rolbypassrls` in `pg_roles` for any role you consider.
+- Supabase's
+  [initial grants](https://github.com/supabase/postgres/blob/develop/migrations/db/init-scripts/00000000000000-initial-schema.sql)
   can grant broader public-schema access to `anon`, `authenticated`, and `service_role`.
   These migrations add privileges; they do not remove platform defaults. Review object and
   default privileges and Data API exposure, and explicitly revoke unwanted grants as the
