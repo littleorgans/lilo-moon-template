@@ -217,6 +217,29 @@ async function exercise(root) {
         assert.equal(refused.status, 400, `nested endpoint ${path} must reach input validation`);
       }),
     );
+    // Every state-changing POST refuses a page on another origin, and a missing Origin alike,
+    // before it reads a field or reaches the provider.
+    await Promise.all(
+      ["/api/auth/email/start", "/api/auth/email/verify", "/api/auth/signout", "/api/theme"]
+        .flatMap((path) => [
+          { path, headers: { origin: "https://evil.example" } },
+          { path, headers: {} },
+        ])
+        .map(async ({ path, headers }) => {
+          const forged = await fetch(`${origin}${path}`, {
+            signal: AbortSignal.timeout(5000),
+            method: "POST",
+            redirect: "manual",
+            headers,
+            body: new URLSearchParams({ email: "owner@example.com", mode: "dark" }),
+          });
+          assert.equal(
+            forged.status,
+            403,
+            `${path} must refuse Origin ${headers.origin ?? "(none)"}`,
+          );
+        }),
+    );
     const html = await response.text();
     assert.match(html, /Theme lab/);
     const cssPath = html.match(/href="([^"]+\.css)"/)?.[1];

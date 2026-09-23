@@ -53,4 +53,11 @@ describe("signOut", () => {
     expect(signOut({ request: request(method, from) }, jar, deps).status).toBe(status);
     expect(cleared).toEqual([]);
   });
+
+  it("refuses a POST with no Origin before touching cookies", () => {
+    const { jar, cleared } = jarWith();
+    const bare = new Request(`${origin}/api/auth/signout`, { method: "POST" });
+    expect(signOut({ request: bare }, jar, deps).status).toBe(403);
+    expect(cleared).toEqual([]);
+  });
 });

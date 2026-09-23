@@ -1,6 +1,12 @@
 import { randomBytes } from "node:crypto";
 
-import type { AuthFailureReport, CookieJar, CookieOptions } from "@littleorgans/auth-session";
+import type {
+  AuthFailureReport,
+  CookieJar,
+  CookieOptions,
+  Throttle,
+  ThrottleKey,
+} from "@littleorgans/auth-session";
 import { EMAIL_COOKIE, SESSION_COOKIE, STATE_COOKIE, seal } from "@littleorgans/auth-session";
 import { describe, expect, it } from "vitest";
 
@@ -46,12 +52,19 @@ const signout = {
   request: new Request(`${origin}/api/auth/signout`, { method: "POST", headers: { origin } }),
 };
 
-const runtimeWith = (jar: CookieJar, provider: "GoogleOAuth" | "authkit" = "GoogleOAuth") =>
+const allowAll: Throttle = () => Promise.resolve({ allowed: true });
+
+const runtimeWith = (
+  jar: CookieJar,
+  provider: "GoogleOAuth" | "authkit" = "GoogleOAuth",
+  throttle = allowAll,
+) =>
   createAuthRuntime({
     provider,
     signedInPath: "/app",
     organizationPolicy: "personal",
     codeEntryPath: "/verify-email",
+    throttle,
     env,
     cookies: jar,
   });
@@ -66,6 +79,7 @@ describe("createAuthRuntime", () => {
         signedInPath: "/app",
         organizationPolicy: "personal",
         codeEntryPath: "/verify-email",
+        throttle: allowAll,
         env: {},
       }),
     ).not.toThrow();
@@ -77,6 +91,7 @@ describe("createAuthRuntime", () => {
       signedInPath: "/app",
       organizationPolicy: "personal",
       codeEntryPath: "/verify-email",
+      throttle: allowAll,
       env: {},
     });
     expect(() => runtime.services()).toThrow("WORKOS_CLIENT_ID");
@@ -143,6 +158,7 @@ describe("the email handlers through the runtime", () => {
     const response = await runtimeWith(jar).sendEmailCode({
       request: new Request("http://localhost:5199/api/auth/email/start", {
         method: "POST",
+        headers: { origin },
         body: new URLSearchParams({}),
       }),
     });
@@ -154,11 +170,60 @@ describe("the email handlers through the runtime", () => {
     const response = await runtimeWith(jar).verifyEmailCode({
       request: new Request("http://localhost:5199/api/auth/email/verify", {
         method: "POST",
+        headers: { origin },
         body: new URLSearchParams({ code: "123456" }),
       }),
     });
     expect(response.status).toBe(400);
     expect(await response.text()).toContain("Start again");
+  });
+
+  // Proves the runtime hands the handlers the configured origin: another origin stops at 403.
+  it("both email handlers refuse another origin", async () => {
+    const runtime = runtimeWith(jarWith().jar);
+    const responses = await Promise.all(
+      [runtime.sendEmailCode, runtime.verifyEmailCode].map((handler) =>
+        handler({
+          request: new Request(`${origin}/api/auth/email`, {
+            method: "POST",
+            headers: { origin: "https://evil.example" },
+            body: new URLSearchParams({ email: "owner@example.com", code: "123456" }),
+          }),
+        }),
+      ),
+    );
+    expect(responses.map((response) => response.status)).toStrictEqual([403, 403]);
+  });
+
+  // Proves the runtime hands the handlers the application's throttle. A refusal answers before the
+  // provider, so no network is needed.
+  it("both email handlers ask the application's throttle", async () => {
+    const asked: ThrottleKey[] = [];
+    const refuseAll: Throttle = (key) => {
+      asked.push(key);
+      return Promise.resolve({ allowed: false, retryAfterSeconds: 60 });
+    };
+    const present: Record<string, string> = {};
+    const runtime = runtimeWith(jarWith(present).jar, "GoogleOAuth", refuseAll);
+    present[`${runtime.services().config.cookieNamespace}_${EMAIL_COOKIE}`] = "owner@example.com";
+    const post = () =>
+      new Request(`${origin}/api/auth/email`, {
+        method: "POST",
+        headers: { origin },
+        body: new URLSearchParams({ email: "owner@example.com", code: "123456" }),
+      });
+    const statuses = [
+      (await runtime.sendEmailCode({ request: post() })).status,
+      (await runtime.verifyEmailCode({ request: post() })).status,
+    ];
+    expect(statuses).toStrictEqual([429, 429]);
+    expect(asked.map((key) => key.step)).toStrictEqual(["email-start", "email-verify"]);
+  });
+});
+
+describe("origin", () => {
+  it("is the configured redirect URI's origin", () => {
+    expect(runtimeWith(jarWith().jar).origin()).toBe(origin);
   });
 });
 
@@ -205,6 +270,7 @@ describe("access", () => {
       signedInPath: "/app",
       organizationPolicy: "personal",
       codeEntryPath: "/verify-email",
+      throttle: allowAll,
       env,
       cookies: jar,
       log: (failure) => reports.push(failure),
