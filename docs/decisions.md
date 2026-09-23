@@ -163,7 +163,7 @@ PostgREST returns `PGRST301 JWSInvalidSignature` for WorkOS tokens. That is a Wo
 
 ## Schema, queries, and the host
 
-Product tables are deferred until the product has data. A template without a database is incomplete
+Product tables are deferred until the product has data. A baseline without a database is incomplete
 only if you think a schema can be invented before the product. It cannot. What is not deferred is
 the identity baseline: `accounts` and `profiles` are on main with row level security forced, because
 those two tables follow from the identity decision rather than from any product.

@@ -39,14 +39,13 @@ The baseline makes these choices, recorded in `docs/decisions.md`:
 │   ├── auth-session/       Framework-free HTTP sign-in flows, sealed session cookie, access states
 │   ├── auth-tanstack/      TanStack Start adapter: cookie jar, lazy runtime, POST-only handlers
 │   ├── auth-http/          Service bearer auth on Request/Response, Hono adapter, service config
-│   ├── db/                 Pooled Postgres and the one principal-scoped transaction
+│   ├── db/                 Pooled Postgres, the principal-scoped transaction, the shipped migrations
 │   ├── theme/              Token contract, two themes, validation, generated CSS, preference cookie
 │   ├── ui/                 shadcn primitives plus layout and typography components
 │   ├── views/              Composed reusable screens: sign-in, code entry, session error, theme lab
 │   └── vite-config/        Source-condition and client-boundary settings shared by Vite apps
 ├── db/
 │   ├── schema.sql          Atlas desired state: accounts and profiles
-│   ├── migrations/         Versioned SQL, including the hand-written RLS migration
 │   └── drizzle/_generated/ Drizzle introspection artifact, checked but not imported
 ├── scripts/                Database, security, consumer and gate scripts
 ├── .moon/                  Workspace, toolchains, and inherited task layers

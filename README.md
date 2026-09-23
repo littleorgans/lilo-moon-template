@@ -21,8 +21,8 @@ the phase 1 work in [the direction](docs/direction.md#f-phased-plan).
 
 ## Packages
 
-Every package below is published. They release together at one version (the Changesets `fixed`
-group), because their internal dependencies are exact pins.
+Every package below is publishable, and none is published yet. They release together at one
+version (the Changesets `fixed` group), because their internal dependencies are exact pins.
 
 - `auth` verifies tokens and maps claims to a `Principal`.
 - `auth-workos` wraps the WorkOS SDK. `auth-session` handles WorkOS browser sessions.
@@ -93,7 +93,7 @@ Docker enables the real Postgres checks. CI requires those checks when a schema 
 proves its typecheck, test, lint and format gates reject deliberate violations, and verifies HTTP
 and CSS behavior. It repeats the check with the libraries packed and installed outside their source
 workspace, including on `db`'s lowest peer versions, and runs a service against the packed
-`auth-http`.
+`auth-http` and `db`, applying the shipped migrations and login grant to a real Postgres.
 
 Postgres containers and their default ports are derived from the checkout path. `just clean`
 removes only that checkout's container and Moon cache. Change `LILO_PG_PORT` if a port is occupied.
