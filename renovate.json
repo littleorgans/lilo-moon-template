@@ -33,16 +33,21 @@
     },
     {
       "customType": "regex",
-      "description": "Keep the Moon workspace constraint and release installer aligned with .prototools.",
-      "managerFilePatterns": [
-        "/^\\.moon/workspace\\.yml$/",
-        "/^\\.github/workflows/release\\.yml$/"
-      ],
-      "matchStrings": ["(?:versionConstraint: \"=|moon-version: \")(?<currentValue>[^\"\\n]+)\""],
+      "description": "Keep the Moon workspace constraint aligned with .prototools.",
+      "managerFilePatterns": ["/^\\.moon/workspace\\.yml$/"],
+      "matchStrings": ["versionConstraint: \"=(?<currentValue>[^\"\\n]+)\""],
       "depNameTemplate": "moon",
       "packageNameTemplate": "moonrepo/moon",
       "datasourceTemplate": "github-releases",
       "extractVersionTemplate": "^v(?<version>\\S+)"
+    },
+    {
+      "customType": "regex",
+      "description": "The npm release.yml publishes with. Trusted publishing needs 11.5 or later.",
+      "managerFilePatterns": ["/^\\.github/workflows/release\\.yml$/"],
+      "matchStrings": ["npm install --global npm@(?<currentValue>\\S+)"],
+      "depNameTemplate": "npm",
+      "datasourceTemplate": "npm"
     }
   ],
   "packageRules": [

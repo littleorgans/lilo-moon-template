@@ -6,7 +6,6 @@
   "type": "module",
   "scripts": {
     "changeset": "changeset",
-    "changeset:publish": "moon run :build root:packed-secrets && changeset publish",
     "changeset:version": "changeset version && pnpm install --lockfile-only",
     "prepare": "node scripts/install-hooks.mjs"
   },
@@ -30,7 +29,8 @@
     "publint": "0.3.24",
     "secretlint": "13.0.4",
     "typescript": "catalog:",
-    "vitest": "catalog:"
+    "vitest": "catalog:",
+    "yaml": "2.9.0"
   },
   "engines": {
     "node": ">=24.19.0",
