@@ -961,11 +961,6 @@ async function checkSnapshot() {
         ),
   });
   pruneReferences(packed);
-  // Installed libraries no longer have workspace projects for explicit Moon dependency edges.
-  writeFileSync(
-    join(packed, "apps/web/moon.yml"),
-    'language: "typescript"\nlayer: "application"\ntags: ["web-app"]\n',
-  );
   const manifestPath = join(packed, "apps/web/package.json");
   const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
   for (const section of ["dependencies", "devDependencies"]) {

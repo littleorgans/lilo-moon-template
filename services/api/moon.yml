@@ -1,10 +1,6 @@
 language: "typescript"
 layer: "application"
 tags: ["node-service"]
-dependsOn:
-  - "auth"
-  - "auth-http"
-  - "db"
 
 tasks:
   # The service's port, like apps/web's preview port, belongs to the service.

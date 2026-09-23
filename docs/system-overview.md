@@ -61,8 +61,10 @@ project that owns workspace-wide tasks in `moon.yml`.
 
 ### Package dependencies
 
-Edges come from each member's `package.json`. Moon mirrors them in `apps/web/moon.yml` `dependsOn`
-and in TypeScript project references in each `tsconfig.json`.
+Edges come from each member's `package.json` and nowhere else. Moon infers its project graph from
+the `workspace:` dependencies there, and `moon sync` mirrors them into TypeScript project references
+in each `tsconfig.json`. No `moon.yml` declares `dependsOn`; `scripts/tests/integration/project-graph.test.mjs`
+fails if one does or if Moon's edges stop matching the manifests.
 
 ```mermaid
 graph LR

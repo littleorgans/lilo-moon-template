@@ -106,6 +106,7 @@ tasks:
       - "/LICENSE"
       - "/{apps,packages,services}/*/LICENSE"
       - "/{apps,packages,services}/*/package.json"
+      - "/{apps,packages,services}/*/moon.yml"
       - "/.changeset/config.json"
       - "moon.yml"
       # Configuration only: .moon/cache changes on every run, so a .moon/**/* input never caches.
