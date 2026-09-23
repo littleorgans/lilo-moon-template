@@ -54,6 +54,21 @@ from `release.json`.
 
 Until `NPM_PUBLISH_ENABLED` is set, merging anything, including the Version PR, only versions.
 
+## Who authors the Version Packages PR
+
+The version job authors the pull request with `secrets.LILO_GITHUB_PAT` when that secret exists,
+and with `GITHUB_TOKEN` when it does not. Without the secret, releases still work, but the PR comes
+from `github-actions[bot]` in an approval-required state: its `CI` run returns `action_required`,
+the required check never reports, and the PR cannot merge until a maintainer opens it and selects
+**Approve workflows to run**. That is
+[GitHub's documented `GITHUB_TOKEN` behavior](https://docs.github.com/en/actions/concepts/security/github_token),
+and this repository hit it on its first changeset.
+
+Point the secret at a token of a user with write access, or at a GitHub App installation token, and
+the approval step disappears. Prefer the App token: a PAT expires, and when it does, releases stop
+being proposed without an obvious signal. The publish job never uses this token. It tags and
+creates the release with the job's own `GITHUB_TOKEN`.
+
 ## Authentication
 
 npm authenticates the publish in one of two ways. The workflow needs no edit to move between them.

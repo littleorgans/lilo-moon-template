@@ -125,39 +125,14 @@ package, including a library or private application.
 `CI_RUNNER`. Leave it unset and the job runs on `ubuntu-latest`. Set it to a runner label
 when you want a different host. It is a variable, not a secret.
 
-`.github/workflows/release.yml` stays on `ubuntu-latest`. Releases are rare, and that
-workflow has `id-token: write` for npm trusted publishing.
+In `.github/workflows/release.yml`, the release gate job runs on the same runner as CI, because it
+runs the same tasks. The version, publish and smoke jobs stay on `ubuntu-latest`: npm provenance and
+trusted publishing need a GitHub-hosted runner.
 
 ## Enable package publishing
 
-npm can attach a trusted publisher only after a package exists on the registry, so the first release
-must use another publishing route. [npm CLI issue #8544](https://github.com/npm/cli/issues/8544)
-tracks support for an initial OIDC publish, so only later releases can use this workflow's OIDC path.
-After every package has a trusted publisher for `release.yml`, set the repository Actions variable
-`NPM_PUBLISH_ENABLED` to `true`.
-
-Without an enabling value, Changesets can manage the Version Packages PR but receives no publish
-command. When enabled, `moon run :build` through `changeset:publish` and branch protection for `main`
-gate publishing.
-
-Adding lint, typecheck, and tests to the publish path is a non-trivial workflow change that must
-account for job sequencing within one workflow file, the `contents: write` and
-`pull-requests: write` permissions, and a workflow-level `cancel-in-progress` setting that can cancel
-a run before job-level concurrency protects a publish and can leave a partial release. This repository
-has exercised neither the OIDC publish path nor the extra workflow gate, so it does not prescribe an
-integration recipe.
-
-The Version Packages PR is authored by `secrets.LILO_GITHUB_PAT`, a repository-level token, when that
-secret exists, and by `GITHUB_TOKEN` when it does not. Leave it unset and releases still work, but
-the PR arrives from `github-actions[bot]` in an approval-required state: its `CI` run comes back
-`action_required`, the required check never reports, and the PR cannot merge until a maintainer
-opens it and selects **Approve workflows to run**. That is
-[GitHub's documented `GITHUB_TOKEN` behavior](https://docs.github.com/en/actions/concepts/security/github_token),
-and this repository hit it on the first changeset it ever produced.
-
-Point that secret at a token belonging to a user with write access, or to a GitHub App installation
-token, and the approval step disappears. Prefer the App token. A PAT expires, and when it does
-releases stop being proposed without an obvious signal.
+[Releasing the packages](releasing.md) covers publishing: the flow, the npm bootstrap and trusted
+publishing, and who authors the Version Packages PR.
 
 ## After this page
 

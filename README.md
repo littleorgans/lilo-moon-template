@@ -94,7 +94,8 @@ moon run web:dev
 ```
 
 The reference app runs on port 5199. [Maintain this repository](docs/maintaining.md) covers the
-toolchain, members, the database baseline, the CI runner and publishing.
+toolchain, members, the database baseline and the CI runner. [Releasing the packages](docs/releasing.md)
+covers publishing.
 
 ## Verification
 
