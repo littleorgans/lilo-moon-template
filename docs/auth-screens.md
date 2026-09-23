@@ -163,10 +163,10 @@ person who creates a workspace receives the environment's default role, which is
 grants `billing:manage` today. Whether the creator of a personal workspace should own it is a
 product decision rather than a defect, and it is open: see the end of this page.
 
-**What free allows is not decided here, on purpose.** The packages ship the mechanism, an
-entitlement check that gates a feature and renders an upgrade prompt. The policy, which feature and
-which limit, arrives with the first real product. A baseline that invents a limit is inventing a
-product.
+**What free allows is not decided here, on purpose.** This repository owns only the mechanism.
+The `Principal` already carries `entitlements`; an entitlement check that gates a feature and
+renders an upgrade prompt is not built yet. The policy, which feature and which limit, arrives with
+the first real product. A baseline that invents a limit is inventing a product.
 
 ### 4. Signed in, entitled
 
@@ -277,7 +277,7 @@ ones collapse.
 **`retry` is the only one that tells someone to try again**, because waiting is the entire remedy
 for exactly those two and advice that cannot work is worse than none.
 
-**`unsupported` is honest rather than reassuring.** These are real AuthKit flows the packages have
+**`unsupported` is honest rather than reassuring.** These are real AuthKit flows this repository has
 not built. Saying so stops a person pressing a button that cannot ever complete.
 
 **`misconfigured` is ours.** The person reading it can do nothing about it, so it says so and the
@@ -307,9 +307,9 @@ is not built: every steady-state surface.
 
 Decided 2026-08-24: free plan limits are defined per product, never by the packages. The token
 carries tier names, not quantities, so each product maps its own tiers to its own limits in its own
-code, and the packages ship only the entitlement check and the upgrade prompt. Also decided: a
-`claims` failure is delivered nowhere beyond its log line for now. The screen informs the person,
-the line makes the failure findable, and paging arrives when there is something to page.
+code, and this repository's part is only the entitlement check and the upgrade prompt. Also
+decided: a `claims` failure is delivered nowhere beyond its log line for now. The screen informs the
+person, the line makes the failure findable, and paging arrives when there is something to page.
 
 Decided 2026-08-26: **whether a workspace creator holds `owner` is a per-product decision, and the
 packages do not take it.** Same shape as the plan limits above. A role is a product's authority

@@ -1,8 +1,9 @@
 # lilo-moon-template
 
 A reference implementation of a TypeScript web application, and the source of the `@littleorgans/*`
-npm packages it is built from. Projects add the packages as dependencies and follow the reference
-app for the thin glue they own. They do not copy, rename or rebase this repository.
+npm packages it is built from. Once published, projects add the packages as dependencies and
+follow the reference app for the thin glue they own. They do not copy, rename or rebase this
+repository.
 
 Moon owns the task graph. pnpm manages JavaScript packages. Follow [AGENTS.md](AGENTS.md) while
 working in the repository. [The decision record](docs/decisions.md) explains the tool choices.
@@ -34,15 +35,7 @@ version (the Changesets `fixed` group), because their internal dependencies are 
 - `ui` owns shared components. `views` composes them into reference screens.
 - `vite-config` discovers packages from an explicitly supplied consumer workspace root.
 
-## The reference app
-
-`apps/web` is private and never published. It consumes the packages from workspace source and
-shows the glue a project owns: grouped routes wire URLs, named server modules compose services, and
-`features/<name>/` owns each feature's model, UI and server behavior. See [Code
-layout](docs/code-layout.md) for the structure to follow when adding features and members.
-
-The signed-in page shows the session's user and organization, and the rows a scoped transaction can
-see. `/theme` is a reference page for the components and themes.
+## Implemented capabilities
 
 | Area        | Implementation                                                                                            |
 | ----------- | --------------------------------------------------------------------------------------------------------- |
@@ -56,6 +49,16 @@ see. `/theme` is a reference page for the components and themes.
 
 Payments, CRM, Zustand persistence, Convex, system theme mode and saved user theme editing are
 not implemented.
+
+## The reference app
+
+`apps/web` is private and never published. It consumes the packages from workspace source and
+shows the glue a project owns: grouped routes wire URLs, named server modules compose services, and
+`features/<name>/` owns each feature's model, UI and server behavior. See [Code
+layout](docs/code-layout.md) for the structure to follow when adding features and members.
+
+The signed-in page shows the session's user and organization, and the rows a scoped transaction can
+see. `/theme` is a reference page for the components and themes.
 
 Each application selects `organizationPolicy` in `src/server/auth.ts`: `personal` provisions a
 personal workspace, while `existing` leaves organization membership unchanged. Each application
