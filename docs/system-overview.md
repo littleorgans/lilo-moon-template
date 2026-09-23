@@ -156,7 +156,7 @@ Details, all in `scripts/lib/create-project.mjs` unless noted:
   commit graph, so `git merge-base` works.
 - **Identity rewrite.** `scripts/rename-template.sh` substitutes three tokens in every tracked file
   except `.template-origin.json` and `.template/**`: `lilo-moon-template`, `littleorgans` and
-  `lilo-moon` (lines 6–12, 127–143). The npm scope is `@littleorgans`, the org token, so
+  `lilo-moon` (lines 10–15, 132–148). The npm scope is `@littleorgans`, the org token, so
   `@littleorgans` is rewritten to `@<scope>` before the org pass. The substitution covers package
   names (`@littleorgans/*` becomes `@<scope>/*`), the `@littleorgans/source` export condition,
   repository URLs, the Changesets `changelog.repo`, pending changesets, and the lockfile. It then

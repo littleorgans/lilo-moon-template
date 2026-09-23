@@ -3,12 +3,16 @@
 # Exit 0 on success, 1 on verification or runtime failure, and 64 on invalid arguments.
 set -euo pipefail
 
-source_scope="lilo"
-source_scope+="-moon"
+# Template identity tokens, assembled from fragments so this script survives its own rewrite.
+# The npm scope is the org token behind an `@`, so the org token stands for both the GitHub org
+# and the scope. The legacy scope predates decision D1; it survives as the slug prefix and the
+# session key salt, and it follows the target scope.
 source_org="little"
 source_org+="organs"
-source_slug="${source_scope}-template"
-source_tokens=("$source_slug" "$source_org" "$source_scope")
+source_legacy_scope="lilo"
+source_legacy_scope+="-moon"
+source_slug="${source_legacy_scope}-template"
+source_tokens=("$source_slug" "$source_org" "$source_legacy_scope")
 verify_pathspec=("." ":!.template-origin.json" ":!.template/**")
 
 usage() {
@@ -81,7 +85,7 @@ validate_target() {
   if [[ "$value" == "$source" ]]; then
     usage_error "$label must differ from the template value."
   fi
-  if [[ "$value" == *"$source_slug"* || "$value" == *"$source_org"* || "$value" == *"$source_scope"* ]]; then
+  if [[ "$value" == *"$source_slug"* || "$value" == *"$source_org"* || "$value" == *"$source_legacy_scope"* ]]; then
     usage_error "$label must not contain a template identity token."
   fi
 }
@@ -118,7 +122,7 @@ target_scope="$2"
 target_slug="$3"
 
 validate_target "Organization" "$target_org" "$source_org"
-validate_target "Package scope without @" "$target_scope" "$source_scope"
+validate_target "Package scope without @" "$target_scope" "$source_org"
 validate_target "Repository slug" "$target_slug" "$source_slug"
 if [[ "$validate_only" == true ]]; then exit 0; fi
 require_command perl
@@ -127,16 +131,17 @@ if [[ "${4:-}" != "--no-install" ]]; then require_command pnpm; fi
 replaced_files=0
 while IFS= read -r -d '' file; do
   if [[ -f "$file" ]] && LC_ALL=C grep -q -F \
-    -e "$source_slug" -e "$source_org" -e "$source_scope" -- "$file"; then
+    -e "$source_slug" -e "$source_org" -e "$source_legacy_scope" -- "$file"; then
     SOURCE_SLUG="$source_slug" TARGET_SLUG="$target_slug" \
       SOURCE_ORG="$source_org" TARGET_ORG="$target_org" \
-      SOURCE_SCOPE="$source_scope" TARGET_SCOPE="$target_scope" \
+      SOURCE_LEGACY_SCOPE="$source_legacy_scope" TARGET_SCOPE="$target_scope" \
       perl -0pi -e '
         s/\Q$ENV{SOURCE_SLUG}\E/$ENV{TARGET_SLUG}/g;
-        # The npm scope is the org token; rename it to the scope before the org pass.
+        # `@` plus the org token is the npm scope. Rewrite it before the bare org pass, and only
+        # where nothing extends the name, so a longer scope such as `@<org>-dev` is left alone.
         s/\@\Q$ENV{SOURCE_ORG}\E(?![\w.-])/\@$ENV{TARGET_SCOPE}/g;
         s/\Q$ENV{SOURCE_ORG}\E/$ENV{TARGET_ORG}/g;
-        s/\Q$ENV{SOURCE_SCOPE}\E/$ENV{TARGET_SCOPE}/g;
+        s/\Q$ENV{SOURCE_LEGACY_SCOPE}\E/$ENV{TARGET_SCOPE}/g;
       ' -- "$file"
     replaced_files=$((replaced_files + 1))
   fi
