@@ -77,10 +77,13 @@ function serviceOrigin(entry: ServiceOrigin): string {
   const url = new URL(value);
   if (typeof entry === "string") {
     if (url.protocol !== "https:" && !(url.protocol === "http:" && LOOPBACK.has(url.hostname))) {
-      throw new Error(
-        `Service origin ${value} must use HTTPS except on localhost. List a service on a network ` +
-          `you trust as { origin: "${url.origin}", insecure: true }.`,
-      );
+      // Suggested only for http, the one scheme an insecure entry accepts, and as the parsed origin,
+      // because the entry refuses a path too.
+      const suggestion =
+        url.protocol === "http:"
+          ? ` List a service on a network you trust as { origin: "${url.origin}", insecure: true }.`
+          : "";
+      throw new Error(`Service origin ${value} must use HTTPS except on localhost.${suggestion}`);
     }
   } else if (!isTrue(entry.insecure)) {
     throw new Error(`Service origin ${value} is an object without insecure: true.`);

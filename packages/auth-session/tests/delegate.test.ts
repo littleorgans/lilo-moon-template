@@ -421,11 +421,19 @@ describe("when there is no usable session", () => {
 });
 
 describe("service origins", () => {
-  it("names the per-origin opt-in when it refuses plain http", async () => {
-    const { deps } = depsWith(valid, authDouble().auth, ["http://api:3000"]);
+  // The suggestion must itself be accepted: the bare origin, never the path the entry had.
+  it("names the per-origin opt-in, as an entry it would accept, when it refuses plain http", async () => {
+    const { deps } = depsWith(valid, authDouble().auth, ["http://api:3000/v1"]);
     await expect(readUserAccess(session().jar, deps)).rejects.toThrow(
       'List a service on a network you trust as { origin: "http://api:3000", insecure: true }.',
     );
+  });
+
+  it("suggests no insecure entry for a scheme an insecure entry would refuse", async () => {
+    const { deps } = depsWith(valid, authDouble().auth, ["ws://api:3000"]);
+    const refused = readUserAccess(session().jar, deps);
+    await expect(refused).rejects.toThrow("must use HTTPS except on localhost.");
+    await expect(refused).rejects.not.toThrow("insecure");
   });
 
   // The flag covers the one origin it is written beside. Nothing about it widens to the host, the
