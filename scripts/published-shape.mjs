@@ -1099,8 +1099,22 @@ async function checkSnapshot() {
     workspacePath,
     `${readFileSync(workspacePath, "utf8")}\n${[...artifacts].map(([name, file]) => `  "${name}": "file:${file}"`).join("\n")}\n`,
   );
+  // The optional drizzle-kit peer belongs to the consumer that runs generation, not to db-tools.
+  const packedManifest = readManifest(packed);
+  packedManifest.devDependencies["drizzle-kit"] = resolvedPackage(
+    join(reference, "packages/db-tools"),
+    "drizzle-kit",
+  ).manifest.version;
+  writeJson(join(packed, "package.json"), packedManifest);
   initializeProject(packed, "test: initialize packed consumer");
   run(packed, "pnpm", ["install"]);
+  checkBins(packed, packages);
+  if (process.env.CI || dockerIsAvailable()) {
+    generateConsumerSchema(
+      packed,
+      resolvedPackage(join(packed, "apps/web"), "@littleorgans/db").root,
+    );
+  }
   run(packed, "moon", ["sync"]);
   // The root's tsconfig.options.json, .oxlintrc.json and vitest.config.ts now resolve the packed
   // config packages, so these tasks prove them as a consumer installs them.

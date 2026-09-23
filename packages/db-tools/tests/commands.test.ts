@@ -42,13 +42,14 @@ describe("db-tools command line", () => {
   it("rejects an unknown command, an unknown option, and an option the command does not read", async () => {
     expect(await run(["toString"])).toMatchObject({ code: exitCodes.usage });
     expect(await run(["clean", "--bogus"])).toMatchObject({ code: exitCodes.usage });
+    expect(await run(["clean", "--image", "ignored"])).toMatchObject({ code: exitCodes.usage });
     const misplaced = await run(["drizzle-check", "--seed", "seed.sql"]);
     expect(misplaced.code).toBe(exitCodes.usage);
     expect(misplaced.stderr).toContain("does not take --seed");
   });
 
   it("rejects a port that is not a number", async () => {
-    const { code, stderr } = await run(["clean", "--port", "5432x"]);
+    const { code, stderr } = await run(["atlas-diff", "--port", "5432x"]);
     expect(code).toBe(exitCodes.usage);
     expect(stderr).toContain("--port must be a whole number");
   });
@@ -121,4 +122,21 @@ describe("db-tools command line", () => {
     expect(code).toBe(exitCodes.passed);
     expect(stdout).toContain("no Postgres container to remove");
   });
+});
+
+it("does not echo connection credentials from rejected command arguments", async () => {
+  const target = new URL("postgres://owner@db/app");
+  target.password = "private-password";
+  const url = target.href;
+  for (const args of [
+    ["atlas-apply", "--url", url, url],
+    [url],
+    ["clean", `--url=${url}`, "--unknown"],
+  ]) {
+    // Each rejected argv is an independent command invocation.
+    // oxlint-disable-next-line no-await-in-loop
+    const result = await run(args);
+    expect(result.code).toBe(exitCodes.usage);
+    expect(result.stderr).not.toContain("private-password");
+  }
 });

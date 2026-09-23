@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -83,4 +83,74 @@ describe("Docker availability", () => {
     const PATH = fakePath({ docker: 'echo "daemon down" >&2; exit 1' });
     expect(() => removePostgres({ env: { PATH } })).toThrow("daemon down");
   });
+});
+
+// Record the commands, so refusing a foreign name proves no start or deletion occurred.
+function dockerFixture(owner: string | undefined, image = "postgres:17-alpine") {
+  const root = mkdtempSync(join(tmpdir(), "db-tools-owned-"));
+  const log = join(root, "calls");
+  const info = [
+    JSON.stringify("immutable-container-id"),
+    JSON.stringify(image),
+    JSON.stringify(owner === "self" ? root : (owner ?? null)),
+    `${postgresIdentity(root).port} 127.0.0.1`,
+  ].join("\n");
+  const PATH = fakePath({
+    docker: `echo "$*" >> '${log}'\ncase "$1" in\ninfo) exit 0;;\ncontainer) echo '${info}';;\nesac`,
+  });
+  return { root, env: { PATH }, log };
+}
+
+describe("container ownership", () => {
+  it.each([undefined, "/another/checkout"])(
+    "refuses clean and replacement of foreign ownership %s",
+    (owner) => {
+      const fixture = dockerFixture(owner, "some-other-image");
+      expect(() => removePostgres(fixture)).toThrow("ownership label");
+      expect(() => startPostgres(fixture)).toThrow("ownership label");
+      expect(readFileSync(fixture.log, "utf8")).not.toMatch(/^(rm|run|start) /m);
+    },
+  );
+
+  it("removes an owned container by immutable ID, never by reusable name", () => {
+    const fixture = dockerFixture("self");
+    expect(removePostgres(fixture)).toBe(true);
+    expect(readFileSync(fixture.log, "utf8")).toContain("rm --force immutable-container-id");
+  });
+
+  it("does not mistake an inspection failure for an absent container", () => {
+    const env = { PATH: fakePath({ docker: 'echo "permission denied" >&2; exit 1' }) };
+    expect(() => removePostgres({ env })).toThrow("Could not inspect");
+  });
+});
+
+it("rechecks ownership after losing the container-name race", () => {
+  const root = mkdtempSync(join(tmpdir(), "db-tools-race-"));
+  const marker = join(root, "seen");
+  const log = join(root, "calls");
+  const PATH = fakePath({
+    docker: `echo "$1" >> '${log}'
+case "$1" in
+info) exit 0;;
+container)
+  if [ ! -f '${marker}' ]; then
+    echo seen > '${marker}'
+    echo 'No such container' >&2
+    exit 1
+  fi
+  echo '"foreign-id"'
+  echo '"postgres:17-alpine"'
+  echo 'null'
+  echo '${postgresIdentity(root).port} 127.0.0.1'
+  ;;
+run) echo 'container name is already in use' >&2; exit 1;;
+esac`,
+  });
+  expect(() => startPostgres({ root, env: { PATH } })).toThrow("ownership label");
+  expect(readFileSync(log, "utf8").trim().split("\n")).toStrictEqual([
+    "info",
+    "container",
+    "run",
+    "container",
+  ]);
 });

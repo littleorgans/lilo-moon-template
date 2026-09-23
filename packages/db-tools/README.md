@@ -44,8 +44,8 @@ Two tools are not npm packages and must be on `PATH`:
   (`atlas = "1.3.0"` with the plugin line from this repository's `.prototools`) so that
   `proto install` provides the same version locally and in CI.
 
-A missing tool fails the command at once with exit 3 and a message that names it. It never hangs:
-a Docker daemon that does not answer `docker info` within 20 seconds counts as unavailable.
+A missing tool fails with exit 3 and a message that names it, except for the local check skips
+described below. A Docker daemon that does not answer `docker info` within 20 seconds counts as unavailable.
 
 ## Verify an existing database
 
@@ -173,18 +173,18 @@ pnpm exec db-tools <command> [options]
 Paths are relative to the working directory. The defaults are the layout the adoption guides set
 up:
 
-| Option               | Default                                                        | Used by                 |
-| -------------------- | -------------------------------------------------------------- | ----------------------- |
-| `--migrations <dir>` | `db/migrations`                                                | all but `clean`         |
-| `--to <file>`        | `db/schema.sql`                                                | `atlas-diff`            |
-| `--git-base <ref>`   | `MOON_BASE`, else only the latest migration                    | `atlas-lint`            |
-| `--url <url>`        | `DATABASE_URL`                                                 | `atlas-apply`           |
-| `--out <dir>`        | `db/drizzle/_generated`                                        | `drizzle-*`             |
-| `--seed <file>`      | none                                                           | `rls-verify`            |
-| `--schema`, `--role` | as `rls-verify`                                                | `rls-verify`            |
-| `--root <dir>`       | nearest ancestor with `pnpm-workspace.yaml`, `.moon` or `.git` | every container command |
-| `--port <port>`      | `LILO_PG_PORT`, else derived from `--root`                     | every container command |
-| `--image <image>`    | `postgres:17-alpine`                                           | every container command |
+| Option               | Default                                                        | Used by                           |
+| -------------------- | -------------------------------------------------------------- | --------------------------------- |
+| `--migrations <dir>` | `db/migrations`                                                | all but `clean`                   |
+| `--to <file>`        | `db/schema.sql`                                                | `atlas-diff`                      |
+| `--git-base <ref>`   | `MOON_BASE`, else only the latest migration                    | `atlas-lint`                      |
+| `--url <url>`        | `DATABASE_URL`                                                 | `atlas-apply`                     |
+| `--out <dir>`        | `db/drizzle/_generated`                                        | `drizzle-*`                       |
+| `--seed <file>`      | none                                                           | `rls-verify`                      |
+| `--schema`, `--role` | as `rls-verify`                                                | `rls-verify`                      |
+| `--root <dir>`       | nearest ancestor with `pnpm-workspace.yaml`, `.moon` or `.git` | every container command           |
+| `--port <port>`      | `LILO_PG_PORT`, else derived from `--root`                     | container commands except `clean` |
+| `--image <image>`    | `postgres:17-alpine`                                           | container commands except `clean` |
 
 A command refuses an option it does not use, so a misplaced flag is an error, not ignored.
 
@@ -197,14 +197,24 @@ journal and relations are discarded.
 
 Each checkout owns one container, named `baseline-postgres-<digest>` after the checkout's absolute
 path, with a host port derived from the same digest and bound to `127.0.0.1`. Separate clones and
-worktrees therefore get separate containers and ports. Every command creates its own database
-inside it, named after the command and the process id, and drops it afterwards. A run that was
-killed leaves its database behind; the next run of the same command drops every such database
-whose process no longer exists.
+worktrees therefore get separate containers and ports. Each helper call creates its own database
+inside it, named after the command, process id and a random suffix, and drops it afterwards.
+Interrupted calls leave their databases behind; the next call with the same label removes only
+databases marked as created by this checkout whose process no longer exists. The standalone
+`rls-verify --disposable` lifecycle remains separate.
+
+Containers carry an ownership label with the checkout path. Startup and `clean` refuse a container
+without that matching label, even when its name or image matches. Removal uses the inspected ID,
+so a reused name cannot redirect deletion. Unlabelled containers from the old repository scripts
+must be renamed manually before running the new commands; they are never adopted or deleted.
 
 Set `LILO_PG_PORT` (or `--port`) when the derived port is taken. The container keeps the port it
 was created with, so run `db-tools clean` before you change it; a mismatch fails with that advice.
 The superuser password is `postgres`, which is why the port is bound to the loopback address only.
+
+Prefer `DATABASE_URL` to `--url` to keep credentials out of shell history. Command diagnostics and
+child-tool output redact the URL and its passwords. Atlas still receives the URL as a process
+argument; use the same host access controls as when invoking Atlas directly.
 
 ### Checks, CI and exit codes
 
@@ -305,7 +315,7 @@ describe.skipIf(!dockerIsAvailable())("against Postgres", () => {
 ```
 
 `withPostgres(label, callback, options?)` hands the callback a superuser URL to a fresh database
-named `<label>_<pid>` in the checkout's container, and drops it afterwards. `startPostgres` returns a
+named `<label>_<pid>_<nonce>` in the checkout's container, and drops it afterwards. `startPostgres` returns a
 URL to the container's `postgres` database for tools that create their own. `psqlInput` runs SQL
 through the container's `psql` with `ON_ERROR_STOP` in one transaction, with `--set` variables, so
 no host `psql` is needed. `applyMigrations` runs `atlas migrate apply`. `dockerStatus` says whether

@@ -19,3 +19,8 @@ Atlas must be on `PATH`. `drizzle-kit` (`^0.31.0`) is a new optional peer depend
 pins the version its committed schema was generated with. The container helper is exported for
 tests: `withPostgres`, `startPostgres`, `psqlInput`, `applyMigrations`, `dockerStatus`,
 `dockerIsAvailable` and `removePostgres`.
+
+Container startup and cleanup require a matching checkout ownership label and use immutable IDs.
+Unlabelled containers from the old root scripts must be renamed manually. Scratch database names
+include a random suffix, and stale cleanup requires an ownership marker. Tool diagnostics redact
+connection URLs and passwords, including errors from rejected command arguments.

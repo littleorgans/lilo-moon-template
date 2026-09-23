@@ -12,7 +12,7 @@ import type { CliIo } from "./cli.js";
 import { drizzleKitBin, drizzleSchemaIsCurrent, generateDrizzleSchema } from "./drizzle.js";
 import { dockerStatus, removePostgres, startPostgres, withPostgres } from "./postgres.js";
 import type { PostgresOptions } from "./postgres.js";
-import { MissingToolError, ToolFailedError } from "./tools.js";
+import { MissingToolError, redactUrls, ToolFailedError } from "./tools.js";
 
 const usage = `Usage: db-tools <command> [options]
 
@@ -191,7 +191,7 @@ const commands: Readonly<Record<string, Command>> = {
   },
 
   clean: {
-    accepts: [...container],
+    accepts: ["root"],
     async run(_values, { io, postgres }) {
       io.stdout(
         removePostgres(postgres)
@@ -207,6 +207,22 @@ const messageOf = (error: unknown): string =>
   error instanceof Error ? error.message : String(error);
 
 export async function main(argv: readonly string[], io: CliIo): Promise<number> {
+  const secrets = [
+    io.env["DATABASE_URL"] ?? "",
+    ...argv.flatMap((arg, index) =>
+      arg.startsWith("--url=")
+        ? [arg.slice(6)]
+        : argv[index - 1] === "--url" || /^postgres(?:ql)?:/.test(arg)
+          ? [arg]
+          : [],
+    ),
+  ];
+  const rawIo = io;
+  io = {
+    ...io,
+    stdout: (text) => rawIo.stdout(redactUrls(text, secrets)),
+    stderr: (text) => rawIo.stderr(redactUrls(text, secrets)),
+  };
   const [name, ...rest] = argv;
   if (name === undefined || name === "-h" || name === "--help") {
     (name === undefined ? io.stderr : io.stdout)(usage);

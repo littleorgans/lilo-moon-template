@@ -36,7 +36,14 @@ const missing =
 /** drizzle-kit is an optional peer: the project pins the version, so the artifact is stable. */
 export function drizzleKitBin(): string {
   // findPackageJSON, because drizzle-kit's exports hide both its manifest and its bin.
-  const manifest = findPackageJSON("drizzle-kit", import.meta.url);
+  let manifest: string | undefined;
+  try {
+    manifest = findPackageJSON("drizzle-kit", import.meta.url);
+  } catch (error) {
+    if (!(error instanceof Error && "code" in error && error.code === "ERR_MODULE_NOT_FOUND"))
+      throw error;
+    throw new MissingToolError(missing);
+  }
   if (manifest === undefined) throw new MissingToolError(missing);
   const parsed: unknown = JSON.parse(readFileSync(manifest, "utf8"));
   const bin =

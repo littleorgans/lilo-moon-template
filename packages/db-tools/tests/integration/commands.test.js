@@ -10,7 +10,13 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import { main } from "../../src/commands.js";
-import { dockerIsAvailable, exitCodes, removePostgres, startPostgres } from "../../src/index.js";
+import {
+  dockerIsAvailable,
+  exitCodes,
+  removePostgres,
+  startPostgres,
+  withPostgres,
+} from "../../src/index.js";
 
 const migrations = fileURLToPath(new URL("../../../db/migrations", import.meta.url));
 const artifact = fileURLToPath(new URL("../../../../db/drizzle/_generated", import.meta.url));
@@ -104,5 +110,45 @@ describe.skipIf(!dockerIsAvailable())("db-tools against Postgres", { timeout: 60
     expect(() => startPostgres({ root, port: 1024 })).toThrow("Remove it with db-tools clean");
     expect((await run(["clean", "--root", root])).output).toContain("removed");
     expect(removePostgres({ root })).toBe(false);
+  });
+});
+
+describe.skipIf(!dockerIsAvailable())("scratch database ownership", { timeout: 60_000 }, () => {
+  it("isolates overlapping calls with the same label and preserves unowned stale-looking databases", async () => {
+    const root = scratch("db-tools-ownership-");
+    const options = { root };
+    const url = new URL(startPostgres(options));
+    const { Client } = await import("pg");
+    const client = new Client({ connectionString: url.href });
+    await client.connect();
+    const foreign = "ownership_4194303_abcdef012345";
+    const stale = "ownership_4194303_abcdef012346";
+    try {
+      await client.query(`CREATE DATABASE ${foreign}`);
+      await client.query(`CREATE DATABASE ${stale}`);
+      await client.query(`COMMENT ON DATABASE ${stale} IS 'littleorgans/db-tools:${root}'`);
+      await withPostgres(
+        "ownership",
+        async (first) => {
+          await withPostgres(
+            "ownership",
+            async (second) => {
+              expect(first).not.toBe(second);
+              const { rows } = await client.query("SELECT datname FROM pg_database");
+              const names = rows.map((row) => row.datname);
+              expect(names).toContain(new URL(first).pathname.slice(1));
+              expect(names).toContain(new URL(second).pathname.slice(1));
+              expect(names).toContain(foreign);
+              expect(names).not.toContain(stale);
+            },
+            options,
+          );
+        },
+        options,
+      );
+    } finally {
+      await client.end();
+      removePostgres(options);
+    }
   });
 });
