@@ -276,7 +276,7 @@ came from `github-actions[bot]`, its `CI` run returned `action_required`, and it
 until a maintainer approved the workflow. `release.yml` now prefers `secrets.LILO_GITHUB_PAT` and
 falls back to `GITHUB_TOKEN`, which moves the authorship off the bot and removes the approval when the
 secret is set. Consumer-facing detail is in
-[Set up and operate this repository](how-to-instantiate.md).
+[Maintain this repository](maintaining.md).
 
 ## Left to the consuming repo
 

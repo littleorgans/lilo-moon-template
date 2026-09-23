@@ -1,11 +1,10 @@
-# Set up and operate this repository
+# Maintain this repository
 
-Projects no longer start by copying this repository. They add the published `@littleorgans/*`
-packages and take application glue from the reference app. The template instantiation, rename and
-update-by-rebase sections were removed in phase 1. What remains here, toolchain setup, ports,
-environment and publishing, moves into `docs/guides/adopt-web-app.md` and
-`docs/guides/adopt-service.md` in phase 1 task 1.9 (see [the direction](direction.md#f-phased-plan)).
-The working contract is [AGENTS.md](../AGENTS.md).
+This page is for working on this repository: its toolchain, members, database baseline, CI runner
+and publishing. A project that uses the packages starts from
+[Adopt the packages in a web app](guides/adopt-web-app.md) or
+[Adopt the packages in a service](guides/adopt-service.md) instead. The working contract is
+[AGENTS.md](../AGENTS.md).
 
 ## Install the tools first
 
@@ -43,19 +42,17 @@ just --version
 
 `moon --version` must print `2.5.5`.
 
-## Claim your ports
+## Local ports and containers
 
-Set the development port in `apps/web/vite.config.ts` and the preview port in `apps/web/moon.yml`.
-Register the matching OAuth callback.
-Choose a distinct port for each additional application.
+The reference app runs on port 5199 (`apps/web/vite.config.ts` and the preview `PORT` in
+`apps/web/moon.yml`) and the reference service on 8787 (`services/api/moon.yml`).
 
 The Postgres container name and default port are derived from the checkout's absolute path.
 Separate clones and worktrees therefore own separate containers. Override `LILO_PG_PORT` when a
 port is occupied. Run `just clean` before changing that override on an existing container.
 Cleanup removes only the current checkout's container.
 
-Auth cookies are namespaced by client id and redirect URI. Theme cookies include the request origin,
-including its port, so applications sharing localhost do not overwrite one another's cookies.
+## Library conventions
 
 The source condition is a matching pair. The key in `exports` and the string in
 `resolve.conditions` must be the same. Node's standard conditions stay pointed at `dist`. Why is
@@ -64,9 +61,6 @@ in [Why this baseline is shaped this way](decisions.md).
 Every publishable `package.json` sets `license` to `MIT` and ships a copy of the root `LICENSE`.
 
 Review `publishConfig.access` in each library before publishing it.
-
-Do not change `packageManager`, `engines`, catalog pins, or the moon version. Those are the
-baseline.
 
 ## Remove a workspace member
 
@@ -87,7 +81,7 @@ those references before Moon synchronizes the remaining projects.
 ## The database is baseline, not an exemplar
 
 `db/schema.sql` holds `accounts` and `profiles`. They are the user entity and they are meant to be
-kept: see [The user entity](user-entity.md). Add your own tables alongside them, then:
+kept: see [The user entity](user-entity.md). New tables go alongside them, then:
 
 ```bash
 moon run root:atlas-diff

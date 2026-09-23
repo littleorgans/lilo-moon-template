@@ -100,13 +100,13 @@ Email-start failures are logged as `auth.callback.failed` because they reuse
 `kind: "callback"` (`email.ts` line 61, `auth-tanstack/src/log.ts` line 20).
 
 **B5. Packages claim a license that the repository does not ship.** Every library `package.json`
-declares `"license": "MIT"`, while `docs/how-to-instantiate.md` line 89 says there is no `LICENSE`
+declares `"license": "MIT"`, while `docs/how-to-instantiate.md` (retired; its surviving sections are in `docs/maintaining.md` and `docs/guides/`) line 89 says there is no `LICENSE`
 file and tells the adopter to add one. Tarballs therefore ship an MIT claim without the license
 text. A project that later chooses a different license inherits a wrong claim unless someone edits
 every manifest.
 
 **B6. Dependencies are declared twice.** `apps/web/moon.yml` `dependsOn` repeats the workspace
-dependencies already in `apps/web/package.json`. `docs/how-to-instantiate.md` has to tell adopters
+dependencies already in `apps/web/package.json`. `docs/how-to-instantiate.md` (retired; its surviving sections are in `docs/maintaining.md` and `docs/guides/`) has to tell adopters
 to edit both when removing `collections`. With `syncProjectWorkspaceDependencies: true`, Moon can
 infer these edges from the manifest.
 
@@ -175,7 +175,7 @@ the exposure is small today. It grows with parallel server functions, prefetchin
 (`pnpm-workspace.yaml` line 32: `3.0.260610-beta`). TanStack Start 1.168 changes quickly.
 TypeScript 7 (`tsgo`) has no `tsserver`, so it needs a special editor setup. Vite 8 and Rolldown
 are new. The oxlint-tsgolint pin encodes the TypeScript patch version. Each product inherits these
-pins and, per `docs/how-to-instantiate.md`, is told not to change them. Upgrades flow through the
+pins and, per `docs/how-to-instantiate.md` (retired; its surviving sections are in `docs/maintaining.md` and `docs/guides/`), is told not to change them. Upgrades flow through the
 same fragile rebase (U1).
 
 **U5. The session secret has no rotation path.** One `WORKOS_COOKIE_PASSWORD` derives one key
