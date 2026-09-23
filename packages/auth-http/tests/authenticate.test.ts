@@ -346,7 +346,7 @@ it.each<[string, unknown, string]>([
   [
     "an error named after a credential",
     Object.assign(new Error(), { name: "secret.token" }),
-    "(object)",
+    "(unlisted Error)",
   ],
 ])("names %s without repeating it", async (_case, thrown, kind) => {
   const error = reported();
@@ -368,17 +368,27 @@ it.each<[string, unknown, string]>([
   }
 });
 
-it.each<[string, unknown]>([
+it.each<[string, unknown, string]>([
   [
     "alphabetic bearer in a custom error name",
     new (class SecretBearerCredential extends Error {
       override name = "SecretBearerCredential";
     })(),
+    "unlisted Error",
   ],
-  ["JWT fragment in a name", Object.assign(new Error(), { name: "eyJhbGciOiJIUzI" })],
-  ["uppercase bearer in a code", { code: "TOKEN_SECRET_0123456789" }],
-  ["JWT fragment in a code", { code: "ABCDEF" }],
-])("does not log %s", async (_case, thrown) => {
+  [
+    "JWT fragment in a name",
+    Object.assign(new Error(), { name: "eyJhbGciOiJIUzI" }),
+    "unlisted Error",
+  ],
+  ["uppercase bearer in a code", { code: "TOKEN_SECRET_0123456789" }, "object"],
+  ["JWT fragment in a code", { code: "ABCDEF" }, "object"],
+  [
+    "a credential code on the cause",
+    new TypeError("fetch failed", { cause: { code: "TOKEN_SECRET_0123456789" } }),
+    "TypeError",
+  ],
+])("does not log %s", async (_case, thrown, kind) => {
   const error = reported();
   try {
     await createAuthenticator({
@@ -388,7 +398,7 @@ it.each<[string, unknown]>([
       },
     })(request());
     expect(error).toHaveBeenCalledExactlyOnceWith(
-      "auth-http: onRejection failed while observing missing_token (object)",
+      `auth-http: onRejection failed while observing missing_token (${kind})`,
     );
   } finally {
     error.mockRestore();
@@ -432,7 +442,7 @@ it("does not coerce an error name into text", async () => {
       },
     })(request());
     expect(error).toHaveBeenCalledExactlyOnceWith(
-      "auth-http: onRejection failed while observing missing_token (object)",
+      "auth-http: onRejection failed while observing missing_token (unlisted Error)",
     );
     expect(stringify).not.toHaveBeenCalled();
   } finally {
@@ -457,4 +467,91 @@ it("keeps the original rejection code when the observer mutates the event", asyn
   } finally {
     error.mockRestore();
   }
+});
+
+// The failures a real logger or log shipper produces, raised by the runtime rather than built by
+// hand, so the allowlists are checked against the shapes operators will actually see.
+async function thrownBy(action: () => unknown): Promise<unknown> {
+  try {
+    await action();
+  } catch (error) {
+    return error;
+  }
+  throw new Error("Expected the action to fail.");
+}
+
+describe("labels real logger failures", () => {
+  it.each<[string, () => unknown, string]>([
+    ["a JSON logger fed bad input", () => JSON.parse("{not json"), "SyntaxError"],
+    [
+      "a timed-out shipper",
+      async () => {
+        const signal = AbortSignal.timeout(1);
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        signal.throwIfAborted();
+      },
+      "TimeoutError",
+    ],
+    [
+      "an aborted shipper",
+      () => {
+        const controller = new AbortController();
+        controller.abort();
+        controller.signal.throwIfAborted();
+      },
+      "AbortError",
+    ],
+    [
+      "a file logger with a missing directory",
+      async () => {
+        const { open } = await import("node:fs/promises");
+        return await open("/nonexistent/x.log", "a");
+      },
+      "Error ENOENT",
+    ],
+    [
+      "a write to an ended stream",
+      async () => {
+        const { PassThrough } = await import("node:stream");
+        const stream = new PassThrough();
+        stream.end();
+        // The stream reports the failure both to the callback and as an "error" event.
+        const failed = new Promise((_resolve, reject) => stream.once("error", reject));
+        stream.write("line");
+        await failed;
+      },
+      "Error ERR_STREAM_WRITE_AFTER_END",
+    ],
+    [
+      "a log shipper refused by built-in fetch",
+      async () => {
+        // A port that was just released, so the connection is refused. Fetch blocks some low
+        // ports such as 1 before connecting, which would not exercise a refused connection.
+        const { createServer } = await import("node:net");
+        const server = createServer().listen(0, "127.0.0.1");
+        await new Promise((resolve) => server.once("listening", resolve));
+        const address = server.address();
+        if (address === null || typeof address === "string") throw new Error("Expected a port");
+        await new Promise((resolve) => server.close(resolve));
+        return await fetch(`http://127.0.0.1:${address.port}/logs`, { method: "POST" });
+      },
+      "TypeError ECONNREFUSED",
+    ],
+  ])("labels %s", async (_case, action, kind) => {
+    const thrown = await thrownBy(action);
+    const error = reported();
+    try {
+      await createAuthenticator({
+        verify: unreachable,
+        onRejection: () => {
+          throw thrown;
+        },
+      })(request());
+      expect(error).toHaveBeenCalledExactlyOnceWith(
+        `auth-http: onRejection failed while observing missing_token (${kind})`,
+      );
+    } finally {
+      error.mockRestore();
+    }
+  });
 });

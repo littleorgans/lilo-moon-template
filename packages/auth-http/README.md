@@ -152,15 +152,16 @@ response does not wait for it: a synchronous observer runs before the response i
 an async one is not awaited. Keep synchronous work short: an async function still runs its
 synchronous prefix on the response path, and the library cannot interrupt blocking code.
 A throw or rejected promise produces one `console.error` line such as
-`auth-http: onRejection failed while observing auth_unavailable (Error ECONNREFUSED)`. It names the
-original rejection code, an allowlisted error `name`, and an allowlisted errno-style `code`.
-Identifier syntax alone cannot exclude opaque credentials or JWT fragments. Names are limited
-to standard errors (`Error`, `TypeError`, `RangeError`, `ReferenceError`, `SyntaxError`,
-`URIError`, `EvalError`, `AggregateError`, `AbortError`, `TimeoutError`); unknown names fall back
-to the JavaScript value type. Codes are limited to `ECONNREFUSED`, `ECONNRESET`, `ETIMEDOUT`,
-`ENOTFOUND`, `EAI_AGAIN`, `EPIPE`, `ENETUNREACH`, `EHOSTUNREACH`, `EACCES`, `ENOSPC`, `EIO`, and
-`EBADF`; other codes are omitted. The name is read once without coercion. The message and stack
-are never read or logged, because they may contain credentials. A throwing fallback reporter is also contained. For a custom error sink, catch and
+`auth-http: onRejection failed while observing auth_unavailable (TypeError ECONNREFUSED)`. It
+names the original rejection code, the error's `name` and an errno-style `code`, each only when
+it is on a fixed allowlist: `observerErrorNames` and `observerErrorCodes` in
+`src/authenticate.ts`. Identifier syntax alone cannot exclude opaque credentials or JWT
+fragments, so nothing outside those lists is printed. An `Error` with an unlisted name is labelled
+`unlisted Error`, and any other value by its JavaScript type. When the error carries no listed
+code, the code on its `cause` is used, because built-in `fetch` rejects with a bare
+`TypeError("fetch failed")` and keeps the system code there. Each property is read once without
+coercion. The message and stack are never read, because they may contain credentials. A throwing
+fallback reporter is also contained. For a custom error sink, catch and
 report failures inside your observer using the application's redaction policy.
 On a runtime that stops work when the response is sent, hand the logging promise to the runtime's
 own background mechanism. Detached work is best-effort and is not a durable audit log.

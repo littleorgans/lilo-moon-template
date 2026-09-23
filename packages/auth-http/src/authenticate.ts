@@ -117,36 +117,61 @@ const observerErrorNames = new Set([
   "AbortError",
   "TimeoutError",
 ]);
+// Node and libuv system codes, and the undici and stream codes a logger or log shipper raises
+// when it fails. Each is a fixed identifier defined by the runtime, never derived from data.
 const observerErrorCodes = new Set([
   "ECONNREFUSED",
   "ECONNRESET",
+  "ECONNABORTED",
   "ETIMEDOUT",
   "ENOTFOUND",
   "EAI_AGAIN",
   "EPIPE",
   "ENETUNREACH",
+  "ENETDOWN",
   "EHOSTUNREACH",
+  "EHOSTDOWN",
+  "EADDRNOTAVAIL",
   "EACCES",
+  "EPERM",
+  "ENOENT",
+  "EROFS",
   "ENOSPC",
+  "EMFILE",
+  "ENFILE",
   "EIO",
   "EBADF",
+  "ABORT_ERR",
+  "ERR_STREAM_DESTROYED",
+  "ERR_STREAM_WRITE_AFTER_END",
+  "ERR_INVALID_ARG_TYPE",
+  "UND_ERR_CONNECT_TIMEOUT",
+  "UND_ERR_HEADERS_TIMEOUT",
+  "UND_ERR_BODY_TIMEOUT",
+  "UND_ERR_SOCKET",
 ]);
 
+// Every property is read exactly once and checked without coercion: a getter can return a safe
+// value for the check and a credential on its next read.
+function listedCode(value: unknown): string | null {
+  if (typeof value !== "object" || value === null) return null;
+  const code: unknown = Reflect.get(value, "code");
+  return typeof code === "string" && observerErrorCodes.has(code) ? code : null;
+}
+
 function observerFailure(code: RejectionCode, error: unknown): string {
-  // Read once: a getter can return a safe name for validation and a credential on its next read.
-  const candidateName: unknown = error instanceof Error ? error.name : undefined;
-  const name =
-    typeof candidateName === "string" && observerErrorNames.has(candidateName)
-      ? candidateName
-      : null;
-  const errno: unknown =
-    typeof error === "object" && error !== null ? Reflect.get(error, "code") : undefined;
-  const kind = [
-    name ?? typeof error,
-    typeof errno === "string" && observerErrorCodes.has(errno) ? errno : null,
-  ]
-    .filter((part) => part !== null)
-    .join(" ");
+  let label: string = typeof error;
+  let errno: string | null = null;
+  if (error instanceof Error) {
+    const name: unknown = error.name;
+    label = typeof name === "string" && observerErrorNames.has(name) ? name : "unlisted Error";
+    // Built-in fetch rejects with a bare TypeError("fetch failed") and keeps the system code on
+    // its cause. Without this a refused log shipper reads the same as a missing logger method.
+    errno = listedCode(error) ?? listedCode(error.cause);
+  } else {
+    errno = listedCode(error);
+  }
+  const kind = errno === null ? label : `${label} ${errno}`;
   return `auth-http: onRejection failed while observing ${code} (${kind})`;
 }
 
