@@ -39,14 +39,9 @@ await test("release.yml publishes only after the full gate passes on the same ru
     'node scripts/published-shape.mjs "$RUNNER_TEMP/release"',
   ]);
   assert.match(gate.steps.at(-1).uses, /^actions\/upload-artifact@[0-9a-f]{40}$/);
-  assert.equal(gate.outputs["manifest-integrity"], "${{ steps.pack.outputs.manifest-integrity }}");
   assert.equal(gate.outputs["artifact-id"], "${{ steps.artifact.outputs.artifact-id }}");
   assert.equal(gate.steps.at(-1).with.name, "release-tarballs-${{ github.run_attempt }}");
   for (const job of [publish, smoke]) {
-    assert.equal(
-      job.env.RELEASE_MANIFEST_INTEGRITY,
-      "${{ needs.gate.outputs.manifest-integrity }}",
-    );
     const download = job.steps.find((step) => step.uses?.startsWith("actions/download-artifact@"));
     assert.equal(download.with["artifact-ids"], "${{ needs.gate.outputs.artifact-id }}");
     assert.equal(download.with["merge-multiple"], true);

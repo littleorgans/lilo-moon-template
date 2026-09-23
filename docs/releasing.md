@@ -24,38 +24,48 @@ changeset must name only published packages; `scripts/tests/versioning.test.mjs`
 
 ## The flow
 
-`release.yml` runs on every push to `main`, one run at a time, with `cancel-in-progress: false`. A new push does not cancel the running
-release. GitHub keeps only one pending run in the concurrency group; another push replaces that
-pending run. Each run checks out its triggering SHA, even if a newer Version PR has merged.
+`release.yml` runs on every push to `main`, one run at a time, with `cancel-in-progress: false`.
+A new push does not cancel the running release. GitHub keeps only one pending run in the
+concurrency group; another push replaces that pending run. Each run checks out its triggering SHA,
+even if a newer Version PR has merged.
 
 1. **Version.** `changesets/action` reads `.changeset/`. While changesets are pending, it opens or
    updates the "chore: version packages" pull request and the run ends. It never publishes.
 2. Merging that pull request consumes the changesets. On the merge commit, the version job reports
    no changesets. The jobs below run only when that is so, the tag `v<version>` is not on origin
-   yet, **and** the repository variable `NPM_PUBLISH_ENABLED` is `true`. After the tags, GitHub release creation and smoke still run. Once the repository tag exists,
-   later pushes release nothing; use the original run to recover a failed release or smoke step.
+   yet, **and** the repository variable `NPM_PUBLISH_ENABLED` is `true`. A failed tag lookup stops
+   the run rather than counting as unreleased. GitHub release creation and smoke run after the
+   tags, so once `v<version>` exists later pushes release nothing; recover a failed release or smoke
+   step from the original run.
 3. **Release gate.** On that exact commit: `moon ci --force`, which runs every task `moon ci` runs,
    with no affected filter and no cache (build, typecheck, lint, format, test coverage, secrets,
    audit, the database tasks, `published-shape`, `packed-secrets`, `release-rehearsal`). Then
    `node scripts/release.mjs pack` packs each published package once into a directory and records
    each tarball's sha512 in `release.json`. The secrets scan and `published-shape` then run against
-   those files, and the directory is uploaded as `release-tarballs-<attempt>`. The pack step exports the
-   manifest sha512 separately as a job output; upload exports the immutable artifact ID.
-4. **Publish.** Needs the gate. Downloads that artifact ID, checks the manifest against the gate output and every tarball
-   against the manifest, and refuses conflicting tags before any upload. Then runs
-   `npm publish <file>.tgz --access public --ignore-scripts` for each, dependencies first. A version already on the
-   registry with the same integrity is skipped; one with different bytes stops the job. Then
-   `node scripts/release.mjs tag` pushes the tags and creates the release. This is the only job that
-   can mint an OIDC token or read the npm token, and it installs no workspace dependencies. Its pinned npm install uses `--ignore-scripts`.
+   those files, and the directory is uploaded as `release-tarballs-<attempt>`. The job outputs that
+   upload's artifact ID.
+4. **Publish.** Needs the gate. Downloads the artifact by that ID, checks every tarball against
+   `release.json`, and refuses conflicting tags before any upload. Then runs
+   `npm publish <file>.tgz --access public --ignore-scripts` for each, dependencies first. A version
+   already on the registry with the same integrity is skipped; one with different bytes stops the
+   job. Then `node scripts/release.mjs tag` pushes the tags and creates the release. This is the
+   only job that can mint an OIDC token or read the npm token. It installs no workspace
+   dependencies, and its pinned npm install uses `--ignore-scripts`.
 5. **Smoke.** Needs publish. Waits until the public registry serves each version with the recorded
    integrity, installs the exact versions into an empty directory, typechecks every entry point with
    TypeScript 5 and imports each one.
 
 The tarball npm receives is byte for byte the one the gate scanned and checked. Publishing a
 tarball runs no lifecycle scripts, and every step after `pack` refuses a file whose sha512 differs
-from `release.json`. The manifest itself is checked against the pack job output, so replacing it
-alongside the tarballs fails too. This binds the handoff to the gate; it does not defend against a
-compromised gate runner or reviewed source that deliberately falsifies its own checks.
+from `release.json`.
+
+The handoff trusts the gate job and nothing outside the run. Only a job in the same run can upload
+to its artifacts, and download-artifact reads the current run only, so a concurrent run cannot
+supply the tarballs. An uploaded artifact is immutable: replacing one creates a new ID, and
+download-artifact fails when the content differs from the digest recorded at upload. Binding the
+download to the gate's artifact ID therefore pins the exact upload the gate made. The gate job
+itself is not defended against: code it runs, including every development dependency, can change
+the source before `pack`, which no later digest detects.
 
 Until `NPM_PUBLISH_ENABLED` is set, merging anything, including the Version PR, only versions.
 
@@ -84,7 +94,9 @@ npm authenticates the publish in one of two ways. The workflow needs no edit to 
   11.20.0, pinned in `release.yml` (trusted publishing needs 11.5 or later).
 
 npm tries OIDC first for every package and falls back to the configured token when the exchange
-fails, for example because the package has no trusted publisher yet ([npm 11.20.0 `lib/utils/oidc.js`](https://github.com/npm/cli/blob/v11.20.0/lib/utils/oidc.js)). While the token exists, packages with a trusted publisher use OIDC and the rest use the token.
+fails, for example because the package has no trusted publisher yet
+([npm 11.20.0 `lib/utils/oidc.js`](https://github.com/npm/cli/blob/v11.20.0/lib/utils/oidc.js)).
+While the token exists, packages with a trusted publisher use OIDC and the rest use the token.
 Once the secret is deleted, `NODE_AUTH_TOKEN` is empty and OIDC is the only route.
 
 Provenance still uses GitHub OIDC when registry authentication uses the bootstrap token; the
@@ -117,8 +129,8 @@ each package uses the token ([npm/cli#8544](https://github.com/npm/cli/issues/85
 
 Do this once every package exists on the registry. Either route works.
 
-**CLI.** [npm trust](https://docs.npmjs.com/cli/v11/commands/npm-trust/) needs npm 11.15.0 or later, write access to the packages and two-factor
-authentication on your npm account. It does not accept a granular token that bypasses 2FA, so sign
+**CLI.** [`npm trust`](https://docs.npmjs.com/cli/v11/commands/npm-trust/) needs npm 11.15.0 or
+later, write access to the packages and two-factor authentication on your npm account. It does not accept a granular token that bypasses 2FA, so sign
 in as yourself. The first call asks for a 2FA code. On that prompt, choose to skip 2FA for the next
 5 minutes, and the loop finishes without further prompts.
 
@@ -145,9 +157,10 @@ still works under that setting.
 
 ### Remove the token
 
-1. Check `npm trust list` for all eleven packages, including permission to publish and the exact
-   repository and workflow. On npmjs.com, **Access Tokens**: delete the token behind `LILO_NPM_TOKEN`.
-2. Delete the organization secret: **littleorgans → Settings → Secrets and variables → Actions**,
+1. Run `npm trust list` for each of the eleven packages. Each must allow publishing from
+   `littleorgans/lilo-moon-template` and `release.yml`.
+2. On npmjs.com, **Access Tokens**: delete the token behind `LILO_NPM_TOKEN`.
+3. Delete the organization secret: **littleorgans → Settings → Secrets and variables → Actions**,
    or `gh secret delete LILO_NPM_TOKEN --org littleorgans`.
 
 No workflow edit follows. The next release publishes through OIDC, and a successful publish with no
@@ -170,9 +183,9 @@ packages published before it stay published. Add the token and re-run the failed
 
 ## Recover from a partial release
 
-Every step can be rerun. Prefer **Re-run failed jobs** on the release run: it reuses the
-`release-tarballs-<attempt>` artifact (kept 30 days), so the bytes are the ones the gate checked, and the tags
-land on the release commit. Until `v<version>` is on origin, a later push to `main` also retries the
+Every step can be rerun. Prefer **Re-run failed jobs** on the release run: it downloads the gate's
+artifact by ID (kept 30 days), so the bytes are the ones the gate checked, and the tags land on the
+release commit. Until `v<version>` is on origin, a later push to `main` also retries the
 release from its own commit. That retry stops before uploading if package tags already point at the
 earlier commit, because a released tag never moves: re-run the original run instead.
 

@@ -28,19 +28,11 @@ export function packedManifest(file) {
  * The tarballs release.json records, with absolute paths. Throws unless the directory holds exactly
  * those files and each still has the recorded integrity.
  */
-export function readReleaseTarballs(
-  directory,
-  expectedIntegrity = process.env.RELEASE_MANIFEST_INTEGRITY,
-) {
+export function readReleaseTarballs(directory) {
   const root = resolve(directory);
   const manifestPath = join(root, RELEASE_MANIFEST);
   if (!existsSync(manifestPath)) {
     throw new Error(`Release: ${manifestPath} is missing; run \`node scripts/release.mjs pack\``);
-  }
-  // The workflow passes this through a gate job output, separately from the artifact. Replacing
-  // both a tarball and its record must not make the replacement pass verification.
-  if (expectedIntegrity !== undefined && integrityOf(manifestPath) !== expectedIntegrity) {
-    throw new Error("Release: release.json differs from the gate's manifest integrity");
   }
   const { packages } = JSON.parse(readFileSync(manifestPath, "utf8"));
   if (!Array.isArray(packages) || packages.length === 0) {

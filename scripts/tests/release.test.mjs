@@ -75,17 +75,6 @@ await test("pack records every published package once, and nothing private", (t)
   for (const { file, integrity } of tarballs) assert.equal(integrityOf(file), integrity);
 });
 
-await test("pack exports the manifest digest outside the artifact", (t) => {
-  const root = workspace(t);
-  const output = join(root, "job-output");
-  const result = node(root, ["pack", "release"], { GITHUB_OUTPUT: output });
-  assert.equal(result.status, 0, result.stderr);
-  assert.equal(
-    readFileSync(output, "utf8"),
-    `manifest-integrity=${integrityOf(join(root, "release/release.json"))}\n`,
-  );
-});
-
 await test("pack refuses a directory that already holds files", (t) => {
   const { root } = packed(t);
   const again = node(root, ["pack", "release"]);
@@ -171,23 +160,6 @@ const published = (root) =>
   existsSync(join(root, "published.log"))
     ? readFileSync(join(root, "published.log"), "utf8").trim().split("\n")
     : [];
-
-await test("replacing both a tarball and release.json cannot bypass the gate output", (t) => {
-  const { root, directory } = packed(t);
-  const manifest = join(directory, "release.json");
-  const expected = integrityOf(manifest);
-  const record = JSON.parse(readFileSync(manifest, "utf8"));
-  const file = join(directory, record.packages[0].file);
-  appendFileSync(file, "tampered");
-  record.packages[0].integrity = integrityOf(file);
-  writeFileSync(manifest, JSON.stringify(record));
-  const env = { ...fakeNpm(root, {}), RELEASE_MANIFEST_INTEGRITY: expected };
-  const result = node(root, ["publish", directory], env);
-  assert.equal(result.status, 1);
-  assert.match(result.stderr, /release.json differs from the gate/);
-  assert.deepEqual(published(root), []);
-  assert.throws(() => readReleaseTarballs(directory, ""), /differs from the gate/);
-});
 
 await test("publish uploads in order, skips versions already up and prints New tag lines", (t) => {
   const { root, directory } = packed(t);

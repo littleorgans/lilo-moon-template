@@ -86,7 +86,6 @@ jobs:
     permissions:
       contents: read
     outputs:
-      manifest-integrity: ${{ steps.pack.outputs.manifest-integrity }}
       artifact-id: ${{ steps.artifact.outputs.artifact-id }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -114,7 +113,6 @@ jobs:
         run: moon ci --force
 
       - name: Pack every published package once
-        id: pack
         run: node scripts/release.mjs pack "$RUNNER_TEMP/release"
 
       - name: Scan the release tarballs for secrets
@@ -142,8 +140,6 @@ jobs:
     permissions:
       contents: write
       id-token: write
-    env:
-      RELEASE_MANIFEST_INTEGRITY: ${{ needs.gate.outputs.manifest-integrity }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -179,8 +175,10 @@ jobs:
         run: |
           export GIT_CONFIG_COUNT=1
           export GIT_CONFIG_KEY_0=http.https://github.com/.extraheader
-          GIT_CONFIG_VALUE_0="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
-          export GIT_CONFIG_VALUE_0
+          # GitHub masks GH_TOKEN, not its base64 form, so mask that as actions/checkout does.
+          credential="$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
+          echo "::add-mask::$credential"
+          export GIT_CONFIG_VALUE_0="AUTHORIZATION: basic $credential"
           node scripts/release.mjs tag "$RUNNER_TEMP/release"
         env:
           GH_TOKEN: ${{ github.token }}
@@ -195,8 +193,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-    env:
-      RELEASE_MANIFEST_INTEGRITY: ${{ needs.gate.outputs.manifest-integrity }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

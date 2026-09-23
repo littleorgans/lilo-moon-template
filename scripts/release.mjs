@@ -6,7 +6,6 @@
 
 import { execFileSync, spawnSync } from "node:child_process";
 import {
-  appendFileSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -71,12 +70,6 @@ function pack(directory) {
     return record;
   });
   writeJson(join(root, RELEASE_MANIFEST), { packages: records });
-  if (process.env.GITHUB_OUTPUT) {
-    appendFileSync(
-      process.env.GITHUB_OUTPUT,
-      `manifest-integrity=${integrityOf(join(root, RELEASE_MANIFEST))}\n`,
-    );
-  }
 }
 
 /**
