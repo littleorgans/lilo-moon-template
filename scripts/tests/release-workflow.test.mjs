@@ -27,6 +27,12 @@ await test("release.yml publishes only after the full gate passes on the same ru
   assert.match(released.run, /git ls-remote --exit-code --tags origin "refs\/tags\/\$tag"/);
   const changesets = version.steps.find((step) => step.id === "changesets");
   assert.match(changesets.uses, /^changesets\/action@[0-9a-f]{40}$/);
+  // The version commit runs the lefthook hooks the install set up, and they call moon.
+  const moon = version.steps.findIndex((step) =>
+    step.uses?.startsWith("moonrepo/setup-toolchain@"),
+  );
+  const install = version.steps.findIndex((step) => step.run?.startsWith("pnpm install"));
+  assert.ok(moon >= 0 && moon < install, "the version job must install moon before its commit");
   assert.equal(changesets.with.publish, undefined, "changesets/action must not publish");
 
   assert.equal(gate.needs, "version");

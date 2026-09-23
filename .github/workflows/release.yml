@@ -44,6 +44,12 @@ jobs:
           node-version: "24.19.0"
           cache: pnpm
 
+      # The install sets up the lefthook hooks, and the version commit runs them, which call moon.
+      - uses: moonrepo/setup-toolchain@261c62cb5b0f580c7be7c8cd0f023a2e96756095 # v0
+        with:
+          # proto install reads moon from .prototools. A moon-version literal would hide a stale pin.
+          auto-install: true
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
