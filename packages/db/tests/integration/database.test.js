@@ -88,10 +88,14 @@ describe.skipIf(!dockerIsAvailable())("createDatabase", () => {
     });
   }, 60_000);
 
-  it("types each scoped transaction by the project's schema, under the same policies", async () => {
+  it("keeps relational queries scoped across rollback and reuse of one connection", async () => {
     await withPostgres("db-test", async (connectionString) => {
       applyMigrations(connectionString, migrations);
-      const database = createDatabase({ connectionString, schema: { accounts } });
+      const database = createDatabase({
+        connectionString,
+        schema: { accounts },
+        maxConnections: 1,
+      });
       try {
         await database.withPrincipal(
           { ...principal, userId: "user_other", orgId: "org_other" },
@@ -104,6 +108,30 @@ describe.skipIf(!dockerIsAvailable())("createDatabase", () => {
           return await tx.query.accounts.findMany();
         });
         expect(rows).toStrictEqual([{ workosOrgId: "org_integration" }]);
+        // A relational read must not commit the insert or start an independent transaction.
+        const rolledBack = { ...principal, orgId: "org_rolled_back" };
+        await expect(
+          database.withPrincipal(rolledBack, async (tx) => {
+            await tx.insert(accounts).values({ workosOrgId: rolledBack.orgId });
+            expect(await tx.query.accounts.findFirst()).toStrictEqual({
+              workosOrgId: rolledBack.orgId,
+            });
+            throw new Error("roll back the typed insert");
+          }),
+        ).rejects.toThrow("roll back the typed insert");
+        expect(
+          await database.withPrincipal(rolledBack, (tx) => tx.query.accounts.findMany()),
+        ).toStrictEqual([]);
+        expect(
+          await database.withPrincipal({ ...principal, orgId: "org_other" }, (tx) =>
+            tx.query.accounts.findMany(),
+          ),
+        ).toStrictEqual([{ workosOrgId: "org_other" }]);
+        await expect(
+          database.withPrincipal(principal, (tx) =>
+            tx.insert(accounts).values({ workosOrgId: "org_forbidden" }),
+          ),
+        ).rejects.toMatchObject({ cause: { code: "42501" } });
       } finally {
         await database.close();
       }

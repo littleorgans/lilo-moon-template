@@ -827,12 +827,15 @@ function checkDrizzleSkew(packages) {
   writeFileSync(
     join(aligned, "skew.ts"),
     `import { createDatabase } from "${name}";
+import type { Database, DatabaseOptions, ScopedTransaction } from "${name}";
 import { sql } from "drizzle-orm";
 import { pgTable, text } from "drizzle-orm/pg-core";
 
-const database = createDatabase({ connectionString: "postgres://localhost/unused" });
+// Existing 0.1.0 callers can still name all three public types without type arguments.
+const options: DatabaseOptions = { connectionString: "postgres://localhost/unused" };
+const database: Database = createDatabase(options);
 const principal = { userId: "user", orgId: null, roles: [], permissions: [], entitlements: [] };
-const result = await database.withPrincipal(principal, (tx) => tx.execute(sql\`select 1\`));
+const result = await database.withPrincipal(principal, (tx: ScopedTransaction) => tx.execute(sql\`select 1\`));
 // @ts-expect-error A pg QueryResult is not a string; this also rejects an accidental any result.
 const wrong: string = result;
 void wrong;
