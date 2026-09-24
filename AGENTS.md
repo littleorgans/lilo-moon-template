@@ -13,7 +13,7 @@ Follow this contract for agent and human changes. Keep every rule true as the re
   `root:lint-fix`, then verifies every project with `moon check --all`. It changes files when oxfmt
   or oxlint can fix them.
 - Run `just ci` before delivery. The `ci` recipe is an alias for the read only `moon ci` command,
-  which is also the command in `.github/workflows/ci.yml` under `jobs.ci`.
+  which is also the command `.github/workflows/moon-ci.yml` runs for `.github/workflows/ci.yml`.
 - Keep the two recipes distinct. `check` repairs mechanical issues before verification, while `ci`
   proves that a clean checkout needs no repair. There is deliberately no separate `fix` recipe.
 - Declare task commands, inputs, outputs, and dependencies in Moon configuration. If a command
@@ -48,13 +48,17 @@ Follow this procedure so Moon, pnpm, TypeScript, and CI discover the same projec
 
 3. For a JavaScript or TypeScript member, add `package.json` with a unique workspace name. Put
    runtime and development dependencies in that manifest, then reference shared versions with
-   `catalog:` from `pnpm-workspace.yaml`. Publishable libraries must define a version plus real
-   `exports`, `types`, `files`, and `publishConfig` entries that point at built files. Use
-   `packages/auth/package.json` as the package shape.
+   `catalog:` from `pnpm-workspace.yaml`. A dependency on another member uses `workspace:*`, and
+   that line is the whole edge: Moon infers the project dependency from it, so a JavaScript
+   member's `moon.yml` never declares `dependsOn`. Other languages may declare their own Moon
+   edges. Publishable libraries must define a version plus real `exports`, `types`, `files`, and
+   `publishConfig` entries that point at built files. Use `packages/auth/package.json` as the
+   package shape.
 4. For TypeScript, add `tsconfig.json` with `extends` pointing at the root
    `tsconfig.options.json`, plus `include` entries for source and tests. The library example is
-   `packages/auth/tsconfig.json`. Keep `composite`, `declaration`, and `declarationMap` from
-   `compilerOptions` in `tsconfig.options.json` because Moon routes typecheck output to its cache.
+   `packages/auth/tsconfig.json`. `tsconfig.options.json` extends `@littleorgans/tsconfig`
+   (`packages/tsconfig/base.json`). Keep `composite`, `declaration`, and `declarationMap` in its
+   `compilerOptions` because Moon routes typecheck output to its cache.
 5. For a publishable library, add `tsconfig.build.json` for the `dist` build. Follow
    `compilerOptions`, `include`, and `exclude` in `packages/auth/tsconfig.build.json`: extend
    the member config, set `composite` and `incremental` to `false`, set `rootDir` to `src`, set
@@ -94,8 +98,11 @@ Follow this procedure so Moon, pnpm, TypeScript, and CI discover the same projec
   accepted schema, while online documentation can describe another plugin version.
 - Hash every file that can change a build task's outputs in `tasks.<name>.inputs`. The
   `tasks.build.inputs` list in `.moon/tasks/node-library.yml` includes the member manifest, both
-  member TypeScript configs, and root `tsconfig.options.json` alongside `@globs(sources)` because
-  compiler configuration changes must invalidate cached artifacts.
+  member TypeScript configs, and `@files(typescript-options)` alongside `@globs(sources)` because
+  compiler configuration changes must invalidate cached artifacts. That file group in
+  `.moon/tasks/node.yml` names the root `tsconfig.options.json` and `packages/tsconfig/base.json`,
+  plus the config package's export manifest, which no member depends on, so task inputs must catch
+  changes there. `vitest-config` does the same for tests.
 - After renaming the repository directory, run `moon clean`, remove `node_modules`, and reinstall.
   The Moon cache and installed package links contain absolute paths from the old directory.
 
@@ -119,8 +126,9 @@ work; the green run proves the valid state.
 - Put focused tests under `tests/`, mirroring feature directories when the project has them.
   Put tests that exercise package composition, processes, network or storage under `tests/integration/`.
   A member in another language keeps that language's native test convention.
-- Name both kinds `*.test.*` or `*.spec.*`. The shared `vitest.config.ts` discovers those names and
-  measures every source file under `src/`.
+- Name both kinds `*.test.*` or `*.spec.*`. The shared `vitest.config.ts` takes `testDefaults` from
+  `@littleorgans/vite-config/vitest`, which discovers those names and measures every source file
+  under `src/`.
 - The focused `test` task runs locally. CI uses `test-coverage` to avoid executing the same suite twice.
 - Run `moon run <project>:test-coverage` for the narrow coverage gate. Moon runs that task for every
   JavaScript project in `moon check --all` and `moon ci`.
@@ -138,7 +146,7 @@ work; the green run proves the valid state.
   lockstep with the `typescript` catalog pin in `pnpm-workspace.yaml`. The
   `tsgolint-lockstep` task fails when the encoded release does not match the catalog
   pin, or when the version cannot be decoded. The `typescript lockstep` group in
-  `renovate.json` only batches the two updates into one PR.
+  `renovate/base.json` only batches the two updates into one PR.
 - Use the Oxc editor extension for oxlint and oxfmt. TypeScript 7 has no
   `lib/tsserver.js`, so the editor uses `js/ts.tsdk.path` at `node_modules/typescript`
   with `js/ts.experimental.useTsgo` and the TypeScript 7 extension. Format on save
@@ -151,7 +159,9 @@ work; the green run proves the valid state.
   file because Drizzle introspection is not round-trip clean. Run `root:drizzle-check` after an
   Atlas migration changes.
 - Configure lint rules as `error` or leave them absent. The `rules` and `categories` settings in
-  `.oxlintrc.json` contain no `warn` level because warnings let violations accumulate.
+  `@littleorgans/oxlint-config` (`packages/oxlint-config/oxlintrc.json`) contain no `warn` level
+  because warnings let violations accumulate. The root `.oxlintrc.json` only extends that file and
+  lists `ignorePatterns`, which oxlint does not inherit through `extends`.
 - Use double quotes and a print width of 100. The `singleQuote` and `printWidth` settings in
   `.oxfmtrc.json` define that format.
 
@@ -184,11 +194,12 @@ work; the green run proves the valid state.
   once to install them.
 - Keep a change within its owning project. Moon uses project boundaries for dependencies, caching,
   and affected checks, so unrelated root changes widen every run.
-- Let Renovate open dependency PRs from `renovate.json`. The npm manager updates
+- Let Renovate open dependency PRs from `renovate/base.json`, the preset `renovate.json` extends
+  and projects extend as `github>littleorgans/lilo-moon-template//renovate/base`. The npm manager updates
   `package.json`, including `packageManager`, and pnpm catalog pins in
   `pnpm-workspace.yaml`. GitHub Actions versions and `actions/setup-node`'s
   `node-version` come from the github-actions manager. Regex managers cover the Node
-  and pnpm pins in `.moon/toolchains.yml` and the npm pin in `release.yml`. Moon is
+  and pnpm pins in `.moon/toolchains.yml`, and `renovate.json` adds the npm pin in `release.yml`. Moon is
   pinned in `.prototools` and in the `.moon/workspace.yml` version constraint. CI and the
   release gate install Moon from `.prototools` and set no version of their own. Renovate
   groups the two Moon updates, and `root:scripts-test` checks that the pins agree and that

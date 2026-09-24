@@ -6,38 +6,34 @@ on:
   push:
     branches: [main]
 
+# Only here: a called workflow reports the caller's name as github.workflow, so the same group in
+# moon-ci.yml would cancel this run.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+permissions: {}
+
 jobs:
+  moon:
+    name: Moon
+    permissions:
+      contents: read
+    uses: ./.github/workflows/moon-ci.yml
+    with:
+      runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
+
+  # Branch protection requires the check "CI". A called workflow's job reports as "Moon / moon ci",
+  # so this job keeps the required name. It runs whatever happened above: a skipped required check
+  # counts as passing, so it must not be skippable.
   ci:
     name: CI
-    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
+    needs: moon
+    if: always()
+    runs-on: ubuntu-latest
+    permissions: {}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-          filter: blob:none
-
-      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
-
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: "24.19.0"
-          cache: pnpm
-
-      - uses: moonrepo/setup-toolchain@261c62cb5b0f580c7be7c8cd0f023a2e96756095 # v0
-        with:
-          # proto install reads moon from .prototools. A moon-version literal would hide a stale pin.
-          auto-install: true
-
-      - name: Install dependencies
-        # Fails when the lockfile is stale or an integrity hash does not match.
-        run: pnpm install --frozen-lockfile
-
-      - name: moon ci
-        run: moon ci
+      - name: Require moon ci to pass
+        run: test "$RESULT" = success
         env:
-          MOON_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
-          MOON_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+          RESULT: ${{ needs.moon.result }}

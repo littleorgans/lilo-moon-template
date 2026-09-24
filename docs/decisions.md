@@ -55,7 +55,7 @@ Biome is a JavaScript toolchain. Prettier is a second formatter with a second co
 oxfmt already covers the files this repo contains: JavaScript, TypeScript, JSON, YAML, TOML,
 Markdown, HTML, CSS, GraphQL. Three tools collapse into one. Do not add the other two.
 
-oxlint runs with `--type-aware`. Rules in `.oxlintrc.json` are `error` or absent. Warnings
+oxlint runs with `--type-aware`. Rules in `packages/oxlint-config/oxlintrc.json` are `error` or absent. Warnings
 accumulate.
 
 ## TypeScript 7 and the tsgolint lockstep
@@ -66,13 +66,13 @@ encoding that ties the two pins together, are in
 [Follow JavaScript and TypeScript rules](../AGENTS.md#follow-javascript-and-typescript-rules).
 Two pins, one type system. If they diverge, lint and `tsc` disagree.
 
-Renovate groups `typescript` and `oxlint-tsgolint` in `renovate.json` so a routine update lands in
+Renovate groups `typescript` and `oxlint-tsgolint` in `renovate/base.json` so a routine update lands in
 one PR. Grouping does not fail the build when a person edits one pin, or when a partial merge
 lands. `root:tsgolint-lockstep` in `moon.yml` runs
 `scripts/assert-tsgolint-lockstep.mjs` once for the workspace and fails the graph. That is why
 the lockstep is a gate.
 
-Renovate's regex manager in `renovate.json` reads moon and proto pins in `.prototools`. The
+Renovate's regex manager in `renovate/base.json` reads moon and proto pins in `.prototools`. The
 built-in proto manager is disabled so that file is extracted once.
 
 ## What a green gate actually proves
@@ -90,7 +90,7 @@ a deliberate oxfmt violation failed, the revert passed.
 
 The same hole appears in tests. Two independently written tests named a behaviour, reported full
 coverage, and asserted nothing about that behaviour. Coverage counts lines executed. That count
-does not prove the named behaviour exists. Thresholds in `vitest.config.ts` are statements 80,
+does not prove the named behaviour exists. Thresholds in `testDefaults` (`packages/vite-config/src/vitest.ts`) are statements 80,
 branches 75, functions 80, and lines 80, per project and per file. They fail untested files. They
 do not prove a named assertion. A test is proven when a wrong implementation fails it. That
 procedure is [Write tests](../AGENTS.md#write-tests).
@@ -239,8 +239,9 @@ without it, because an application that installs the packages and runs `vite dev
 `@littleorgans/vite-config` would otherwise resolve them to `src` inside `node_modules`.
 `root:published-shape` rejects any tarball whose `exports` use a condition other than `types`,
 `import` and `default`, or differ from the workspace `exports` in anything but that condition.
-The exception is `vite-config`'s root entry: the check requires its explicit `src/index.ts` to
-`dist/index.js` and `dist/index.d.ts` redirect. Other entries follow the equality rule.
+The exception is `vite-config`, whose entries Vite and Vitest load before anything is built: the
+check requires each explicit `src/<name>.ts` to `dist/<name>.js` and `dist/<name>.d.ts` redirect
+(`index` for the root entry). Other packages follow the equality rule.
 
 Node's standard conditions, including `development` and `production`, must not select source. A
 consumer who installs the package, or a moon task that runs against `dist`, would otherwise execute
@@ -297,6 +298,40 @@ opened a Version Packages PR from `github-actions[bot]`: observed 2026-08-22, it
 prefers `secrets.LILO_GITHUB_PAT` and falls back to `GITHUB_TOKEN`, which moves the authorship off
 the bot and removes the approval when the secret is set. [Releasing the packages](releasing.md) is
 the maintainer procedure.
+
+## Configuration is shared as packages, a preset and a called workflow
+
+A project installs its compiler options, lint rules and test defaults as `@littleorgans/tsconfig`,
+`@littleorgans/oxlint-config` and `@littleorgans/vite-config/vitest`, so a fix reaches it with the
+next package upgrade instead of a diff it copies by hand. This repository consumes the same packages
+through the same root files a project writes. `root:published-shape` installs the packed tarballs
+into a copy of the workspace, and its typecheck, tests and lint read their settings from there.
+
+oxlint 1.79 resolves every `extends` entry as a path relative to the config file and rejects a
+package name, so `.oxlintrc.json` extends `./node_modules/@littleorgans/oxlint-config/oxlintrc.json`.
+Rules, options, plugins, categories and overrides come through `extends`; `ignorePatterns` does
+not, so each workspace keeps its own. Copying the file into each project was the fallback, and
+nothing forced it.
+
+The config packages are not project dependencies, so Moon would not rerun a typecheck, a build or a
+test when one of them changes. The `typescript-options` and `vitest-config` file groups in
+`.moon/tasks/node.yml` name those files and their packages' export manifests as task inputs instead.
+Changing an export changes which file the compiler or test runner loads, so the manifest must
+invalidate cached results too.
+
+Projects call `.github/workflows/moon-ci.yml` at an exact release tag, `@v<version>`, which
+Renovate pins to its commit digest and moves together with the packages (the `littleorgans` group in
+`renovate/base.json`). A floating `@v0` tag was rejected. The release would have to move a tag, and
+a released tag never moves here. A moving reference to code that runs in a project's CI is also the
+wrong default, and every 0.x minor can break. The workflow declares no secrets and asks for
+`contents: read`. It clones in full, not blob-filtered, so the checkout keeps no token on disk for
+later fetches. The audit, secrets and tsgolint lockstep checks stay `moon ci` tasks and are not extra
+workflow steps: `moon ci` already runs them, and as steps they would run twice and resolve this
+repository's scripts against the caller's install.
+
+A called workflow's job reports as `<caller job> / <called job>`, so `ci.yml` adds a job named `CI`
+that keeps the name branch protection requires. It runs `if: always()` and fails unless `moon ci`
+succeeded, because GitHub counts a skipped required check as passing.
 
 ## Left to the consuming repo
 

@@ -19,7 +19,7 @@ tasks:
       - "package.json"
       - "tsconfig.json"
       - "tsconfig.build.json"
-      - "/tsconfig.options.json"
+      - "@files(typescript-options)"
     deps:
       - "^:build"
     outputs:

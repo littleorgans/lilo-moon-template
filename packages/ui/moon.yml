@@ -1,6 +1,4 @@
 language: "typescript"
 layer: "library"
-dependsOn:
-  - "theme"
 tags:
   - "ts-library"

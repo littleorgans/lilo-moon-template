@@ -16,7 +16,7 @@ publishes all of them at that version from one commit on `main`, then creates:
   reference files at this tag;
 - one GitHub release, on `v<version>`, whose notes hold each package's CHANGELOG entry under the
   package name. There is no release per package: the packages share a version and a commit, and
-  eleven releases would mostly repeat "Updated dependencies".
+  thirteen releases would mostly repeat "Updated dependencies".
 
 `@littleorgans/web` and `services/api` are private. `privatePackages.version` is `false` in
 `.changeset/config.json`, so they keep version `0.0.0`, get no CHANGELOG and are never tagged. A
@@ -137,7 +137,7 @@ in as yourself. The first call asks for a 2FA code. On that prompt, choose to sk
 ```sh
 npm install --global npm@11.20.0
 npm login
-for package in auth auth-http auth-session auth-tanstack auth-workos db db-tools theme ui views vite-config; do
+for package in auth auth-http auth-session auth-tanstack auth-workos db db-tools oxlint-config theme tsconfig ui views vite-config; do
   npm trust github "@littleorgans/$package" --repository littleorgans/lilo-moon-template --file release.yml --allow-publish --yes
   sleep 2
 done
@@ -157,7 +157,7 @@ still works under that setting.
 
 ### Remove the token
 
-1. Run `npm trust list` for each of the eleven packages. Each must allow publishing from
+1. Run `npm trust list` for each published package. Each must allow publishing from
    `littleorgans/lilo-moon-template` and `release.yml`.
 2. On npmjs.com, **Access Tokens**: delete the token behind `LILO_NPM_TOKEN`.
 3. Delete the organization secret: **littleorgans → Settings → Secrets and variables → Actions**,

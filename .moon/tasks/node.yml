@@ -17,6 +17,17 @@ fileGroups:
     - "tsconfig.json"
     - "vite.config.*"
     - "vitest.config.*"
+  # Workspace configuration every project compiles or tests with. In this repo the settings live in
+  # the config packages, which no project depends on, so without these a change there would replay
+  # cached typechecks, builds and tests. A project that installs the packages has no such paths.
+  typescript-options:
+    - "/tsconfig.options.json"
+    - "/packages/tsconfig/base.json"
+    - "/packages/tsconfig/package.json"
+  vitest-config:
+    - "/vitest.config.ts"
+    - "/packages/vite-config/src/vitest.ts"
+    - "/packages/vite-config/package.json"
 
 # Workspace packages export dist. Put ^:build on each task that resolves
 # those exports. File-level implicitDeps would also attach it to `dev`.
@@ -28,6 +39,7 @@ tasks:
       - "@globs(sources)"
       - "@globs(tests)"
       - "@globs(configs)"
+      - "@files(typescript-options)"
     deps:
       - "^:typecheck"
       - "^:build"
@@ -42,7 +54,7 @@ tasks:
       - "@globs(sources)"
       - "@globs(tests)"
       - "@globs(configs)"
-      - "/vitest.config.ts"
+      - "@files(vitest-config)"
     deps:
       - "^:build"
     options:
@@ -57,7 +69,7 @@ tasks:
       - "@globs(sources)"
       - "@globs(tests)"
       - "@globs(configs)"
-      - "/vitest.config.ts"
+      - "@files(vitest-config)"
     deps:
       - "^:build"
     outputs:

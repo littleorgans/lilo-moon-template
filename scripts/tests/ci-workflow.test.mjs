@@ -1,0 +1,191 @@
+import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { test } from "node:test";
+
+import { parse } from "yaml";
+
+import { projectEnvironment } from "../lib/project-files.mjs";
+
+const readWorkflow = (name) => parse(readFileSync(`.github/workflows/${name}`, "utf8"));
+
+// Projects call moon-ci.yml from another repository at a release tag, so what it may do is fixed
+// here: no secrets, a read-only token, pinned actions, and no credential left in the checkout.
+await test("moon-ci.yml is a least-privilege reusable workflow", () => {
+  const workflow = readWorkflow("moon-ci.yml");
+  assert.deepEqual(Object.keys(workflow.on), ["workflow_call"]);
+  assert.deepEqual(Object.keys(workflow.on.workflow_call), ["inputs"], "declare no secrets");
+  assert.deepEqual(workflow.permissions, { contents: "read" });
+  // A called workflow reports the caller's github.workflow, so its own group would cancel the caller.
+  assert.equal(workflow.concurrency, undefined);
+  const jobs = Object.values(workflow.jobs);
+  assert.equal(jobs.length, 1);
+  const [job] = jobs;
+  assert.equal(job.if, undefined);
+  assert.equal(job["continue-on-error"], undefined);
+  assert.equal(job.permissions, undefined, "do not override the read-only permissions");
+  assert.equal(job.environment, undefined, "do not attach consumer environment secrets");
+  assert.equal(job.concurrency, undefined);
+  assert.equal(job["runs-on"], "${{ inputs.runs-on }}");
+  for (const step of job.steps.filter((entry) => entry.uses)) {
+    assert.match(step.uses, /^[\w.-]+\/[\w.-]+@[0-9a-f]{40}$/, "pin every action by digest");
+  }
+  const checkout = job.steps[0];
+  assert.match(checkout.uses, /^actions\/checkout@/);
+  assert.deepEqual(checkout.with, { "fetch-depth": 0, "persist-credentials": false });
+  const moon = job.steps.at(-1);
+  for (const step of job.steps) {
+    assert.equal(step.if, undefined, "required steps must not skip");
+    assert.equal(step["continue-on-error"], undefined, "required failures must propagate");
+  }
+  assert.deepEqual(Object.keys(moon.env), ["MOON_BASE", "MOON_HEAD"]);
+});
+
+await test("moon-ci.yml checks every task without a base and propagates Moon failures", () => {
+  const step = readWorkflow("moon-ci.yml").jobs["moon-ci"].steps.at(-1);
+  const head = spawnSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).stdout.trim();
+  for (const [base, args] of [
+    ["", "ci --force"],
+    ["0000000000000000000000000000000000000000", "ci --force"],
+    // A force push's before SHA: well formed, but not in the clone.
+    ["1234567890123456789012345678901234567890", "ci --force"],
+    [head, "ci"],
+  ]) {
+    for (const status of [0, 23]) {
+      const result = spawnSync(
+        "bash",
+        ["-e", "-c", `moon() { echo "$*"; return "$MOON_TEST_EXIT"; };\n${step.run}`],
+        {
+          encoding: "utf8",
+          env: { ...process.env, MOON_BASE: base, MOON_TEST_EXIT: String(status) },
+        },
+      );
+      assert.equal(result.stdout.trim(), args);
+      assert.equal(result.status, status, `base ${base || "absent"}, Moon exit ${status}`);
+    }
+  }
+});
+
+await test("the first-push workflow step runs real Moon without diffing the zero SHA", (t) => {
+  const root = mkdtempSync(join(tmpdir(), "moon-ci-first-push-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const env = projectEnvironment();
+  const run = (command, args, extraEnv = {}) =>
+    spawnSync(command, args, { cwd: root, env: { ...env, ...extraEnv }, encoding: "utf8" });
+  mkdirSync(join(root, ".moon"));
+  writeFileSync(
+    join(root, ".moon/workspace.yml"),
+    'projects:\n  sources:\n    root: "."\nvcs:\n  defaultBranch: main\n',
+  );
+  const task = (status) =>
+    writeFileSync(
+      join(root, "moon.yml"),
+      `tasks:\n  check:\n    type: test\n    toolchains: system\n    script: "echo first-push-checked; exit ${status}"\n`,
+    );
+  task(0);
+  for (const args of [
+    ["init", "--initial-branch=main"],
+    ["add", "."],
+    [
+      "-c",
+      "user.name=Fixture",
+      "-c",
+      "user.email=fixture@example.test",
+      "-c",
+      "core.hooksPath=/dev/null",
+      "-c",
+      "commit.gpgsign=false",
+      "commit",
+      "-m",
+      "fixture",
+    ],
+  ]) {
+    const result = run("git", args);
+    assert.equal(result.status, 0, result.stderr);
+  }
+  const step = readWorkflow("moon-ci.yml").jobs["moon-ci"].steps.at(-1);
+  for (const status of [0, 7]) {
+    task(status);
+    const result = run("bash", ["-e", "-c", step.run], {
+      MOON_BASE: "0000000000000000000000000000000000000000",
+      MOON_HEAD: "HEAD",
+    });
+    assert.match(result.stdout + result.stderr, /first-push-checked/);
+    assert.equal(result.status === 0, status === 0, result.stdout + result.stderr);
+  }
+});
+
+await test("ci.yml calls moon-ci.yml and keeps the required CI check", () => {
+  const workflow = readWorkflow("ci.yml");
+  assert.deepEqual(Object.keys(workflow.on), ["pull_request", "push"]);
+  assert.deepEqual(workflow.permissions, {});
+  const { moon, ci } = workflow.jobs;
+  assert.equal(moon.uses, "./.github/workflows/moon-ci.yml");
+  assert.equal(moon.secrets, undefined, "moon-ci.yml reads no secrets");
+  assert.deepEqual(moon.permissions, { contents: "read" });
+  // Branch protection requires "CI". A skipped required check passes, so this one never skips and
+  // fails unless the called workflow succeeded.
+  assert.equal(ci.name, "CI");
+  assert.equal(ci.needs, "moon");
+  assert.equal(ci.if, "always()");
+  assert.deepEqual(ci.permissions, {});
+  assert.equal(ci.steps.length, 1);
+  assert.equal(ci.steps[0].if, undefined);
+  assert.equal(ci.steps[0]["continue-on-error"], undefined);
+  assert.equal(ci.steps[0].env.RESULT, "${{ needs.moon.result }}");
+  for (const [result, status] of [
+    ["success", 0],
+    ["failure", 1],
+    ["cancelled", 1],
+    ["skipped", 1],
+  ]) {
+    const run = spawnSync("bash", ["-e", "-c", ci.steps[0].run], {
+      env: { ...process.env, RESULT: result },
+    });
+    assert.equal(run.status, status, `moon ${result}`);
+  }
+});
+
+await test("moon-ci.yml installs the Node that .moon/toolchains.yml pins", (t) => {
+  const root = mkdtempSync(join(tmpdir(), "moon-ci-node-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const step = readWorkflow("moon-ci.yml").jobs["moon-ci"].steps.find(
+    (entry) => entry.id === "node",
+  );
+  const readPin = (toolchains) => {
+    mkdirSync(join(root, ".moon"), { recursive: true });
+    const output = join(root, "output");
+    writeFileSync(join(root, ".moon/toolchains.yml"), toolchains);
+    writeFileSync(output, "");
+    const result = spawnSync("bash", ["-e", "-c", step.run], {
+      cwd: root,
+      encoding: "utf8",
+      env: { ...process.env, GITHUB_OUTPUT: output },
+    });
+    return { status: result.status, output: readFileSync(output, "utf8"), stdout: result.stdout };
+  };
+  const toolchains = readFileSync(".moon/toolchains.yml", "utf8");
+  const pin = /^node:\n {2}version: "([^"]+)"$/m.exec(toolchains)?.[1];
+  assert.ok(pin, "this repository pins node in .moon/toolchains.yml");
+  assert.deepEqual(readPin(toolchains), { status: 0, output: `version=${pin}\n`, stdout: "" });
+  for (const value of [pin, `'${pin}'`, `"${pin}"`]) {
+    const external = `pnpm:\n  version: "11.22.0"\nnode: # caller's runtime\n    version: ${value} # exact pin\n`;
+    assert.equal(readPin(external).output, `version=${pin}\n`);
+    assert.equal(readPin(external.replaceAll("\n", "\r\n")).output, `version=${pin}\n`);
+  }
+  for (const invalid of [
+    'node:\n  version: "24"\n',
+    'node:\n  version: "24.19.0"\n  version: "25.0.0"\n',
+    "node:\n  version: \"24.19.0'\n",
+  ]) {
+    assert.equal(readPin(invalid).status, 1);
+    assert.equal(readPin(invalid).output, "");
+  }
+  // Another tool's version key must not be taken for Node's.
+  const unpinned = readPin('pnpm:\n  version: "11.22.0"\nnode:\n  # none\n');
+  assert.equal(unpinned.status, 1);
+  assert.equal(unpinned.output, "");
+  assert.match(unpinned.stdout, /expected one exact node\.version pin/);
+});

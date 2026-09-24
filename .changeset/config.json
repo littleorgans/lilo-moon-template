@@ -11,7 +11,9 @@
       "@littleorgans/auth-workos",
       "@littleorgans/db",
       "@littleorgans/db-tools",
+      "@littleorgans/oxlint-config",
       "@littleorgans/theme",
+      "@littleorgans/tsconfig",
       "@littleorgans/ui",
       "@littleorgans/views",
       "@littleorgans/vite-config"

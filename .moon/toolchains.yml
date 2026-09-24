@@ -7,9 +7,11 @@ javascript:
   # Tasks are declared explicitly in .moon/tasks/, never inferred from scripts,
   # so that every task has precise inputs and outputs and therefore caches correctly.
   inferTasksFromScripts: false
-  # moon owns project-to-project edges; it writes them into each package.json.
-  syncProjectWorkspaceDependencies: true
-  dependencyVersionFormat: "workspace"
+  # package.json owns project-to-project edges. Moon infers them from workspace: dependencies, and
+  # no JavaScript member's moon.yml declares dependsOn
+  # (scripts/tests/integration/project-graph.test.mjs), so there is nothing to write back into the
+  # manifests.
+  syncProjectWorkspaceDependencies: false
   syncPackageManagerField: true
 
 node:

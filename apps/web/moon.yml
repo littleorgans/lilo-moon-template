@@ -1,13 +1,6 @@
 language: "typescript"
 layer: "application"
 tags: ["web-app"]
-dependsOn:
-  - "auth"
-  - "theme"
-  - "ui"
-  - "views"
-  - "auth-tanstack"
-  - "db"
 
 tasks:
   preview:
