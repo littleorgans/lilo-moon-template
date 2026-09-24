@@ -78,6 +78,8 @@ const GITHUB: Record<string, "generate" | "reference"> = {
   ".github/workflows/ci.yml": "generate",
   // Called from this repository at the release tag, never copied.
   ".github/workflows/moon-ci.yml": "reference",
+  // Checks this repository's packed packages nightly.
+  ".github/workflows/published-shape.yml": "reference",
   ".github/workflows/release.yml": "reference",
   // Tests this repository's auth packages against its own WorkOS staging environment.
   ".github/workflows/workos-contract.yml": "reference",

@@ -39,8 +39,9 @@ even if a newer Version PR has merged.
    step from the original run.
 3. **Release gate.** On that exact commit: `moon ci --force`, which runs every task `moon ci` runs,
    with no affected filter and no cache (build, typecheck, lint, format, test coverage, secrets,
-   audit, the database tasks, `published-shape`, `packed-secrets`, `release-rehearsal`). Then
-   `node scripts/release.mjs pack` packs each published package once into a directory and records
+   audit, the database tasks, `packed-secrets`, `release-rehearsal`). Then
+   `moon exec root:published-shape --ignore-ci-checks` checks a workspace snapshot and its packed
+   packages; pull request CI leaves that task out. Then `node scripts/release.mjs pack` packs each published package once into a directory and records
    each tarball's sha512 in `release.json`. The secrets scan and `published-shape` then run against
    those files, and the directory is uploaded as `release-tarballs-<attempt>`. The job outputs that
    upload's artifact ID.

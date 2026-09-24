@@ -72,7 +72,9 @@ what people install.
 - `root:published-shape` runs `publint` and `attw` on each tarball, checks the exports, installs
   the tarballs into fresh consumers and generated projects, and typechecks against TypeScript 5.
   Its create-app scaffold is also the reference app on the published packages: the app itself
-  resolves workspace source, so a packaging bug it hides fails there.
+  resolves workspace source, so a packaging bug it hides fails there. Pull request CI skips it; it
+  runs nightly and in the release gate, so run `moon run root:published-shape` before merging a
+  packaging change.
 - `root:packed-secrets` scans each tarball, and `root:release-rehearsal` publishes against a local
   registry.
 - The release gate runs `moon ci --force` on the release commit, publishes the scanned bytes, and a

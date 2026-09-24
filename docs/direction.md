@@ -500,7 +500,7 @@ What gets worse:
    amended 2026-09-24), so a package change and the app change that uses it land in one pull
    request. `published-shape` proves the published packages instead: the packed create-app
    generates a project from the reference app, installs it against the packed tarballs and runs
-   its full `moon ci`, on every change to an app or package and in the release gate.
+   its full `moon ci`, nightly on `main` and in the release gate.
 9. **More release lines to maintain:** packages, scaffold templates, skills and the reusable
    workflow each need a version and a compatibility story. That is a lot for a small team.
 10. **Unproven pieces:**

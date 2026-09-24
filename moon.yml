@@ -65,9 +65,10 @@ tasks:
     description: "Prove the gates on a workspace snapshot, then check every packed package and the projects the packed create-app writes"
     type: "test"
     command: "node scripts/published-shape.mjs"
-    # CI runs it when anything that is built, packed, installed or gated changes, and skips it for
-    # documentation alone. sources covers apps, packages, services, scripts, .moon and the root
-    # manifests; the rest is what the snapshot's gates and pnpm pack read from the root.
+    # Minutes long, so it stays out of pull request CI. The release gate and the nightly
+    # published-shape.yml run it with `moon exec --ignore-ci-checks`: under CI, moon drops a
+    # `runInCI: false` task from `moon run` too. sources covers apps, packages, services, scripts,
+    # .moon and the root manifests; the rest is what the snapshot's gates and pnpm pack read.
     inputs:
       - "@globs(sources)"
       - "pnpm-lock.yaml"
@@ -89,7 +90,7 @@ tasks:
     options:
       shell: false
       cache: false
-      runInCI: true
+      runInCI: false
 
   tsgolint-lockstep:
     description: "Verify repository TypeScript and type aware lint pins agree"

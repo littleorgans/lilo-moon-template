@@ -81,9 +81,10 @@ jobs:
             echo "released=false" >> "$GITHUB_OUTPUT"
           fi
 
-  # D9: nothing publishes unless every task moon ci runs passes on this exact commit. --force skips
-  # the affected filter and the cache, so this is the whole gate, not the tasks this push touched.
-  # The tarballs are then packed once, and the scan and the consumer checks read those files.
+  # D9: nothing publishes unless every task moon ci runs, and published-shape, pass on this exact
+  # commit. --force skips the affected filter and the cache, so this is the whole gate, not the tasks
+  # this push touched. The tarballs are then packed once, and the scan and the consumer checks read
+  # those files.
   gate:
     name: Release gate
     needs: version
@@ -117,6 +118,12 @@ jobs:
 
       - name: moon ci, every task
         run: moon ci --force
+
+      # moon ci leaves published-shape out (runInCI: false), and under CI `moon run` drops it too. Its
+      # snapshot half proves the gates reject violations and serves the built app, which the tarball
+      # check below does not repeat.
+      - name: Check a workspace snapshot and its packed packages
+        run: moon exec root:published-shape --ignore-ci-checks
 
       - name: Pack every published package once
         run: node scripts/release.mjs pack "$RUNNER_TEMP/release"

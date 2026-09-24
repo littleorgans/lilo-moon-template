@@ -1,0 +1,53 @@
+name: Published shape
+
+# root:published-shape on the default branch, nightly: the packed packages, the projects the packed
+# create-app writes, and the npm consumers. It takes minutes, so pull request CI leaves it out
+# (runInCI: false) and the release gate runs it before publishing. This run shows a packaging slip
+# the day it lands rather than at release time. A failed scheduled run notifies through GitHub's
+# own workflow failure emails. A maintainer can dispatch it on a branch before merging.
+
+on:
+  schedule:
+    # Nightly, off the hour so it does not queue behind every other scheduled workflow.
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions: {}
+
+jobs:
+  published-shape:
+    name: Published shape
+    # The release gate's runner: the check needs Docker for the database gates.
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24.19.0"
+          cache: pnpm
+
+      - uses: moonrepo/setup-toolchain@261c62cb5b0f580c7be7c8cd0f023a2e96756095 # v0
+        with:
+          # proto install reads moon from .prototools. A moon-version literal would hide a stale pin.
+          auto-install: true
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # `runInCI: false` keeps the task out of `moon ci`, but with CI set, as it is on every runner,
+      # moon also drops it from `moon run` ("No tasks found"). `moon exec --ignore-ci-checks` is
+      # `moon run` without that one filter, and still builds the libraries the task depends on.
+      - name: Check a workspace snapshot and its packed packages
+        run: moon exec root:published-shape --ignore-ci-checks
