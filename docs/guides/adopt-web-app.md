@@ -1,7 +1,11 @@
 # Adopt the packages in a web app
 
+> Release status: these instructions target the upcoming `0.2.0` release, which includes typed
+> database schemas and the full database tools. Run the registry/tag commands after that release
+> exists. For the published `0.1.0`, use the guide at `v0.1.0`; its glue has no typed schema option.
+
 This guide starts a new project with a TanStack Start web app on the published
-`@littleorgans/*` packages at `^0.1.0`. The project installs the packages from npm and copies a
+`@littleorgans/*` packages at `^0.2.0`. The project installs the packages from npm and copies a
 small amount of glue from the reference app in this repository. It then owns that glue. Fixes
 reach it through package upgrades, not through copying the glue again.
 
@@ -51,12 +55,12 @@ Copy the glue from the tag that matches the package version you install, so that
 packages agree:
 
 ```sh
-git clone --depth 1 --branch v0.1.0 https://github.com/littleorgans/lilo-moon-template.git /tmp/lilo-ref
+git clone --depth 1 --branch v0.2.0 https://github.com/littleorgans/lilo-moon-template.git /tmp/lilo-ref
 export REF=/tmp/lilo-ref
 ```
 
 Every later command reads from `$REF`. To read one file at a tag without cloning, use
-`https://raw.githubusercontent.com/littleorgans/lilo-moon-template/v0.1.0/<path>`.
+`https://raw.githubusercontent.com/littleorgans/lilo-moon-template/v0.2.0/<path>`.
 
 ## 3. Create the workspace root
 
@@ -83,6 +87,7 @@ npm pkg set name=acme
 npm pkg delete license scripts.changeset scripts.changeset:version
 npm pkg delete devDependencies.@arethetypeswrong/cli devDependencies.@changesets/changelog-github devDependencies.@changesets/cli
 npm pkg delete devDependencies.publint devDependencies.drizzle-orm devDependencies.pg devDependencies.@littleorgans/db-tools
+npm pkg set devDependencies.@littleorgans/tsconfig=catalog: devDependencies.@littleorgans/oxlint-config=catalog: devDependencies.@littleorgans/vite-config=catalog:
 ```
 
 In `pnpm-workspace.yaml`, add the packages to the top of `catalog:`. They move together, because
@@ -90,23 +95,31 @@ every release publishes them all at one version:
 
 ```yaml
 catalog:
-  "@littleorgans/auth": "^0.1.0"
-  "@littleorgans/auth-http": "^0.1.0"
-  "@littleorgans/auth-tanstack": "^0.1.0"
-  "@littleorgans/db": "^0.1.0"
-  "@littleorgans/db-tools": "^0.1.0"
-  "@littleorgans/theme": "^0.1.0"
-  "@littleorgans/ui": "^0.1.0"
-  "@littleorgans/views": "^0.1.0"
-  "@littleorgans/vite-config": "^0.1.0"
+  "@littleorgans/auth": "^0.2.0"
+  "@littleorgans/auth-http": "^0.2.0"
+  "@littleorgans/auth-tanstack": "^0.2.0"
+  "@littleorgans/db": "^0.2.0"
+  "@littleorgans/db-tools": "^0.2.0"
+  "@littleorgans/oxlint-config": "^0.2.0"
+  "@littleorgans/tsconfig": "^0.2.0"
+  "@littleorgans/theme": "^0.2.0"
+  "@littleorgans/ui": "^0.2.0"
+  "@littleorgans/views": "^0.2.0"
+  "@littleorgans/vite-config": "^0.2.0"
   # ...the reference's third-party pins stay below
 ```
+
+The three shared configuration dependencies above must use `catalog:`, replacing the copied
+`workspace:*` references: this project installs them from npm. In the copied
+`.github/workflows/ci.yml`, change `uses: ./.github/workflows/moon-ci.yml` to
+`uses: littleorgans/lilo-moon-template/.github/workflows/moon-ci.yml@v0.2.0`. Only the caller was
+copied; the reusable workflow stays in the reference repository.
 
 The rest of that file is policy: build-script approval, the one-day `minimumReleaseAge`, the
 trust policy and the audit level. Keep it. The named `catalogs:` hold this repository's peer
 ranges and are unused here. The one-day wait also applies to `@littleorgans/*`. To install a
 release on the day it ships, list it under `minimumReleaseAgeExclude` (for example
-`"@littleorgans/auth@0.1.0"`), and remove the entry afterwards.
+`"@littleorgans/auth@0.2.0"`), and remove the entry afterwards.
 
 Write the root `tsconfig.json`. `moon sync` fills in its references:
 
@@ -397,7 +410,7 @@ single copy:
 
 ```sh
 pnpm install
-pnpm add --filter @acme/web @acme/drizzle-schema@workspace:* @littleorgans/auth@catalog: @littleorgans/auth-tanstack@catalog: @littleorgans/db@catalog: @littleorgans/theme@catalog: @littleorgans/ui@catalog: @littleorgans/views@catalog: @tanstack/react-router@catalog: @tanstack/react-start@catalog: react@catalog: react-dom@catalog: drizzle-orm@catalog: pg@catalog:
+pnpm add --filter @acme/web "@acme/drizzle-schema@workspace:*" @littleorgans/auth@catalog: @littleorgans/auth-tanstack@catalog: @littleorgans/db@catalog: @littleorgans/theme@catalog: @littleorgans/ui@catalog: @littleorgans/views@catalog: @tanstack/react-router@catalog: @tanstack/react-start@catalog: react@catalog: react-dom@catalog: drizzle-orm@catalog: pg@catalog:
 pnpm add --filter @acme/web -D @littleorgans/vite-config@catalog: @tailwindcss/vite@catalog: @types/node@catalog: @types/pg@catalog: @types/react@catalog: @types/react-dom@catalog: @vitejs/plugin-react@catalog: nitro@catalog: tailwindcss@catalog: vite@catalog:
 pnpm peers check
 ```
