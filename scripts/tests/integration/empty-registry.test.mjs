@@ -100,7 +100,7 @@ await test("the registry exits if its parent disconnects before readiness", asyn
   await exited;
 });
 
-await test("removing a packed override fails at the empty scope registry", async () => {
+await test("the empty scope registry fails an unpacked dependency and skips an optional one", async () => {
   const root = mkdtempSync(join(tmpdir(), "empty-registry-"));
   try {
     const packed = join(root, "packed");
@@ -139,6 +139,16 @@ await test("removing a packed override fails at the empty scope registry", async
       assert.notEqual(missing.status, 0);
       assert.match(`${missing.stdout}${missing.stderr}`, /ERR_PNPM_FETCH_404/);
       assert.ok(missing.stdout.includes(registry), "missing override must hit the local registry");
+      // What pnpm does with the optional peer it hoists past the overrides. It records a
+      // minimumReleaseAge violation, fatal even for an optional package, only when it finds one.
+      writeJson(join(consumer, "package.json"), {
+        private: true,
+        packageManager,
+        optionalDependencies: { "@littleorgans/probe": "1.0.0" },
+      });
+      const optional = install();
+      assert.equal(optional.status, 0, `${optional.stdout}${optional.stderr}`);
+      assert.doesNotMatch(readFileSync(join(consumer, "pnpm-lock.yaml"), "utf8"), /probe/);
     });
   } finally {
     rmSync(root, { recursive: true, force: true });

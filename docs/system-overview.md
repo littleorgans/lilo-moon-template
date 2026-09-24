@@ -165,11 +165,11 @@ packed command into scratch projects and requires each to pass its own `moon ci 
 template cannot drift from the reference. Each project installs the packed tarballs through
 overrides, and its `@littleorgans` scope resolves to an empty local registry, so no published byte
 can stand in for a packed one. pnpm otherwise resolves an optional peer it hoists, such as
-db-tools's `@littleorgans/db` at the project root, from the registry past the overrides. The registry
-binds an OS-assigned loopback port, reports readiness over IPC within ten seconds, and exits when
-its parent disconnects; normal and failed runs wait for its exit. Only the scratch projects' `.npmrc`
-files select it. The template machinery that created, renamed and rebased
-product repositories was removed in phase 1.
+db-tools's `@littleorgans/db` at the project root, from the registry past the overrides; against
+the empty registry it skips that peer. The registry binds an OS-assigned loopback port, reports
+readiness over IPC within ten seconds, and exits when its parent disconnects; normal and failed
+runs wait for its exit. Only the scratch projects' `.npmrc` files select it. The template machinery
+that created, renamed and rebased product repositories was removed in phase 1.
 
 ## Runtime architecture
 

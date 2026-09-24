@@ -57,9 +57,9 @@ It fails with exit 2 and names every missing or invalid flag, and exit 1 when th
 empty; it never overwrites a file. On success it prints the defaults it took and the remaining
 steps. Relay both to the person, then do the steps you can: the commit, `pnpm install`, the
 lockfile commit and `moon ci --force`. If `pnpm install` stops with
-`ERR_PNPM_NO_MATURE_MATCHING_VERSION`, a dependency has no matching version old enough to install. Do not add a
-`minimumReleaseAgeExclude` entry yourself: tell the person, who decides whether to wait or exempt
-those exact versions.
+`ERR_PNPM_NO_MATURE_MATCHING_VERSION`, a dependency has no matching version old enough to install.
+Do not add a `minimumReleaseAgeExclude` entry yourself: tell the person, who decides whether to
+wait or exempt those exact versions.
 
 To add a service to a workspace that already has a web app, create a scratch project with the same
 `--name` and `--service`, then move its `services/<name>/` across, as the service guide describes.
