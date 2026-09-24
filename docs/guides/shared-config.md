@@ -2,18 +2,21 @@
 
 From `0.2.0`, a project takes its compiler options, lint rules, test defaults, Renovate settings and
 CI job from this repository instead of copying the files. Package upgrades and the Renovate group
-below deliver fixes to them. This page shows the root files that consume each piece. It assumes the
-workspace root from [Adopt the packages in a web app](adopt-web-app.md), step 3, with the
-`@littleorgans/*` catalog entries at `^0.2.0`. Add two entries to that catalog:
+below deliver fixes to them. This page shows the root files that consume each piece.
+
+A project from `@littleorgans/create-app` ([Adopt the packages in a web app](adopt-web-app.md))
+already has every file below, the three packages in its root `package.json`, and their catalog
+entries at the release. A project that predates it adds the entries to its catalog:
 
 ```yaml
 catalog:
   "@littleorgans/oxlint-config": "^0.2.0"
   "@littleorgans/tsconfig": "^0.2.0"
+  "@littleorgans/vite-config": "^0.2.0"
 ```
 
-The root `package.json` from that step already pins `oxlint`, `oxlint-tsgolint`, `vitest` and
-`@vitest/coverage-v8`, which these packages use.
+The root `package.json` also pins `oxlint`, `oxlint-tsgolint`, `vitest` and `@vitest/coverage-v8`,
+which these packages use.
 
 This repository consumes the same pieces through the same files, so its root is a working example.
 

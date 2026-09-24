@@ -24,6 +24,9 @@
       "path": "./packages/auth-workos"
     },
     {
+      "path": "./packages/create-app"
+    },
+    {
       "path": "./packages/db"
     },
     {

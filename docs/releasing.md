@@ -16,7 +16,7 @@ publishes all of them at that version from one commit on `main`, then creates:
   reference files at this tag;
 - one GitHub release, on `v<version>`, whose notes hold each package's CHANGELOG entry under the
   package name. There is no release per package: the packages share a version and a commit, and
-  thirteen releases would mostly repeat "Updated dependencies".
+  a release per package would mostly repeat "Updated dependencies".
 
 `@littleorgans/web` and `services/api` are private. `privatePackages.version` is `false` in
 `.changeset/config.json`, so they keep version `0.0.0`, get no CHANGELOG and are never tagged. A
@@ -137,7 +137,7 @@ in as yourself. The first call asks for a 2FA code. On that prompt, choose to sk
 ```sh
 npm install --global npm@11.20.0
 npm login
-for package in auth auth-http auth-session auth-tanstack auth-workos db db-tools oxlint-config theme tsconfig ui views vite-config; do
+for package in auth auth-http auth-session auth-tanstack auth-workos create-app db db-tools oxlint-config theme tsconfig ui views vite-config; do
   npm trust github "@littleorgans/$package" --repository littleorgans/lilo-moon-template --file release.yml --allow-publish --yes
   sleep 2
 done
@@ -214,3 +214,7 @@ earlier commit, because a released tag never moves: re-run the original run inst
   `node scripts/published-shape.mjs <directory>`, repeat the gate's tarball checks.
 - `changeset version` needs a GitHub token: `@changesets/changelog-github` reads pull request and
   author details from the API. Run `GITHUB_TOKEN=$(gh auth token) pnpm changeset:version`.
+
+The rehearsal bootstrap and release registry calls have a two-minute process timeout; packed
+consumer installs, the smoke's install and scaffold commands have a ten-minute timeout. A stalled npm process fails
+the gate instead of waiting indefinitely. The npm bootstrap streams its output for diagnosis.

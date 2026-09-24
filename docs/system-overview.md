@@ -47,7 +47,8 @@ The baseline makes these choices, recorded in `docs/decisions.md`:
 │   ├── views/              Composed reusable screens: sign-in, code entry, session error, theme lab
 │   ├── vite-config/        Source-condition and client-boundary settings for Vite, Vitest defaults
 │   ├── tsconfig/           The shared compiler options that tsconfig.options.json extends
-│   └── oxlint-config/      The shared lint rules that .oxlintrc.json extends, with the layout rule
+│   ├── oxlint-config/      The shared lint rules that .oxlintrc.json extends, with the layout rule
+│   └── create-app/         pnpm create @littleorgans/app: a new project, generated from the reference
 ├── db/
 │   ├── schema.sql          Atlas desired state: accounts and profiles
 │   └── drizzle/            @littleorgans/drizzle-schema: the typed schema in _generated/, which the app and service query through
@@ -141,10 +142,34 @@ live framework, provider or database.
 
 ## How projects use this repository
 
-Projects do not copy this repository. They add the published packages and take the application glue
-from the reference app once, then own it. The template machinery that created, renamed and rebased
-product repositories was removed in phase 1; [the direction](direction.md#e-scaffolding) describes
-the replacement.
+Projects do not copy this repository. `pnpm create @littleorgans/app` (`packages/create-app`)
+writes a new project that installs the published packages and owns the application glue it was
+given: the workspace root, a web app, a service, or both, and optionally the database. Nothing
+updates that glue afterwards; fixes reach projects through package upgrades. The command validates
+complete package names against npm's 214-character limit, and checks database login roles separately
+against Postgres's 63-character limit and reserved `pg_` prefix.
+
+The command's template is generated, never written by hand. Its build
+(`packages/create-app/src/generate/`) reads `apps/web`, `services/api`, `db/`, the root
+configuration and `@littleorgans/db`'s migrations from the same commit and rewrites what ties them
+to this repository: `workspace:` dependencies become catalog pins at the release, names, ports and
+the organization policy become tokens, and the CI caller names `moon-ci.yml` at `v<version>`. Every
+root entry, root task and `.env.example` paragraph is classified there (a new variable or merged
+paragraph needs an explicit rule), and a reference change the
+generator does not recognize, or an anchor it rewrites that moved, fails the build. The build
+also rejects deleted rewrite targets, symbolic links, binary assets without encoding support and
+tracked environment values. The generated cookie password is empty and must be filled with a
+fresh random value in the ignored `.env.local`; no usable shared secret is shipped. The build
+formats the result as the project's own `format-check` will. `root:published-shape` then runs the
+packed command into scratch projects and requires each to pass its own `moon ci --force`, so the
+template cannot drift from the reference. Each project installs the packed tarballs through
+overrides, and its `@littleorgans` scope resolves to an empty local registry, so no published byte
+can stand in for a packed one. pnpm otherwise resolves an optional peer it hoists, such as
+db-tools's `@littleorgans/db` at the project root, from the registry past the overrides; against
+the empty registry it skips that peer. The registry binds an OS-assigned loopback port, reports
+readiness over IPC within ten seconds, and exits when its parent disconnects; normal and failed
+runs wait for its exit. Only the scratch projects' `.npmrc` files select it. The template machinery
+that created, renamed and rebased product repositories was removed in phase 1.
 
 ## Runtime architecture
 
@@ -474,22 +499,26 @@ TypeScript project references are written by `moon sync` (`typescript.syncProjec
 
 ## Testing strategy
 
-| Layer                       | Tooling                           | Location and examples                                                                                             |
-| --------------------------- | --------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| Unit                        | Vitest, shared `vitest.config.ts` | `packages/*/tests/*.test.ts`, `apps/web/tests/features/**`                                                        |
-| Composition and integration | Vitest under `tests/integration/` | `apps/web/tests/integration/auth-wiring.test.ts` (real SDK, no network), `routes.test.tsx`                        |
-| Coverage floor              | V8, per file: 80/75/80/80         | `testDefaults` in `packages/vite-config/src/vitest.ts`                                                            |
-| Database behavior           | Real Postgres 17 in Docker        | `root:rls-verify` (7 assertions), `root:drizzle-check`, `root:atlas-lint`, `packages/db-tools/tests/integration/` |
-| Service against Postgres    | Real Postgres 17, real listener   | `services/api/tests/integration/database.test.js`: shipped migrations and grant, tenant isolation                 |
-| Repository scripts          | `node --test`                     | `scripts/tests/**` (Moon task shape, hooks, pins, fixed version group, licenses)                                  |
-| Published shape             | Snapshot build, HTTP probes, npm  | `root:published-shape`: gate negative proofs, route status codes, CSS utilities, packed tarballs                  |
+| Layer                       | Tooling                           | Location and examples                                                                                                |
+| --------------------------- | --------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| Unit                        | Vitest, shared `vitest.config.ts` | `packages/*/tests/*.test.ts`, `apps/web/tests/features/**`                                                           |
+| Composition and integration | Vitest under `tests/integration/` | `apps/web/tests/integration/auth-wiring.test.ts` (real SDK, no network), `routes.test.tsx`                           |
+| Coverage floor              | V8, per file: 80/75/80/80         | `testDefaults` in `packages/vite-config/src/vitest.ts`                                                               |
+| Database behavior           | Real Postgres 17 in Docker        | `root:rls-verify` (7 assertions), `root:drizzle-check`, `root:atlas-lint`, `packages/db-tools/tests/integration/`    |
+| Service against Postgres    | Real Postgres 17, real listener   | `services/api/tests/integration/database.test.js`: shipped migrations and grant, tenant isolation                    |
+| Repository scripts          | `node --test`                     | `scripts/tests/**` (Moon task shape, hooks, pins, fixed version group, licenses)                                     |
+| Published shape             | Snapshot build, HTTP probes, npm  | `root:published-shape`: gate negative proofs, route status codes, CSS utilities, packed tarballs, generated projects |
 
 Tests reach the security logic through the seams listed above, not through mocks of framework
 internals. `published-shape` also proves that the gates fail. It plants a type error, a failing
 assertion, a floating promise and malformed formatting in a snapshot of the workspace, and asserts
-that each gate rejects its violation (`scripts/published-shape.mjs`, `rejectViolation`). In the
-packed consumer, whose root configuration resolves the packed config packages, a feature that
-imports a route must fail `root:lint`. No test drives a real
+that each gate rejects its violation (`scripts/published-shape.mjs`, `rejectViolation`). It then
+runs the packed `create-app` three times: a web app with a service and a database under names and
+ports that are not the reference's, a web app alone, and a service alone. Each installs the packed
+tarballs and must pass its own `moon ci --force` as generated, with `moon sync` changing nothing.
+The first serves its build through the same HTTP probes, moves to `db`'s peer floors, and proves
+that a feature importing a route fails its `root:lint`, whose configuration resolves the packed
+config packages. No test drives a real
 browser or a live WorkOS environment. The `measured against the live API` comments in
 `packages/auth-workos` and `packages/auth-session` record manual observations.
 

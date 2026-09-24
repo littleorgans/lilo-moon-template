@@ -1,0 +1,29 @@
+{
+  "name": "@littleorgans/create-app",
+  "version": "0.1.0",
+  "description": "Start a Moon workspace on the published @littleorgans packages: a TanStack Start web app, a TypeScript service, or both. Run it as `pnpm create @littleorgans/app`.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/littleorgans/lilo-moon-template.git",
+    "directory": "packages/create-app"
+  },
+  "bin": {
+    "create-app": "./bin/create-app.js"
+  },
+  "files": [
+    "bin",
+    "dist"
+  ],
+  "type": "module",
+  "publishConfig": {
+    "access": "public"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "yaml": "catalog:"
+  },
+  "engines": {
+    "node": ">=24.19.0"
+  }
+}

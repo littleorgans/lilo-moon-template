@@ -39,13 +39,13 @@ function packageFiles(root, directory = root) {
 /**
  * A package's manifest and every concrete entry point `exports` declares, with each wildcard
  * subpath expanded against the files in `root`. Reading the manifest covers a new package or
- * subpath without editing a list.
+ * subpath without editing a list. A command, such as create-app, may have bins and no exports.
  */
 export function entryPoints(root) {
   const manifest = readManifest(root);
   const files = packageFiles(root);
-  assert.ok(manifest.exports, `${manifest.name} must declare exports`);
-  const entries = Object.entries(manifest.exports).flatMap(([subpath, target]) => {
+  assert.ok(manifest.exports || manifest.bin, `${manifest.name} must declare exports or bins`);
+  const entries = Object.entries(manifest.exports ?? {}).flatMap(([subpath, target]) => {
     const conditions = typeof target === "string" ? { default: target } : target;
     for (const [condition, path] of Object.entries(conditions)) {
       assert.ok(

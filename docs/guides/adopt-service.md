@@ -1,177 +1,77 @@
 # Adopt the packages in a service
 
 > Release status: these instructions target the upcoming `0.2.0` release, which includes typed
-> database schemas and the full database tools. Run the registry/tag commands after that release
-> exists. For the published `0.1.0`, use the guide at `v0.1.0`; its glue has no typed schema option.
+> database schemas, the full database tools and `@littleorgans/create-app`. Run the registry/tag
+> commands after that release exists. For the published `0.1.0`, use the guide at `v0.1.0`: it
+> copies the service by hand and has no typed schema option.
 
 This guide adds a TypeScript HTTP service on the published `@littleorgans/*` packages at `^0.2.0`.
 The service authenticates callers with `@littleorgans/auth-http` and reads Postgres through
-`@littleorgans/db` under row level security. It is a copy of the reference service,
-[`services/api`](../../services/api/README.md), taken at the release tag. After the copy, the
+`@littleorgans/db` under row level security. `@littleorgans/create-app` writes it from the
+reference service, [`services/api`](../../services/api/README.md), at the release. After that, the
 project owns it.
 
 A service lives at `services/<name>/` in a Moon workspace. It can sit beside a web app in that
-app's workspace, or be the only project in a workspace of its own:
+app's workspace, or be the only project in a workspace of its own. It always has the database:
+`loadServiceConfig` requires `DATABASE_URL`, so `--service` implies `--db`.
 
-- **Beside a web app:** finish [Adopt the packages in a web app](adopt-web-app.md), then start
-  here at step 2.
-- **Standalone:** do steps 1–3 of [Adopt the packages in a web app](adopt-web-app.md#1-install-the-tools)
-  (tools, the reference at the tag, the workspace root), then start here at step 1.
-
-The commands name the service `api`, and its directory name is its Moon project id. If you choose
-another name, change it everywhere it appears. The `lilo/build/start-project` skill
+The commands name the service `api`, and its directory name is its Moon project id. The
+`lilo/build/start-project` skill
 ([`skills/lilo/build/start-project/SKILL.md`](../../skills/lilo/build/start-project/SKILL.md))
 covers the judgment calls.
 
-## 1. Standalone only: the service environment
+## 1. Create it
 
-A standalone service needs none of the web session's variables. Replace the copied `.env.example`
-with:
-
-```sh
-# Copy to .env.local. Every .env* file is gitignored except this one. Moon loads .env.local for the
-# service's dev and start tasks. PORT comes from services/api/moon.yml.
-
-# Public. The same WorkOS client as the web app that calls this service. The issuer and JWKS URL
-# are derived from it.
-WORKOS_CLIENT_ID=client_xxxxxxxxxxxxxxxxxxxxxxxxxx
-
-# SECRET. The service's own login role, never the migration owner or a superuser.
-DATABASE_URL=postgres://acme_api:password@host:5432/app?sslmode=require
-```
-
-The web layer `.moon/tasks/node-application.yml` and the web entries in the catalog stay unused
-until a web app joins the workspace. Commit:
+Install the tools as [step 1 of the web app guide](adopt-web-app.md#1-install-the-tools)
+describes, then:
 
 ```sh
-git add -A
-git commit -m "chore: set up the workspace for a service"
+pnpm create @littleorgans/app acme --service --service-port 8787                                # standalone
+pnpm create @littleorgans/app acme --web --organization-policy personal --service   # beside a web app
 ```
 
-## 2. Copy the service
+`--service-name` (default `api`) and `--service-port` (default `8787`, the reference's) name and
+place it. [The web app guide](adopt-web-app.md#2-create-the-project) covers the web app's flags and
+what the command writes at the root. Follow the steps it prints: commit, `pnpm install`, commit
+the lockfile.
 
-```sh
-mkdir -p services
-cp -R "$REF"/services/api services/api
-rm services/api/README.md
-```
+To add a service to a workspace that already has a web app, create a scratch project with
+`--service`, the same `--name` and the service's own name and port, then move its
+`services/<name>/` into your workspace. Merge the root integration described in
+[Add an app to an existing repository](adopt-web-app.md#add-an-app-to-an-existing-repository),
+including the `node-service` task layer and catalog entries. Run `pnpm install`, `moon sync`
+and `moon ci --force`. If your workspace has no database
+yet, take that too, as [the web app guide's step 5](adopt-web-app.md#5-set-up-the-database)
+describes.
 
-The service queries through the project's typed Drizzle schema, the `db/drizzle/` package. Beside a
-web app it is already there. Standalone, copy it and name it for your scope, as
-[Add the web app](adopt-web-app.md#4-add-the-web-app) describes:
+A standalone service needs none of the web session's variables, so its `.env.example` holds only
+`WORKOS_CLIENT_ID` and `DATABASE_URL`. The web layer `.moon/tasks/node-application.yml` and the web
+entries in the catalog stay unused until a web app joins the workspace.
 
-```sh
-mkdir -p db && cp -R "$REF"/db/drizzle db/drizzle
-(cd db/drizzle && npm pkg set name=@acme/drizzle-schema)
-```
-
-Either way, point the service's imports at it:
-
-```sh
-grep -rl @littleorgans/drizzle-schema services/api | xargs perl -pi -e 's#\@littleorgans/drizzle-schema#\@acme/drizzle-schema#g'
-```
-
-The README describes the reference. Write your own when the service has endpoints of its own.
-[The scaffold copy list](../direction.md#e-scaffolding) names `src/main.ts`,
-`src/server/{config,auth,database}.ts`, `src/routes/health.ts` and `tests/`. Those import the rest
-of `src/`, so copy all of it:
+The service is the reference service with the project's names. Its README describes the reference
+and is left out; write your own when the service has endpoints of its own.
 
 | Path under `services/api/`                                  | What it is                                                                                                      |
 | ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
 | `src/main.ts`                                               | The process entry: read the config, start, stop on SIGTERM or SIGINT.                                           |
 | `src/server/config.ts`                                      | `loadServiceConfig`, with one `config_invalid` log line on a bad environment.                                   |
 | `src/server/auth.ts`                                        | `requireAuth` from `auth-http/hono`, which refuses a token without an organization, and field-by-field logging. |
-| `src/server/database.ts`                                    | The pool from `DATABASE_URL`, typed by the project's schema.                                                    |
+| `src/server/database.ts`                                    | The pool from `DATABASE_URL`, typed by the project's schema, `@acme/drizzle-schema`.                            |
 | `src/server/{app,service,errors,requests,log}.ts`           | Routes and middleware, listen and drain, error-to-status mapping, request ids, and JSON logs.                   |
 | `src/routes/health.ts`                                      | Unauthenticated liveness.                                                                                       |
 | `src/routes/account.ts`, `src/features/accounts/account.ts` | The worked example of a tenant-scoped route. Keep it until your first route replaces it.                        |
 | `tests/`                                                    | Route, config, logging and shutdown tests, and the Postgres integration test.                                   |
-| `tsconfig.build.json`, `Dockerfile`                         | The `dist` build and the runtime image. Both are used as copied.                                                |
+| `moon.yml`                                                  | The `node-service` layer (`build`, `dev`, `start`), `PORT` for `dev` and `start`, and `container`.              |
+| `tsconfig.build.json`, `Dockerfile`                         | The `dist` build and the runtime image.                                                                         |
 
 `tests/integration/database.test.js` starts Postgres with `withPostgres` from
-`@littleorgans/db-tools`, which the install below adds as a development dependency.
+`@littleorgans/db-tools`, a development dependency of the service. `jose` signs test tokens in
+`tests/support.ts`. `@littleorgans/db` takes `drizzle-orm`, `pg` and `@types/pg` as peers, and
+the `@littleorgans/auth-http/hono` adapter takes `hono`; the service's manifest supplies them, and
+`pnpm peers check` prints `No peer dependency issues found`. `test` and `test-coverage` are
+`cache: false`, because the database is not a file input.
 
-Three files carry this repository's workspace wiring. Replace them. `services/api/package.json`:
-
-```json
-{
-  "name": "@acme/api",
-  "version": "0.0.0",
-  "private": true,
-  "files": ["dist"],
-  "type": "module",
-  "engines": {
-    "node": ">=24.19.0"
-  }
-}
-```
-
-`services/api/moon.yml`. The `node-service` tag with the `application` layer inherits `build`,
-`dev` and `start` from `.moon/tasks/node-service.yml`. The service owns its port:
-
-```yaml
-language: "typescript"
-layer: "application"
-tags: ["node-service"]
-
-tasks:
-  dev:
-    env:
-      PORT: "8787"
-  start:
-    env:
-      PORT: "8787"
-  # `pnpm deploy` writes dist and production dependencies to out/, and the image is built from it.
-  container:
-    type: "run"
-    script: >-
-      rm -rf out &&
-      pnpm --config.inject-workspace-packages=true --filter @acme/api deploy --prod out &&
-      docker build --file Dockerfile --tag acme-api:local out
-    deps:
-      - "~:build"
-    options:
-      cache: false
-      runInCI: false
-  # The integration test starts Postgres through db-tools, and the database is not a file input,
-  # so a cached pass proves nothing about it.
-  test:
-    options:
-      cache: false
-  test-coverage:
-    options:
-      cache: false
-```
-
-`services/api/tsconfig.json`, which is the reference's without its project references:
-
-```json
-{
-  "extends": "../../tsconfig.options.json",
-  "include": ["src/**/*.ts", "tests/**/*.ts"],
-  "compilerOptions": {
-    "outDir": "../../.moon/cache/types/services/api",
-    "types": ["node"],
-    "rewriteRelativeImportExtensions": true
-  }
-}
-```
-
-Install. `@littleorgans/db` takes `drizzle-orm`, `pg` and `@types/pg` as peers, and the
-`@littleorgans/auth-http/hono` adapter takes `hono`:
-
-```sh
-pnpm install
-pnpm add --filter @acme/api "@acme/drizzle-schema@workspace:*" @littleorgans/auth@catalog: @littleorgans/auth-http@catalog: @littleorgans/db@catalog: @hono/node-server@catalog: hono@catalog: drizzle-orm@catalog: pg@catalog:
-pnpm add --filter @acme/api -D @littleorgans/db-tools@catalog: @types/node@catalog: @types/pg@catalog: jose@catalog:
-pnpm peers check
-```
-
-`jose` signs test tokens in `tests/support.ts`, and `@littleorgans/db-tools` runs the integration
-test's Postgres. `pnpm peers check` must print
-`No peer dependency issues found`.
-
-## 3. Configuration
+## 2. Configuration
 
 `loadServiceConfig` from `@littleorgans/auth-http`
 ([`packages/auth-http/src/config.ts`](../../packages/auth-http/src/config.ts)) reads three
@@ -180,7 +80,7 @@ variables once at startup, in `src/server/config.ts`:
 | Variable           | Rule                                                                                        |
 | ------------------ | ------------------------------------------------------------------------------------------- |
 | `PORT`             | 1 to 65535. Set by `tasks.dev.env` and `tasks.start.env` in `moon.yml`, or by the platform. |
-| `DATABASE_URL`     | A `postgres://` URL for the service's own login role (step 4).                              |
+| `DATABASE_URL`     | A `postgres://` URL for the service's own login role (step 3).                              |
 | `WORKOS_CLIENT_ID` | The web app's client. The issuer and JWKS URL are derived from it.                          |
 
 A bad environment prints one `config_invalid` line naming every problem, without values, and
@@ -188,13 +88,11 @@ exits 1. Moon loads the root `.env.local` for `dev` and `start`. Beside a web ap
 read that one file, so locally they share `DATABASE_URL` and `WORKOS_CLIENT_ID`. In deployment,
 give each one its own login role.
 
-## 4. The database, the login role and the grant
+## 3. The database, the login role and the grant
 
-The service needs the identity migrations applied and a login role holding the shipped grant.
-
-- **Standalone:** do [In the project](adopt-web-app.md#in-the-project) from the web app guide's
-  database step. Read `services/api/node_modules/` wherever it says `apps/web/node_modules/`.
-- **Beside a web app:** `db/migrations/` and the database gates already exist.
+The service needs the identity migrations applied and a login role holding the shipped grant. The
+project already has `db/migrations/` and the database gates; [What `--db`
+wrote](adopt-web-app.md#what---db-wrote) in the web app guide describes them.
 
 For a real database, apply the migrations as
 [In a real database](adopt-web-app.md#in-a-real-database) describes. Then give the service its own
@@ -212,17 +110,15 @@ The service's `DATABASE_URL` names `acme_api`. Without the grant, every `/v1` re
 500, and the log shows SQLSTATE `42501`. The grant and the role rules are explained in
 [the db package README](../../packages/db/README.md#set-up-the-database).
 
-## 5. Reach the first green `moon ci`
+## 4. Reach the first green `moon ci`
 
 ```sh
-pnpm install
-moon sync
-moon run root:format
-moon run api:typecheck api:build api:test
-git add -A
-git commit -m "feat: add the api service"
-moon ci
+moon ci --force
 ```
+
+`--force` runs every task rather than only those the last commit touched. Nothing needs fixing
+first: before a release, `published-shape` runs a standalone service, and one beside a web app,
+through this same first run.
 
 With Docker running, `api:test` includes `tests/integration/database.test.js`. It starts Postgres
 17, applies the shipped migrations and grant to a fresh login role, and proves 401 without a
@@ -238,7 +134,7 @@ curl -i http://localhost:8787/health        # 200 {"status":"ok"}
 curl -i http://localhost:8787/v1/account    # 401 {"error":"missing_token"}
 ```
 
-## 6. Build the container
+## 5. Build the container
 
 ```sh
 moon run api:container
@@ -265,7 +161,7 @@ Known limits:
 - The task does not run in CI (`runInCI: false`), and the image has never been deployed. A pipeline
   that pushes images is the project's to build.
 
-## 7. Call it from the web app
+## 6. Call it from the web app
 
 The web app calls the service as the signed-in person with `auth.asUser()`. It never touches the
 token itself. `asUser()` returns the same five states as `access()`. Only `signed-in` carries a
@@ -304,7 +200,7 @@ no longer than the request that produced it. See `UserAccess` in
 [`packages/auth-session/src/delegate.ts`](../../packages/auth-session/src/delegate.ts) and
 `asUser` in [`packages/auth-tanstack/src/runtime.ts`](../../packages/auth-tanstack/src/runtime.ts).
 
-## 8. No service-to-service identity
+## 7. No service-to-service identity
 
 A service accepts only a person's token, forwarded by a web app. No machine identity exists for
 one service to call another, or for a job to call a service, and none is planned for phase 1

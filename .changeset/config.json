@@ -9,6 +9,7 @@
       "@littleorgans/auth-session",
       "@littleorgans/auth-tanstack",
       "@littleorgans/auth-workos",
+      "@littleorgans/create-app",
       "@littleorgans/db",
       "@littleorgans/db-tools",
       "@littleorgans/oxlint-config",

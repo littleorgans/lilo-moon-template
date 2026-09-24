@@ -25,6 +25,8 @@ export function projectEnvironment() {
 export function projectCommand(cwd, command, args, capture = false) {
   return execFileSync(command, args, {
     cwd,
+    timeout: 10 * 60_000,
+    killSignal: "SIGKILL",
     env: projectEnvironment(),
     encoding: "utf8",
     stdio: capture ? ["ignore", "pipe", "pipe"] : "inherit",

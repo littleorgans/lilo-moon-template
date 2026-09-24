@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import {
+  appendFileSync,
   cpSync,
   existsSync,
   mkdirSync,
@@ -18,7 +19,9 @@ import { setTimeout } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 
 import { dockerIsAvailable, psqlInput, withPostgres } from "@littleorgans/db-tools";
+import { parseDocument } from "yaml";
 
+import { withEmptyRegistry } from "./lib/empty-registry.mjs";
 import {
   CONSUMER_TYPESCRIPT,
   consumerCompilerOptions,
@@ -27,6 +30,8 @@ import {
   typecheckConsumer,
 } from "./lib/package-entries.mjs";
 import {
+  commitProject,
+  git,
   initializeProject,
   projectEnvironment,
   projectCommand,
@@ -44,7 +49,6 @@ const scratch = mkdtempSync(join(tmpdir(), "published-shape-"));
 const snapshot = join(scratch, "snapshot");
 // The installed workspace whose manifests and third-party versions the tarballs are checked against.
 const reference = releaseDirectory === undefined ? snapshot : source;
-const packed = join(scratch, "packed");
 const tarballs = join(scratch, "tarballs");
 // A child Moon must discover its own workspace and toolchain rather than inherit its parent's paths.
 process.env.GIT_AUTHOR_NAME = "Baseline verification";
@@ -79,14 +83,14 @@ function resolvedPackage(directory, name) {
 }
 
 /**
- * A consumer on the lowest versions db's peer ranges admit must share one drizzle-orm copy with db,
+ * A project on the lowest versions db's peer ranges admit must share one drizzle-orm copy with db,
  * typecheck, and load db under native Node ESM. An exact dependency once nested a second Drizzle
  * copy that web:typecheck rejected, and pg before 8.15.0 has no named ESM export for `Pool`.
  */
-function checkDbPeerFloors(manifestPath, manifest) {
-  const web = join(packed, "apps/web");
+function checkDbPeerFloors(root, app) {
+  const web = join(root, app);
   // Take the package name from the manifest, so the scope is not written twice.
-  const name = readManifest(join(snapshot, "packages/db")).name;
+  const name = readManifest(join(reference, "packages/db")).name;
   // Every peer db declares takes part, so a peer added later is exercised without editing this.
   const peers = Object.entries(resolvedPackage(web, name).manifest.peerDependencies ?? {});
   assert.ok(peers.length > 0, "db must declare peer dependencies");
@@ -104,19 +108,18 @@ function checkDbPeerFloors(manifestPath, manifest) {
     ),
     "at least one db peer floor must differ from the consumer pin",
   );
-  Object.assign(manifest.dependencies, floors);
-  writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
-  // The project's typed schema package imports the same Drizzle, so it moves to the floors with the
-  // application, as it would with a project's catalog pin.
-  const schemaPackage = join(packed, "db/drizzle");
-  const schema = readManifest(schemaPackage);
-  for (const section of ["devDependencies", "peerDependencies"]) {
-    for (const peer of Object.keys(floors)) {
-      if (schema[section]?.[peer] !== undefined) schema[section][peer] = floors[peer];
-    }
+  // A project moves a pin in its catalog, and every project in the workspace, the typed schema
+  // package included, follows it.
+  const workspacePath = join(root, "pnpm-workspace.yaml");
+  const workspace = parseDocument(readFileSync(workspacePath, "utf8"));
+  for (const [peer, floor] of Object.entries(floors)) {
+    assert.ok(workspace.hasIn(["catalog", peer]), `the generated catalog has no ${peer}`);
+    workspace.setIn(["catalog", peer], floor);
   }
-  writeJson(join(schemaPackage, "package.json"), schema);
-  run(packed, "pnpm", ["install"]);
+  writeFileSync(workspacePath, workspace.toString({ lineWidth: 0 }));
+  const schemaPackage = join(root, "db/drizzle");
+  const schema = readManifest(schemaPackage);
+  run(root, "pnpm", ["install"]);
   for (const [peer, floor] of Object.entries(floors)) {
     const application = resolvedPackage(web, peer);
     // Resolve db again: pnpm names its store directory after the peer versions it resolved.
@@ -142,27 +145,27 @@ function checkDbPeerFloors(manifestPath, manifest) {
   }
   // The built server bundles db, so only a direct import exercises Node's own module loading.
   run(web, process.execPath, ["--input-type=module", "-e", "await import(process.argv[1])", name]);
-  run(packed, "moon", ["run", "web:typecheck", "--force"]);
+  run(root, "moon", ["run", ":typecheck", "--force"]);
   const installed = Object.entries(floors).map(([peer, floor]) => `${peer} ${floor}`);
   process.stdout.write(`published-shape: db loads and typechecks on ${installed.join(", ")}.\n`);
 }
 
-/** The packed consumer's compiler options come from the installed @littleorgans/tsconfig tarball. */
-function checkPackedCompilerOptions() {
-  const { root } = resolvedPackage(packed, "@littleorgans/tsconfig");
+/** A generated project's compiler options come from the installed @littleorgans/tsconfig tarball. */
+function checkPackedCompilerOptions(project, app) {
+  const { root } = resolvedPackage(project, "@littleorgans/tsconfig");
   assert.ok(
-    !root.startsWith(snapshot),
-    `@littleorgans/tsconfig resolved to the workspace at ${root}`,
+    !root.startsWith(snapshot) && !root.startsWith(source),
+    `@littleorgans/tsconfig resolved to a workspace at ${root}`,
   );
   const { compilerOptions } = JSON.parse(
     execFileSync(
-      join(packed, "node_modules/.bin/tsc"),
-      ["--project", "apps/web/tsconfig.json", "--showConfig"],
-      { cwd: packed, env, encoding: "utf8" },
+      join(project, "node_modules/.bin/tsc"),
+      ["--project", `${app}/tsconfig.json`, "--showConfig"],
+      { cwd: project, env, encoding: "utf8" },
     ),
   );
   for (const option of ["noUncheckedIndexedAccess", "exactOptionalPropertyTypes", "composite"]) {
-    assert.equal(compilerOptions[option], true, `the packed web app lost ${option}`);
+    assert.equal(compilerOptions[option], true, `the generated web app lost ${option}`);
   }
   process.stdout.write(`published-shape: compiler options resolve from ${root}\n`);
 }
@@ -226,7 +229,7 @@ function authEnvironment(origin) {
  * A built server whose cookie password would refuse every sign-in must fail the deploy, not the
  * first request: it exits before it listens, naming the variable and not the value.
  */
-async function refusesBadConfiguration(root) {
+async function refusesBadConfiguration(root, app) {
   const port = await freePort();
   const origin = `http://127.0.0.1:${port}`;
   const cases = [
@@ -242,7 +245,7 @@ async function refusesBadConfiguration(root) {
     ],
   ];
   for (const [name, value, message] of cases) {
-    const app = spawnSync(process.execPath, ["apps/web/.output/server/index.mjs"], {
+    const server = spawnSync(process.execPath, [`${app}/.output/server/index.mjs`], {
       cwd: root,
       env: {
         ...env,
@@ -254,25 +257,25 @@ async function refusesBadConfiguration(root) {
       encoding: "utf8",
       timeout: 30_000,
     });
-    const output = `${app.stdout}${app.stderr}`;
-    assert.equal(app.error, undefined, "the invalid server must exit, not time out");
+    const output = `${server.stdout}${server.stderr}`;
+    assert.equal(server.error, undefined, "the invalid server must exit, not time out");
     assert.ok(
-      Number.isInteger(app.status) && app.status !== 0,
+      Number.isInteger(server.status) && server.status !== 0,
       "the invalid server must exit nonzero",
     );
     assert.match(output, message);
     assert.doesNotMatch(output, /Listening on/, "the server must refuse before it listens");
     assert.ok(!output.includes(value), "the refusal must not print the invalid value");
     process.stdout.write(
-      `published-shape: negative proof, invalid ${name} stopped the built server, exit ${app.status}.\n`,
+      `published-shape: negative proof, invalid ${name} stopped the built server, exit ${server.status}.\n`,
     );
   }
 }
 
-async function exercise(root) {
+async function exercise(root, directory) {
   const port = await freePort();
   const origin = `http://127.0.0.1:${port}`;
-  const app = spawn(process.execPath, ["apps/web/.output/server/index.mjs"], {
+  const app = spawn(process.execPath, [`${directory}/.output/server/index.mjs`], {
     cwd: root,
     env: {
       ...env,
@@ -410,11 +413,22 @@ function consumerDependencies(packages) {
   return dependencies;
 }
 
-const capture = (cwd, command, args) => spawnSync(command, args, { cwd, env, encoding: "utf8" });
+const capture = (cwd, command, args) =>
+  spawnSync(command, args, {
+    cwd,
+    env,
+    encoding: "utf8",
+    timeout: 10 * 60_000,
+    killSignal: "SIGKILL",
+  });
 
 function succeeded(result, description) {
   const output = `${result.stdout}${result.stderr}`;
-  assert.equal(result.status, 0, `${description} failed:\n${output}`);
+  assert.equal(
+    result.status,
+    0,
+    `${description} failed: ${result.error?.message ?? result.signal ?? "nonzero exit"}\n${output}`,
+  );
   return output;
 }
 
@@ -441,15 +455,15 @@ function inspectTarball(artifact) {
   const { manifest, entries } = entryPoints(root);
   const workspace = readManifest(join(reference, manifest.repository.directory));
   assert.deepEqual(
-    Object.keys(manifest.exports).toSorted(),
-    Object.keys(workspace.exports).toSorted(),
+    Object.keys(manifest.exports ?? {}).toSorted(),
+    Object.keys(workspace.exports ?? {}).toSorted(),
     `${manifest.name} publishConfig must preserve every workspace subpath`,
   );
   // publishConfig.exports repeats exports without the workspace source condition, so each packed
   // entry must be its workspace entry minus that condition. Only vite-config's entries redirect src
   // to dist, because Vite and Vitest load them before any build; check both sides explicitly so this
   // exception cannot hide another export's drift.
-  for (const [subpath, target] of Object.entries(workspace.exports)) {
+  for (const [subpath, target] of Object.entries(workspace.exports ?? {})) {
     let published =
       typeof target === "string"
         ? target
@@ -1004,12 +1018,126 @@ async function exerciseServiceDatabase(root, dbName) {
   );
 }
 
+/**
+ * The packed create-app, run as `npm create @littleorgans/app` runs it, into a new directory. The
+ * project installs the packed packages in place of the registry's, and its `@littleorgans` scope
+ * resolves to `registry`, which has none, so only the packed bytes can be installed. It is
+ * committed as the printed steps say, and must then be in sync as generated: `moon sync` may not
+ * change a file.
+ */
+function scaffold(createApp, packages, registry, name, args) {
+  const parent = join(scratch, "scaffolds");
+  mkdirSync(parent, { recursive: true });
+  run(parent, "npm", [
+    "exec",
+    "--yes",
+    `--package=${createApp.artifact}`,
+    "--",
+    "create-app",
+    name,
+    ...args,
+  ]);
+  const root = join(parent, name);
+  const workspacePath = join(root, "pnpm-workspace.yaml");
+  const workspace = parseDocument(readFileSync(workspacePath, "utf8"));
+  for (const { manifest, artifact } of packages) {
+    workspace.setIn(["overrides", manifest.name], `file:${artifact}`);
+  }
+  writeFileSync(workspacePath, workspace.toString({ lineWidth: 0 }));
+  appendFileSync(join(root, ".npmrc"), `\n@littleorgans:registry=${registry}\n`);
+  initializeProject(root, "chore: start from @littleorgans/create-app");
+  run(root, "pnpm", ["install"]);
+  commitProject(root, "chore: lock dependencies");
+  run(root, "moon", ["sync"]);
+  assert.equal(git(root, ["status", "--porcelain"]), "", `moon sync changed the generated ${name}`);
+  return root;
+}
+
+/**
+ * Every gate the generated project has, as its CI runs them. CI is passed through, so the
+ * database checks fail rather than skip when Docker is missing there. The project's Postgres
+ * container is removed afterwards.
+ */
+function generatedCi(root) {
+  process.stdout.write(`published-shape: moon ci --force in ${root}\n`);
+  try {
+    execFileSync("moon", ["ci", "--force"], {
+      cwd: root,
+      env: process.env.CI === undefined ? env : { ...env, CI: process.env.CI },
+      stdio: "inherit",
+    });
+  } finally {
+    const dbTools = join(root, "node_modules/.bin/db-tools");
+    if (existsSync(dbTools)) run(root, dbTools, ["clean"]);
+  }
+}
+
+/**
+ * What `pnpm create @littleorgans/app` makes, from the packed tarballs: a web app with a service and
+ * a database, under names and ports that are not the reference's, then a web app alone and a
+ * service alone. Each passes its own first `moon ci --force` untouched, so the template cannot
+ * drift from the reference app it was generated from. The first also serves its build as the
+ * snapshot's app does (with the snapshot's CSS fixtures, when the tarballs carry them), proves the
+ * layout lint rule, and moves to db's peer floors.
+ */
+async function checkScaffolds(packages, { fixtures }) {
+  await withEmptyRegistry(async (registry) => {
+    const createApp = packages.find(({ manifest }) => manifest.bin?.["create-app"] !== undefined);
+    assert.ok(createApp, "create-app must be packed");
+    const app = "apps/portal";
+    const full = scaffold(createApp, packages, registry, "acme", [
+      "--web",
+      "--service",
+      "--web-name",
+      "portal",
+      "--web-port",
+      "5300",
+      "--organization-policy",
+      "existing",
+      "--service-name",
+      "billing",
+      "--service-port",
+      "8800",
+    ]);
+    generatedCi(full);
+    checkBins(
+      full,
+      packages.filter(({ manifest }) => existsSync(join(full, "node_modules", manifest.name))),
+    );
+    checkPackedCompilerOptions(full, app);
+    rejectViolation(
+      full,
+      `${app}/src/features/gate-probe.ts`,
+      'import { Route } from "../routes/app.tsx";\n\nexport const probe = Route;\n',
+      "root:lint",
+      /no-restricted-imports/,
+    );
+    await refusesBadConfiguration(full, app);
+    if (fixtures) await exercise(full, app);
+    checkDbPeerFloors(full, app);
+
+    generatedCi(
+      scaffold(createApp, packages, registry, "solo-web", [
+        "--web",
+        "--organization-policy",
+        "personal",
+      ]),
+    );
+    generatedCi(scaffold(createApp, packages, registry, "solo-service", ["--service"]));
+    process.stdout.write(
+      "published-shape: the packed create-app's web and service, web alone and service alone passed moon ci.\n",
+    );
+  });
+}
+
 // The tarballs the release will publish, checked where a consumer meets them: publint and attw,
-// then npm consumers that import, typecheck and run them. The packed reference app is not rebuilt:
-// it needs the snapshot's CSS fixtures, which these tarballs do not carry.
+// the projects their create-app scaffolds, then npm consumers that import, typecheck and run
+// them. The scaffolded web app is not served: that needs the snapshot's CSS fixtures, which these
+// tarballs do not carry.
 async function checkReleaseTarballs(directory) {
   const packages = readReleaseTarballs(directory).map(({ file }) => inspectTarball(file));
   for (const pkg of packages) lintTarball(pkg);
+  await checkScaffolds(packages, { fixtures: false });
   await exerciseConsumer(packages);
   checkDrizzleSkew(packages);
   process.stdout.write(
@@ -1085,15 +1213,17 @@ async function checkSnapshot() {
   try {
     writeFileSync(viewsSources, "");
     run(snapshot, "moon", ["run", "web:build"]);
-    await assert.rejects(exercise(snapshot), /published views must register/);
+    await assert.rejects(exercise(snapshot, "apps/web"), /published views must register/);
     process.stdout.write("published-shape: missing CSS source registration was rejected.\n");
   } finally {
     writeFileSync(viewsSources, registeredSources);
   }
   run(snapshot, "moon", ["run", "web:build"]);
-  await refusesBadConfiguration(snapshot);
-  await exercise(snapshot);
+  await refusesBadConfiguration(snapshot, "apps/web");
+  await exercise(snapshot, "apps/web");
 
+  // Every package the loop packs, create-app's template included, is built from this snapshot.
+  run(snapshot, "moon", ["run", "#ts-library:build"]);
   mkdirSync(tarballs);
   const artifacts = new Map();
   for (const entry of readdirSync(join(snapshot, "packages"))) {
@@ -1105,63 +1235,10 @@ async function checkSnapshot() {
   }
   const packages = [...artifacts.values()].map((artifact) => inspectTarball(artifact));
   for (const pkg of packages) lintTarball(pkg);
-  cpSync(snapshot, packed, {
-    recursive: true,
-    filter: (path) =>
-      !relative(snapshot, path)
-        .split(/[\\/]/)
-        .some((part) =>
-          ["node_modules", ".git", "packages", "services", ".output", "cache"].includes(part),
-        ),
-  });
-  pruneReferences(packed);
-  const manifestPath = join(packed, "apps/web/package.json");
-  const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
-  for (const section of ["dependencies", "devDependencies"]) {
-    for (const name of Object.keys(manifest[section])) {
-      if (artifacts.has(name)) manifest[section][name] = `file:${artifacts.get(name)}`;
-    }
-  }
-  writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
-  const workspacePath = join(packed, "pnpm-workspace.yaml");
-  writeFileSync(
-    workspacePath,
-    `${readFileSync(workspacePath, "utf8")}\n${[...artifacts].map(([name, file]) => `  "${name}": "file:${file}"`).join("\n")}\n`,
-  );
-  // The optional drizzle-kit peer belongs to the consumer that runs generation, not to db-tools.
-  const packedManifest = readManifest(packed);
-  packedManifest.devDependencies["drizzle-kit"] = resolvedPackage(
-    join(reference, "packages/db-tools"),
-    "drizzle-kit",
-  ).manifest.version;
-  writeJson(join(packed, "package.json"), packedManifest);
-  initializeProject(packed, "test: initialize packed consumer");
-  run(packed, "pnpm", ["install"]);
-  checkBins(packed, packages);
-  if (process.env.CI || dockerIsAvailable()) {
-    generateConsumerSchema(
-      packed,
-      resolvedPackage(join(packed, "apps/web"), "@littleorgans/db").root,
-    );
-  }
-  run(packed, "moon", ["sync"]);
-  // The root's tsconfig.options.json, .oxlintrc.json and vitest.config.ts now resolve the packed
-  // config packages, so these tasks prove them as a consumer installs them.
-  checkPackedCompilerOptions();
-  run(packed, "moon", ["run", "web:build", "web:typecheck", "web:test", "root:lint"]);
-  rejectViolation(
-    packed,
-    "apps/web/src/features/gate-probe.ts",
-    'import { Route } from "../routes/app.tsx";\n\nexport const probe = Route;\n',
-    "root:lint",
-    /no-restricted-imports/,
-  );
-  await refusesBadConfiguration(packed);
-  await exercise(packed);
-  checkDbPeerFloors(manifestPath, manifest);
+  await checkScaffolds(packages, { fixtures: true });
   await exerciseConsumer(packages);
   checkDrizzleSkew(packages);
-  process.stdout.write("published-shape: snapshot, packed, npm and skew consumers passed.\n");
+  process.stdout.write("published-shape: snapshot, scaffolded, npm and skew consumers passed.\n");
 }
 
 try {

@@ -75,12 +75,13 @@ function errorCode(result: SpawnSyncReturns<string>): unknown {
   return result.error !== undefined && "code" in result.error ? result.error.code : undefined;
 }
 
-function docker(target: Server, args: string[]): SpawnSyncReturns<string> {
+function docker(target: Server, args: string[], timeout = 120_000): SpawnSyncReturns<string> {
   return spawnSync("docker", args, {
     encoding: "utf8",
     env: { ...target.env },
     stdio: ["ignore", "pipe", "pipe"],
-    timeout: 120_000,
+    timeout,
+    killSignal: "SIGKILL",
   });
 }
 
@@ -162,14 +163,18 @@ interface Container {
   port: number;
   host: string;
 }
-function inspectContainer(target: Server): Container | null {
-  const result = docker(target, [
-    "container",
-    "inspect",
-    "--format",
-    `{{json .Id}}\n{{json .Config.Image}}\n{{json (index .Config.Labels "${OWNER_LABEL}")}}\n{{with index .HostConfig.PortBindings "5432/tcp"}}{{(index . 0).HostPort}} {{(index . 0).HostIp}}{{end}}`,
-    target.container,
-  ]);
+function inspectContainer(target: Server, timeout = 120_000): Container | null {
+  const result = docker(
+    target,
+    [
+      "container",
+      "inspect",
+      "--format",
+      `{{json .Id}}\n{{json .Config.Image}}\n{{json (index .Config.Labels "${OWNER_LABEL}")}}\n{{with index .HostConfig.PortBindings "5432/tcp"}}{{(index . 0).HostPort}} {{(index . 0).HostIp}}{{end}}`,
+      target.container,
+    ],
+    timeout,
+  );
   if (errorCode(result) === "ENOENT") return null;
   if (result.status !== 0) {
     if (/No such (?:container|object)/i.test(result.stderr)) return null;
@@ -244,7 +249,16 @@ function ensurePostgres(target: Server): Server {
         `Could not start ${target.container} (${target.image}) on 127.0.0.1:${target.port}:\n${started.stderr}`,
       );
     }
-    existing = inspectContainer(target);
+    // Docker reserves the name before the winning task's container can be inspected, so the task
+    // that lost the conflict can find nothing there for a moment. Several tasks of one `moon ci`
+    // start the checkout's container at once, so wait for the winner's rather than failing.
+    const deadline = Date.now() + READY_MS;
+    existing = inspectContainer(target, READY_MS);
+    while (existing === null && started.status !== 0 && Date.now() < deadline) {
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 100);
+      const remaining = deadline - Date.now();
+      if (remaining > 0) existing = inspectContainer(target, remaining);
+    }
   }
   if (
     existing === null ||

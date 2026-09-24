@@ -8,8 +8,8 @@ not a template, and projects do not copy, rename or rebase it.
 ## Status
 
 `0.1.0` is published. Eleven of the packages below are on npm at that version with provenance,
-and the `v0.1.0` tag and GitHub release mark the commit they were built from. `@littleorgans/tsconfig`
-and `@littleorgans/oxlint-config` first publish in `0.2.0`. Every package shares one
+and the `v0.1.0` tag and GitHub release mark the commit they were built from. `@littleorgans/tsconfig`,
+`@littleorgans/oxlint-config` and `@littleorgans/create-app` first publish in `0.2.0`. Every package shares one
 version (the Changesets `fixed` group), so install them all at the same version. During `0.x` a
 minor release may break. [Releasing the packages](docs/releasing.md) covers how a release is made.
 
@@ -30,11 +30,12 @@ minor release may break. [Releasing the packages](docs/releasing.md) covers how 
 | [`@littleorgans/vite-config`](https://www.npmjs.com/package/@littleorgans/vite-config)     | Resolves workspace packages to source in an application's Vite config; `./vitest` holds the shared test defaults. | `vite` ^8, `vitest` ^4.1 (optional)                |
 | [`@littleorgans/tsconfig`](https://www.npmjs.com/package/@littleorgans/tsconfig)           | The strict compiler options a workspace's `tsconfig.options.json` extends.                                        | none                                               |
 | [`@littleorgans/oxlint-config`](https://www.npmjs.com/package/@littleorgans/oxlint-config) | The lint rules a workspace's `.oxlintrc.json` extends, including the feature and route layout rule.               | `oxlint` ^1.79                                     |
+| [`@littleorgans/create-app`](https://www.npmjs.com/package/@littleorgans/create-app)       | `pnpm create @littleorgans/app`: writes a new project from the reference app and service at the release.          | none                                               |
 
 [`auth-session`](packages/auth-session/README.md), [`auth-http`](packages/auth-http/README.md),
 [`db`](packages/db/README.md), [`db-tools`](packages/db-tools/README.md),
-[`tsconfig`](packages/tsconfig/README.md) and [`oxlint-config`](packages/oxlint-config/README.md)
-have their own READMEs. [Use the shared configuration](docs/guides/shared-config.md) covers the
+[`tsconfig`](packages/tsconfig/README.md), [`oxlint-config`](packages/oxlint-config/README.md) and
+[`create-app`](packages/create-app/README.md) have their own READMEs. [Use the shared configuration](docs/guides/shared-config.md) covers the
 config packages, the Renovate preset and the reusable CI workflow together. Applications own their tables,
 provisioning and login roles. Payments, CRM, Zustand persistence, Convex, system theme mode, saved
 user theme editing and service-to-service identity are not implemented.
@@ -63,12 +64,19 @@ Docker image. [Its README](services/api/README.md) covers configuration, errors,
 
 ## Start a project
 
-A new project installs the packages from npm and copies a small amount of glue from this repository
-at a release tag. Follow [Adopt the packages in a web app](docs/guides/adopt-web-app.md) for a
-TanStack Start app, and [Adopt the packages in a service](docs/guides/adopt-service.md) for a
-TypeScript HTTP service, beside a web app or on its own. The `lilo/build/start-project` skill
-([`skills/lilo/build/start-project`](skills/lilo/build/start-project/SKILL.md)) covers the choices
-the guides leave open. Read the guides at the tag that matches the version you install.
+```sh
+pnpm create @littleorgans/app acme --web --organization-policy personal --db
+```
+
+`@littleorgans/create-app` writes a new project: the workspace root, a web app, a service or
+both, and optionally Postgres, all taken from the reference app and service at the release it
+belongs to. The project installs the packages from npm and owns the small amount of glue it was
+given. [Adopt the packages in a web app](docs/guides/adopt-web-app.md) and
+[Adopt the packages in a service](docs/guides/adopt-service.md) cover the choices it takes as
+flags and the steps it leaves to you: the OAuth callback, the environment, the database login role
+and the first green `moon ci`. The `lilo/build/start-project` skill
+([`skills/lilo/build/start-project`](skills/lilo/build/start-project/SKILL.md)) drives the command
+and the judgment calls. Read the guides at the tag that matches the version you install.
 
 ## Work in this repository
 

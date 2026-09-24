@@ -62,7 +62,7 @@ tasks:
       runInCI: false
 
   published-shape:
-    description: "Prove the gates on a workspace snapshot, then install and check every packed library"
+    description: "Prove the gates on a workspace snapshot, then check every packed package and the projects the packed create-app writes"
     type: "test"
     command: "node scripts/published-shape.mjs"
     # CI runs it when anything that is built, packed, installed or gated changes, and skips it for

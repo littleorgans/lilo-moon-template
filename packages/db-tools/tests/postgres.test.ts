@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   dockerStatus,
@@ -157,6 +157,47 @@ esac`,
   ]);
 });
 
+it("waits for the winner's container when the lost race briefly shows none", () => {
+  const root = mkdtempSync(join(tmpdir(), "db-tools-race-"));
+  const seen = join(root, "inspection");
+  const log = join(root, "calls");
+  // The fake PATH has no utilities, so marker files count the inspections. The first finds
+  // nothing, so this task runs and loses the name. The next two still find nothing, as Docker
+  // shows while the winner's container is being created; the fourth sees it.
+  const PATH = fakePath({
+    docker: `echo "$1" >> '${log}'
+case "$1" in
+info) exit 0;;
+container)
+  if [ ! -f '${seen}3' ]; then
+    if [ -f '${seen}2' ]; then echo > '${seen}3'
+    elif [ -f '${seen}1' ]; then echo > '${seen}2'
+    else echo > '${seen}1'
+    fi
+    echo 'No such container' >&2
+    exit 1
+  fi
+  echo '"winner-id"'
+  echo '"postgres:17-alpine"'
+  echo '"${root}"'
+  echo '${postgresIdentity(root).port} 127.0.0.1'
+  ;;
+run) echo 'container name is already in use' >&2; exit 1;;
+esac`,
+  });
+  expect(startPostgres({ root, env: { PATH } })).toContain(`:${postgresIdentity(root).port}/`);
+  expect(readFileSync(log, "utf8").trim().split("\n")).toStrictEqual([
+    "info",
+    "container",
+    "run",
+    "container",
+    "container",
+    "container",
+    "start",
+    "exec",
+  ]);
+});
+
 it("psqlInput runs in the inspected container and only for its URL", () => {
   const fixture = dockerFixture();
   const url = `postgres://127.0.0.1:${postgresIdentity(fixture.root).port}/test`;
@@ -234,3 +275,30 @@ it("psqlInput refuses a mismatched legacy image or stale port mapping before exe
   ).toThrow("does not match");
   expect(readFileSync(legacy.log, "utf8")).not.toMatch(/^exec /m);
 });
+
+it("bounds a stalled inspection by the remaining container-race deadline", () => {
+  const root = mkdtempSync(join(tmpdir(), "db-tools-deadline-"));
+  const seen = join(root, "seen");
+  const PATH = fakePath({
+    docker: `case "$1" in
+info) exit 0;;
+container)
+  if [ -f '${seen}2' ]; then exec /bin/sleep 30; fi
+  if [ -f '${seen}1' ]; then echo > '${seen}2'; else echo > '${seen}1'; fi
+  echo 'No such container' >&2; exit 1;;
+run) echo 'container name is already in use' >&2; exit 1;;
+esac`,
+  });
+  // The retry has ten milliseconds left when its next inspect starts. If it uses the normal
+  // Docker timeout instead, this test stalls and fails its own one-second deadline.
+  const now = vi
+    .spyOn(Date, "now")
+    .mockReturnValueOnce(0)
+    .mockReturnValueOnce(14_900)
+    .mockReturnValue(14_990);
+  try {
+    expect(() => startPostgres({ root, env: { PATH } })).toThrow(/Could not inspect.*ETIMEDOUT/);
+  } finally {
+    now.mockRestore();
+  }
+}, 1000);
