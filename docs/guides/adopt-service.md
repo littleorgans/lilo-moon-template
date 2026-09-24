@@ -77,7 +77,7 @@ variables once at startup, in `src/server/config.ts`:
 | Variable           | Rule                                                                                        |
 | ------------------ | ------------------------------------------------------------------------------------------- |
 | `PORT`             | 1 to 65535. Set by `tasks.dev.env` and `tasks.start.env` in `moon.yml`, or by the platform. |
-| `DATABASE_URL`     | A `postgres://` URL for the service's own login role (step 4).                              |
+| `DATABASE_URL`     | A `postgres://` URL for the service's own login role (step 3).                              |
 | `WORKOS_CLIENT_ID` | The web app's client. The issuer and JWKS URL are derived from it.                          |
 
 A bad environment prints one `config_invalid` line naming every problem, without values, and
