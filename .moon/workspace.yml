@@ -12,6 +12,8 @@ projects:
     - "services/*"
   sources:
     root: "."
+    # The project's typed Drizzle schema, beside the SQL it is generated from.
+    drizzle-schema: "db/drizzle"
 
 vcs:
   client: "git"

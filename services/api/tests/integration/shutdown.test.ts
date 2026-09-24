@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import { startService } from "../../src/server/service.ts";
 import type { ServiceDatabase } from "../../src/server/service.ts";
-import { createSigner, issuer, recordingLog } from "../support.ts";
+import { createSigner, issuer, recordingLog, recordingTransaction } from "../support.ts";
 
 /**
  * A database whose one transaction waits for the test to release it, recording when the pool is
@@ -12,17 +12,15 @@ import { createSigner, issuer, recordingLog } from "../support.ts";
 function heldDatabase(events: string[]) {
   const inside = Promise.withResolvers<void>();
   const held = Promise.withResolvers<void>();
-  const row = {
-    id: "0b6f2c1e-5a4d-4b8e-9f10-2c3d4e5f6a7b",
-    workos_org_id: "org_A",
-    created_at: "2026-09-01T00:00:00.000Z",
-  };
+  const { tx } = recordingTransaction(() => [
+    ["0b6f2c1e-5a4d-4b8e-9f10-2c3d4e5f6a7b", "org_A", "2026-09-01T00:00:00.000Z"],
+  ]);
   const database: ServiceDatabase = {
     withPrincipal: async (_principal, body) => {
       events.push("transaction");
       inside.resolve();
       await held.promise;
-      return await body({ execute: () => Promise.resolve({ rows: [row] }) });
+      return await body(tx);
     },
     close: () => {
       events.push("pool closed");

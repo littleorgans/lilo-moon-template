@@ -7,6 +7,7 @@
     "@littleorgans/auth": "workspace:*",
     "@littleorgans/auth-tanstack": "workspace:*",
     "@littleorgans/db": "workspace:*",
+    "@littleorgans/drizzle-schema": "workspace:*",
     "@littleorgans/theme": "workspace:*",
     "@littleorgans/ui": "workspace:*",
     "@littleorgans/views": "workspace:*",

@@ -1,6 +1,10 @@
 # Adopt the packages in a service
 
-This guide adds a TypeScript HTTP service on the published `@littleorgans/*` packages at `^0.1.0`.
+> Release status: these instructions target the upcoming `0.2.0` release, which includes typed
+> database schemas and the full database tools. Run the registry/tag commands after that release
+> exists. For the published `0.1.0`, use the guide at `v0.1.0`; its glue has no typed schema option.
+
+This guide adds a TypeScript HTTP service on the published `@littleorgans/*` packages at `^0.2.0`.
 The service authenticates callers with `@littleorgans/auth-http` and reads Postgres through
 `@littleorgans/db` under row level security. It is a copy of the reference service,
 [`services/api`](../../services/api/README.md), taken at the release tag. After the copy, the
@@ -52,6 +56,21 @@ cp -R "$REF"/services/api services/api
 rm services/api/README.md
 ```
 
+The service queries through the project's typed Drizzle schema, the `db/drizzle/` package. Beside a
+web app it is already there. Standalone, copy it and name it for your scope, as
+[Add the web app](adopt-web-app.md#4-add-the-web-app) describes:
+
+```sh
+mkdir -p db && cp -R "$REF"/db/drizzle db/drizzle
+(cd db/drizzle && npm pkg set name=@acme/drizzle-schema)
+```
+
+Either way, point the service's imports at it:
+
+```sh
+grep -rl @littleorgans/drizzle-schema services/api | xargs perl -pi -e 's#\@littleorgans/drizzle-schema#\@acme/drizzle-schema#g'
+```
+
 The README describes the reference. Write your own when the service has endpoints of its own.
 [The scaffold copy list](../direction.md#e-scaffolding) names `src/main.ts`,
 `src/server/{config,auth,database}.ts`, `src/routes/health.ts` and `tests/`. Those import the rest
@@ -62,7 +81,7 @@ of `src/`, so copy all of it:
 | `src/main.ts`                                               | The process entry: read the config, start, stop on SIGTERM or SIGINT.                                           |
 | `src/server/config.ts`                                      | `loadServiceConfig`, with one `config_invalid` log line on a bad environment.                                   |
 | `src/server/auth.ts`                                        | `requireAuth` from `auth-http/hono`, which refuses a token without an organization, and field-by-field logging. |
-| `src/server/database.ts`                                    | The pool from `DATABASE_URL`.                                                                                   |
+| `src/server/database.ts`                                    | The pool from `DATABASE_URL`, typed by the project's schema.                                                    |
 | `src/server/{app,service,errors,requests,log}.ts`           | Routes and middleware, listen and drain, error-to-status mapping, request ids, and JSON logs.                   |
 | `src/routes/health.ts`                                      | Unauthenticated liveness.                                                                                       |
 | `src/routes/account.ts`, `src/features/accounts/account.ts` | The worked example of a tenant-scoped route. Keep it until your first route replaces it.                        |
@@ -143,7 +162,7 @@ Install. `@littleorgans/db` takes `drizzle-orm`, `pg` and `@types/pg` as peers, 
 
 ```sh
 pnpm install
-pnpm add --filter @acme/api @littleorgans/auth@catalog: @littleorgans/auth-http@catalog: @littleorgans/db@catalog: @hono/node-server@catalog: hono@catalog: drizzle-orm@catalog: pg@catalog:
+pnpm add --filter @acme/api "@acme/drizzle-schema@workspace:*" @littleorgans/auth@catalog: @littleorgans/auth-http@catalog: @littleorgans/db@catalog: @hono/node-server@catalog: hono@catalog: drizzle-orm@catalog: pg@catalog:
 pnpm add --filter @acme/api -D @littleorgans/db-tools@catalog: @types/node@catalog: @types/pg@catalog: jose@catalog:
 pnpm peers check
 ```
@@ -237,8 +256,9 @@ Known limits:
 - **Absolute paths in `pnpm deploy`.** When a dependency is a workspace package, as the libraries
   are for the reference service in this repository, the deployed `out/package.json` and lockfile
   record the build machine's absolute path to it. With the packages from npm, the dependencies are
-  registry versions. That limit returns if the project gains workspace libraries of its own, so do
-  not rebuild from `out/` on another machine.
+  registry versions. The project's `@acme/drizzle-schema` is a workspace library, so the limit
+  applies even when every `@littleorgans/*` dependency comes from npm. Do not rebuild from `out/`
+  on another machine.
 - **Library `src` in the image.** The published packages ship `src` beside `dist`, for source
   maps, so `node_modules/@littleorgans/*/src` is in the image. It is never loaded, and it adds size,
   not risk.

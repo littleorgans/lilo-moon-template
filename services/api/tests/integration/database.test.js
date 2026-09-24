@@ -41,7 +41,7 @@ async function listen(server) {
 
 // Skipped without Docker, like root:rls-verify and packages/db. CI is authoritative.
 describe.skipIf(!dockerIsAvailable())("the service against Postgres", () => {
-  it("authenticates, and each organization reads and creates only its own account", async () => {
+  it("isolates tenants and keeps the account response contract", async () => {
     const signer = await createSigner();
     const jwks = createServer((_request, response) => {
       response
@@ -117,6 +117,21 @@ describe.skipIf(!dockerIsAvailable())("the service against Postgres", () => {
           status: 403,
           body: { error: "forbidden" },
         });
+
+        // An import can store infinite timestamps without violating the shipped schema's NOT NULL
+        // constraint. PostgreSQL to_char returns NULL for them, so neither GET nor the existing-row
+        // branch of PUT may return a successful Account with createdAt: null.
+        psqlInput(
+          databaseUrl,
+          `
+          UPDATE accounts SET created_at = 'infinity' WHERE workos_org_id = 'org_alpha';
+          UPDATE accounts SET created_at = '-infinity' WHERE workos_org_id = 'org_beta';
+        `,
+        );
+        const invalidTimestamp = { status: 500, body: { error: "internal" } };
+        expect(await call("GET", alice)).toStrictEqual(invalidTimestamp);
+        expect(await call("PUT", alice)).toStrictEqual(invalidTimestamp);
+        expect(await call("GET", bob)).toStrictEqual(invalidTimestamp);
 
         const written = JSON.stringify(records);
         for (const secret of [alice, bob, forged, orgless, password]) {

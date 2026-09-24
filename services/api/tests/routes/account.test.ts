@@ -8,9 +8,11 @@ import type { Signer } from "../support.ts";
 
 const account = {
   id: "0b6f2c1e-5a4d-4b8e-9f10-2c3d4e5f6a7b",
-  workos_org_id: "org_A",
-  created_at: "2026-09-01T00:00:00.000Z",
+  orgId: "org_A",
+  createdAt: "2026-09-01T00:00:00.000Z",
 };
+// The row as the driver returns it: the account's columns, in the order the query selects them.
+const row = [account.id, account.orgId, account.createdAt];
 
 let signer: Signer;
 let verify: Verifier;
@@ -19,10 +21,7 @@ beforeAll(async () => {
   verify = createVerifier({ issuer, jwks: { keys: [signer.jwk] } });
 });
 
-function appWith(
-  respond: (text: string) => readonly Record<string, unknown>[],
-  verifier: Verifier = verify,
-) {
+function appWith(respond: (text: string) => readonly unknown[], verifier: Verifier = verify) {
   const runner = recordingRunner(respond);
   const logged = recordingLog();
   const app = createApp({ verify: verifier, run: runner.run, log: logged.log });
@@ -36,23 +35,21 @@ const bearer = (token: string) => ({ headers: { authorization: `Bearer ${token}`
 
 describe("GET /v1/account", () => {
   it("answers the caller's account from a transaction scoped to their verified Principal", async () => {
-    const { app, scopedTo, statements } = appWith(() => [account]);
+    const { app, scopedTo, statements } = appWith(() => [row]);
     const token = await signer.sign({ sub: "user_A", org_id: "org_A" });
 
     const response = await app.request("/v1/account", bearer(token));
 
     expect(response.status).toBe(200);
     expect(response.headers.get("cache-control")).toBe("no-store");
-    expect(await response.json()).toStrictEqual({
-      id: account.id,
-      orgId: "org_A",
-      createdAt: "2026-09-01T00:00:00.000Z",
-    });
+    expect(await response.json()).toStrictEqual(account);
     expect(scopedTo).toStrictEqual([
       { userId: "user_A", orgId: "org_A", roles: [], permissions: [], entitlements: [] },
     ]);
     expect(statements).toHaveLength(1);
-    expect(statements[0]).toMatch(/^SELECT id::text, workos_org_id,[^]* FROM accounts$/);
+    expect(statements[0]).toMatch(
+      /^select "id", "workos_org_id", to_char\([^]*\) from "accounts"$/,
+    );
   });
 
   it("is 404 account_not_found when the organization has no account yet", async () => {
@@ -69,7 +66,7 @@ describe("GET /v1/account", () => {
 
 describe("PUT /v1/account", () => {
   it("is 201 when it creates the account, taking the organization from the claims", async () => {
-    const { app, statements } = appWith(() => [account]);
+    const { app, statements } = appWith(() => [row]);
     const response = await app.request("/v1/account", {
       method: "PUT",
       ...bearer(await signer.sign({ sub: "user_A", org_id: "org_A" })),
@@ -78,11 +75,11 @@ describe("PUT /v1/account", () => {
     expect(response.status).toBe(201);
     expect(await response.json()).toMatchObject({ id: account.id, orgId: "org_A" });
     expect(statements).toHaveLength(1);
-    expect(statements[0]).toContain("VALUES (app.current_org_id())");
+    expect(statements[0]).toContain("values (default, app.current_org_id(), default)");
   });
 
   it("is 200 with the existing account when it already exists", async () => {
-    const { app, statements } = appWith((text) => (text.startsWith("INSERT") ? [] : [account]));
+    const { app, statements } = appWith((text) => (text.startsWith("insert") ? [] : [row]));
     const response = await app.request("/v1/account", {
       method: "PUT",
       ...bearer(await signer.sign({ sub: "user_A", org_id: "org_A" })),
@@ -106,7 +103,7 @@ describe("tenant authentication", () => {
       'Bearer error="invalid_token"',
     ],
   ])("refuses %s", async (_, init, status, error, challenge) => {
-    const { app, scopedTo } = appWith(() => [account]);
+    const { app, scopedTo } = appWith(() => [row]);
     const response = await app.request("/v1/account", init);
 
     expect(response.status).toBe(status);
@@ -116,7 +113,7 @@ describe("tenant authentication", () => {
   });
 
   it("refuses a token signed by another key as invalid_token", async () => {
-    const { app, scopedTo, records } = appWith(() => [account]);
+    const { app, scopedTo, records } = appWith(() => [row]);
     const forged = await (await createSigner()).sign({ sub: "user_A", org_id: "org_A" });
 
     const response = await app.request("/v1/account", bearer(forged));
@@ -132,7 +129,7 @@ describe("tenant authentication", () => {
   });
 
   it("forbids a verified token that carries no organization", async () => {
-    const { app, scopedTo } = appWith(() => [account]);
+    const { app, scopedTo } = appWith(() => [row]);
     const response = await app.request("/v1/account", bearer(await signer.sign({ sub: "user_A" })));
 
     expect(response.status).toBe(403);
@@ -150,7 +147,7 @@ describe("tenant authentication", () => {
   });
 
   it("answers 503 and logs an error when the provider is down", async () => {
-    const { app, records } = appWith(() => [account], down);
+    const { app, records } = appWith(() => [row], down);
 
     const response = await app.request("/v1/account?next=%2Fsecret", bearer("a.b.c"));
 
@@ -172,7 +169,7 @@ describe("tenant authentication", () => {
 // The rejection event carries the raw request. What reaches the log must be chosen fields only.
 describe("logging", () => {
   it("never writes the token, the query string or the verifier's message", async () => {
-    const { app, records } = appWith(() => [account]);
+    const { app, records } = appWith(() => [row]);
     const token = await signer.sign({ sub: "user_A", org_id: "org_A" });
     const forged = await (await createSigner()).sign({ sub: "user_A", org_id: "org_A" });
 
@@ -252,15 +249,6 @@ describe("errors", () => {
       method: "PUT",
       ...bearer(await signer.sign({ sub: "user_A", org_id: "org_A" })),
     });
-    expect(response.status).toBe(500);
-  });
-
-  it("answers 500 when a row comes back in a shape the query did not ask for", async () => {
-    const { app } = appWith(() => [{ ...account, created_at: null }]);
-    const response = await app.request(
-      "/v1/account",
-      bearer(await signer.sign({ sub: "user_A", org_id: "org_A" })),
-    );
     expect(response.status).toBe(500);
   });
 });

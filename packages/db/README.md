@@ -26,19 +26,27 @@ them the query results this package exposes widen to `any` without an error.
 ```ts
 import { loadServiceConfig } from "@littleorgans/auth-http";
 import { createDatabase } from "@littleorgans/db";
-import { sql } from "drizzle-orm";
+import * as schema from "@acme/drizzle-schema";
+import { accounts } from "@acme/drizzle-schema";
 
 const config = loadServiceConfig();
-const database = createDatabase({ connectionString: config.databaseUrl });
+const database = createDatabase({ connectionString: config.databaseUrl, schema });
 
-const accounts = await database.withPrincipal(principal, async (tx) => {
-  const result = await tx.execute(sql`SELECT workos_org_id FROM accounts`);
-  return result.rows;
+const visible = await database.withPrincipal(principal, async (tx) => {
+  return await tx.select({ orgId: accounts.workosOrgId }).from(accounts);
 });
 ```
 
 `principal` is the verified `Principal` from `@littleorgans/auth`, which a service gets from
 `@littleorgans/auth-http`. Create the database once per process and call `close()` at shutdown.
+
+`schema` is your project's Drizzle schema: the module `db-tools drizzle-generate` writes from your
+migrations (`@acme/drizzle-schema` above is the package the adoption guides build it into). It types
+each transaction, `ScopedTransaction<typeof schema>`, and enables `tx.query`. It is optional:
+without it, `tx.execute` with a `sql` template, and the query builder over tables you import,
+still work. The
+schema records tables and columns only. The policies decide which rows a query sees, and
+`rls-verify` is what proves them.
 
 ## Set up the database
 

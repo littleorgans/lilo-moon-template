@@ -107,7 +107,10 @@ security and drops it from a diff without saying so, so policies are hand-writte
 any table in `public` lacks row level security enabled and forced, which is what stops a new table
 shipping readable by every tenant.
 
-Delete the whole `db/` directory only if this repo has no database at all. The six
+Delete the whole `db/` directory only if this repo has no database at all, and only after removing
+the database code from `apps/web` and `services/api`: `db/drizzle/` is the
+`@littleorgans/drizzle-schema` package they import, named in `pnpm-workspace.yaml` and
+`.moon/workspace.yml`. The six
 `test ! -f db/schema.sql` checks in `moon.yml` make an absent schema skip every Atlas, Drizzle and
 RLS task before Atlas or Docker starts. Deleting `db/schema.sql` on its own skips those tasks as
 well, which leaves `packages/db/migrations/` and `db/drizzle/_generated/` in the tree with nothing

@@ -8,7 +8,7 @@ import {
   loadWorkspaceOrRedirect,
 } from "../../../src/features/workspace/server/load-workspace.js";
 import type { WorkspaceDeps } from "../../../src/features/workspace/server/load-workspace.js";
-import { countVisibleRows } from "../../../src/features/workspace/server/rows.js";
+import { recordingTransaction } from "../../database.js";
 
 const principal: Principal = {
   userId: "user_01HBEQ",
@@ -61,14 +61,24 @@ describe("buildWorkspaceView", () => {
     expect(view.databaseError).not.toContain("connection refused");
   });
 
-  it("counts rows through the scoped runner, never outside it", async () => {
+  // Provisioning first, in the same transaction, so the counts include the caller's own rows.
+  it("provisions and counts through the scoped runner, never outside it", async () => {
     let scopedTo: Principal | null = null;
+    const { tx, statements } = recordingTransaction(({ sql }) =>
+      sql.startsWith("select count(*)") ? [{ count: 1 }] : [],
+    );
     const view = await buildWorkspaceView(principal, async (given, body) => {
       scopedTo = given;
-      return await body({ execute: () => Promise.resolve({ rows: [{ count: 1 }] }) });
+      return await body(tx);
     });
     expect(scopedTo).toStrictEqual(principal);
     expect(view.rows).toStrictEqual({ accounts: 1, profiles: 1 });
+    expect(statements.map(({ sql }) => sql)).toStrictEqual([
+      expect.stringMatching(/^insert into "accounts"/),
+      expect.stringMatching(/^insert into "profiles"/),
+      expect.stringMatching(/^select count\(\*\) .* from "accounts"/),
+      expect.stringMatching(/^select count\(\*\) .* from "profiles"/),
+    ]);
   });
 });
 
@@ -104,54 +114,9 @@ describe("loadWorkspaceOrRedirect", () => {
   });
 });
 
-describe("countVisibleRows", () => {
-  // A count query always returns a row, but reading `rows[0]` without a fallback is exactly the
-  // kind of assumption that turns an empty result into a crash rather than a zero.
-  it("reads zero rather than failing when the result is empty", async () => {
-    const rows = await countVisibleRows(
-      async (_principal, body) => await body({ execute: () => Promise.resolve({ rows: [] }) }),
-      principal,
-    );
-    expect(rows).toStrictEqual({ accounts: 0, profiles: 0 });
-  });
-
-  it("counts accounts and profiles separately", async () => {
-    const seen: string[] = [];
-    const rows = await countVisibleRows(
-      async (_principal, body) =>
-        await body({
-          execute: (query) => {
-            seen.push(JSON.stringify(query.queryChunks ?? ""));
-            return Promise.resolve({ rows: [{ count: seen.length }] });
-          },
-        }),
-      principal,
-    );
-    expect(rows).toStrictEqual({ accounts: 3, profiles: 4 });
-    expect(seen[0]).toContain("INSERT INTO accounts");
-    expect(seen[1]).toContain("INSERT INTO profiles");
-  });
-});
-
 it("returns a retryable unavailable response for auth outages", async () => {
   expect(await redirectedBy(accessOf({ status: "unavailable" }))).toMatchObject({
     to: "/session-error",
     search: { retry: true },
   });
-});
-
-it("does not provision an account when the user has no organization", async () => {
-  const seen: string[] = [];
-  await countVisibleRows(
-    async (_principal, body) =>
-      await body({
-        execute: (query) => {
-          seen.push(JSON.stringify(query.queryChunks));
-          return Promise.resolve({ rows: [] });
-        },
-      }),
-    { ...principal, orgId: null },
-  );
-  expect(seen.join(" ")).not.toContain("INSERT INTO accounts");
-  expect(seen.join(" ")).toContain("INSERT INTO profiles");
 });

@@ -203,6 +203,25 @@ columns, and partial indexes are not a claimed pull surface. `moon.yml`
 `tasks.drizzle-check` compares that artifact with a fresh database. The artifact is never a source,
 and it is never fed back into a migration.
 
+Queries import the artifact. `db/drizzle/` is a private workspace package,
+`@littleorgans/drizzle-schema`, that builds `_generated/schema.ts` to `dist` like any library, so
+the web app bundles it and the service's `pnpm deploy` image carries it. A relative import from the
+applications into `db/` was rejected: the service compiles with `rootDir: src`, and its deployed
+image holds only its own `dist` and its dependencies. Generating into `packages/` was rejected
+because the schema belongs to the project, beside the SQL it comes from. `@littleorgans/db` takes
+the schema as the `schema` option of `createDatabase` and types each scoped transaction by it; it
+never imports one.
+
+Query code accepts any Postgres Drizzle database over the schema
+(`PgDatabase<PgQueryResultHKT, typeof schema>`), not only the `node-postgres` one production
+passes. Tests build a real one over `drizzle-orm/pg-proxy`, whose driver is a plain function that
+records each statement and answers it, so they run the queries production runs without a cast. A
+hand-written stand-in for the query builder would describe the stand-in instead. Answers follow the
+driver's shape: a statement with a select list or `RETURNING` gets rows as arrays of values in
+select order. Running through Drizzle also showed that Drizzle wraps every driver error in a
+`DrizzleQueryError`, with the driver's error as its `cause`, so `services/api` reads the SQLSTATE
+from the cause.
+
 Atlas Community does not model everything a schema needs. Functions, `ENABLE ROW LEVEL SECURITY`,
 policies, roles and grants are dropped from a diff silently, and the command exits 0. Written into
 `db/schema.sql` they produce a migration containing only the tables. `drizzle-kit pull` then

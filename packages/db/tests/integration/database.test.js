@@ -7,6 +7,7 @@
 
 import { fileURLToPath } from "node:url";
 
+import { pgTable, text } from "drizzle-orm/pg-core";
 import { describe, expect, it } from "vitest";
 
 import { applyMigrations } from "../../../db-tools/src/atlas.ts";
@@ -14,6 +15,9 @@ import { dockerIsAvailable, withPostgres } from "../../../db-tools/src/postgres.
 import { createDatabase } from "../../src/index.js";
 
 const migrations = fileURLToPath(new URL("../../migrations", import.meta.url));
+
+// A project's schema, cut down to what the test reads. The package never ships one of its own.
+const accounts = pgTable("accounts", { workosOrgId: text("workos_org_id").notNull() });
 
 const principal = {
   userId: "user_integration",
@@ -78,6 +82,56 @@ describe.skipIf(!dockerIsAvailable())("createDatabase", () => {
           return result.rows;
         });
         expect(rows).toStrictEqual([{ workos_user_id: "user_integration" }]);
+      } finally {
+        await database.close();
+      }
+    });
+  }, 60_000);
+
+  it("keeps relational queries scoped across rollback and reuse of one connection", async () => {
+    await withPostgres("db-test", async (connectionString) => {
+      applyMigrations(connectionString, migrations);
+      const database = createDatabase({
+        connectionString,
+        schema: { accounts },
+        maxConnections: 1,
+      });
+      try {
+        await database.withPrincipal(
+          { ...principal, userId: "user_other", orgId: "org_other" },
+          async (tx) => {
+            await tx.insert(accounts).values({ workosOrgId: "org_other" });
+          },
+        );
+        const rows = await database.withPrincipal(principal, async (tx) => {
+          await tx.insert(accounts).values({ workosOrgId: "org_integration" });
+          return await tx.query.accounts.findMany();
+        });
+        expect(rows).toStrictEqual([{ workosOrgId: "org_integration" }]);
+        // A relational read must not commit the insert or start an independent transaction.
+        const rolledBack = { ...principal, orgId: "org_rolled_back" };
+        await expect(
+          database.withPrincipal(rolledBack, async (tx) => {
+            await tx.insert(accounts).values({ workosOrgId: rolledBack.orgId });
+            expect(await tx.query.accounts.findFirst()).toStrictEqual({
+              workosOrgId: rolledBack.orgId,
+            });
+            throw new Error("roll back the typed insert");
+          }),
+        ).rejects.toThrow("roll back the typed insert");
+        expect(
+          await database.withPrincipal(rolledBack, (tx) => tx.query.accounts.findMany()),
+        ).toStrictEqual([]);
+        expect(
+          await database.withPrincipal({ ...principal, orgId: "org_other" }, (tx) =>
+            tx.query.accounts.findMany(),
+          ),
+        ).toStrictEqual([{ workosOrgId: "org_other" }]);
+        await expect(
+          database.withPrincipal(principal, (tx) =>
+            tx.insert(accounts).values({ workosOrgId: "org_forbidden" }),
+          ),
+        ).rejects.toMatchObject({ cause: { code: "42501" } });
       } finally {
         await database.close();
       }

@@ -1,5 +1,6 @@
 import { createDatabase } from "@littleorgans/db";
 import type { Database } from "@littleorgans/db";
+import * as schema from "@littleorgans/drizzle-schema";
 
 /**
  * The pool every request's scoped transaction borrows from. Built once per process.
@@ -9,6 +10,6 @@ import type { Database } from "@littleorgans/db";
  * superuser: either one bypasses the policies that keep one organization's rows from another.
  * Connections open on first use, so a database that is down fails requests, not startup.
  */
-export function openDatabase(connectionString: string): Database {
-  return createDatabase({ connectionString });
+export function openDatabase(connectionString: string): Database<typeof schema> {
+  return createDatabase({ connectionString, schema });
 }

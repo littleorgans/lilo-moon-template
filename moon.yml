@@ -23,6 +23,7 @@ fileGroups:
     - "scripts/**/*"
     - "packages/db/migrations/**/*"
     - "db/schema.sql"
+    - "db/drizzle/**/*"
     # Generated and installed files must not invalidate source task caches.
     - "!.moon/cache/**/*"
     - "!.moon/docker/**/*"
@@ -185,6 +186,7 @@ tasks:
       - "apps/*/tsconfig*.json"
       - "packages/*/tsconfig*.json"
       - "services/*/tsconfig*.json"
+      - "db/drizzle/tsconfig*.json"
       - "tsconfig.json"
       - "tsconfig.options.json"
     options:

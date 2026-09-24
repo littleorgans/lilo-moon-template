@@ -106,6 +106,16 @@ function checkDbPeerFloors(manifestPath, manifest) {
   );
   Object.assign(manifest.dependencies, floors);
   writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+  // The project's typed schema package imports the same Drizzle, so it moves to the floors with the
+  // application, as it would with a project's catalog pin.
+  const schemaPackage = join(packed, "db/drizzle");
+  const schema = readManifest(schemaPackage);
+  for (const section of ["devDependencies", "peerDependencies"]) {
+    for (const peer of Object.keys(floors)) {
+      if (schema[section]?.[peer] !== undefined) schema[section][peer] = floors[peer];
+    }
+  }
+  writeJson(join(schemaPackage, "package.json"), schema);
   run(packed, "pnpm", ["install"]);
   for (const [peer, floor] of Object.entries(floors)) {
     const application = resolvedPackage(web, peer);
@@ -116,6 +126,13 @@ function checkDbPeerFloors(manifestPath, manifest) {
       application.root,
       `db and the application resolved different ${peer} copies`,
     );
+    if (peer in (schema.devDependencies ?? {})) {
+      assert.equal(
+        resolvedPackage(schemaPackage, peer).root,
+        application.root,
+        `the schema package and the application resolved different ${peer} copies`,
+      );
+    }
     const { version } = application.manifest;
     assert.equal(
       version,
@@ -810,14 +827,26 @@ function checkDrizzleSkew(packages) {
   writeFileSync(
     join(aligned, "skew.ts"),
     `import { createDatabase } from "${name}";
+import type { Database, DatabaseOptions, ScopedTransaction } from "${name}";
 import { sql } from "drizzle-orm";
+import { pgTable, text } from "drizzle-orm/pg-core";
 
-const database = createDatabase({ connectionString: "postgres://localhost/unused" });
+// Existing 0.1.0 callers can still name all three public types without type arguments.
+const options: DatabaseOptions = { connectionString: "postgres://localhost/unused" };
+const database: Database = createDatabase(options);
 const principal = { userId: "user", orgId: null, roles: [], permissions: [], entitlements: [] };
-const result = await database.withPrincipal(principal, (tx) => tx.execute(sql\`select 1\`));
+const result = await database.withPrincipal(principal, (tx: ScopedTransaction) => tx.execute(sql\`select 1\`));
 // @ts-expect-error A pg QueryResult is not a string; this also rejects an accidental any result.
 const wrong: string = result;
 void wrong;
+
+// A project's schema types each transaction, relational queries included.
+const accounts = pgTable("accounts", { workosOrgId: text("workos_org_id").notNull() });
+const typed = createDatabase({ connectionString: "postgres://localhost/unused", schema: { accounts } });
+const rows = await typed.withPrincipal(principal, (tx) => tx.query.accounts.findMany());
+// @ts-expect-error workos_org_id is text, so the schema types it as a string.
+const orgIds: number[] = rows.map((row) => row.workosOrgId);
+void orgIds;
 `,
   );
   writeJson(join(aligned, "tsconfig.json"), {

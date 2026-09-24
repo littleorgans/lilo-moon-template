@@ -9,6 +9,9 @@
   },
   "references": [
     {
+      "path": "../../db/drizzle"
+    },
+    {
       "path": "../../packages/auth"
     },
     {

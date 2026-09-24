@@ -14,6 +14,9 @@ over `@hono/node-server`. It is private and never published. A new service start
 
 An account is `{ "id", "orgId", "createdAt" }`, with `createdAt` in ISO 8601 UTC. Every `/v1`
 response carries `Cache-Control: no-store`, and every response carries an `x-request-id`.
+PostgreSQL permits `infinity` and `-infinity` in the non-null creation timestamp; `to_char` returns
+NULL for those values. An account imported with either value returns 500 `internal`, because it
+cannot satisfy the response's required timestamp.
 
 ## Layout
 
@@ -23,7 +26,7 @@ src/
 ├── server/                   The composition root
 │   ├── config.ts             loadServiceConfig, and one log line on an invalid environment
 │   ├── auth.ts               requireAuth with an organization check and field-by-field logging
-│   ├── database.ts           The pool, from DATABASE_URL
+│   ├── database.ts           The pool, from DATABASE_URL, typed by @littleorgans/drizzle-schema
 │   ├── app.ts                Middleware, routes and error handling, with no socket
 │   ├── service.ts            Listen, and graceful shutdown
 │   ├── errors.ts             Error-to-status mapping
@@ -32,7 +35,7 @@ src/
 ├── routes/                   URL wiring only
 │   ├── health.ts
 │   └── account.ts
-└── features/accounts/        The queries, run inside the caller's scoped transaction
+└── features/accounts/        Typed Drizzle queries, run inside the caller's scoped transaction
     └── account.ts
 ```
 

@@ -50,7 +50,7 @@ The baseline makes these choices, recorded in `docs/decisions.md`:
 │   └── oxlint-config/      The shared lint rules that .oxlintrc.json extends, with the layout rule
 ├── db/
 │   ├── schema.sql          Atlas desired state: accounts and profiles
-│   └── drizzle/_generated/ Drizzle introspection artifact, checked but not imported
+│   └── drizzle/            @littleorgans/drizzle-schema: the typed schema in _generated/, which the app and service query through
 ├── scripts/                RLS assertions, security, consumer, release and gate scripts
 ├── .moon/                  Workspace, toolchains, and inherited task layers
 ├── .changeset/             Pending changesets
@@ -107,18 +107,18 @@ graph LR
 Each seam is a narrow structural interface. Tests use it to exercise the security logic without a
 live framework, provider or database.
 
-| Seam                             | Declared in                                                                   | Implemented by                                    | Purpose                                                             |
-| -------------------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------- | ------------------------------------------------------------------- |
-| `Verifier` / `Principal`         | `packages/auth/src/verify.ts`, `principal.ts`                                 | `createVerifier` (jose + JWKS)                    | Vendor-neutral identity: `userId`, `orgId`, roles, and more         |
-| `WorkOSClient`                   | `packages/auth-workos/src/client.ts`                                          | `@workos-inc/node` `WorkOS`                       | The exact SDK slice used; tests inject a recording client           |
-| `CookieJar`                      | `packages/auth-session/src/cookies.ts`                                        | `packages/auth-tanstack/src/cookies.ts`           | Keeps session logic free of any web framework                       |
-| `Access` union                   | `packages/auth-session/src/access.ts`                                         | `readAccess`                                      | Five session states the app branches on, never an exception         |
-| `UserAccess` / `UserFetch`       | `packages/auth-session/src/delegate.ts`                                       | `readUserAccess`, `AuthRuntime.asUser`            | Calls a service as the person without exposing their token          |
-| `ScopedClient` / `ScopedRunner`  | `packages/db/src/scoped.ts`, `apps/web/src/features/workspace/server/rows.ts` | `pg` client, `Database.withPrincipal`             | The only way claims enter Postgres                                  |
-| `ThemeTarget`                    | `packages/theme/src/apply.ts`                                                 | `element.style`                                   | Applies data themes without DOM types                               |
-| `@littleorgans/source` condition | every library `package.json` `exports`                                        | `packages/vite-config/src/index.ts`               | Dev resolves `src`, builds and Node resolve `dist`                  |
-| Composition root                 | `apps/web/src/server/*.ts`                                                    | `createAuthRuntime`, `getDatabase`, theme adapter | Application policy (paths, provider, org policy, copy) in one place |
-| Service composition root         | `services/api/src/server/*.ts`                                                | `createApp`, `startService`                       | Auth, database, logging and shutdown for the reference service      |
+| Seam                             | Declared in                                                    | Implemented by                                    | Purpose                                                             |
+| -------------------------------- | -------------------------------------------------------------- | ------------------------------------------------- | ------------------------------------------------------------------- |
+| `Verifier` / `Principal`         | `packages/auth/src/verify.ts`, `principal.ts`                  | `createVerifier` (jose + JWKS)                    | Vendor-neutral identity: `userId`, `orgId`, roles, and more         |
+| `WorkOSClient`                   | `packages/auth-workos/src/client.ts`                           | `@workos-inc/node` `WorkOS`                       | The exact SDK slice used; tests inject a recording client           |
+| `CookieJar`                      | `packages/auth-session/src/cookies.ts`                         | `packages/auth-tanstack/src/cookies.ts`           | Keeps session logic free of any web framework                       |
+| `Access` union                   | `packages/auth-session/src/access.ts`                          | `readAccess`                                      | Five session states the app branches on, never an exception         |
+| `UserAccess` / `UserFetch`       | `packages/auth-session/src/delegate.ts`                        | `readUserAccess`, `AuthRuntime.asUser`            | Calls a service as the person without exposing their token          |
+| `ScopedClient` / `ScopedRunner`  | `packages/db/src/scoped.ts`, `apps/web/src/server/database.ts` | `pg` client, `Database.withPrincipal`             | The only way claims enter Postgres                                  |
+| `ThemeTarget`                    | `packages/theme/src/apply.ts`                                  | `element.style`                                   | Applies data themes without DOM types                               |
+| `@littleorgans/source` condition | every library `package.json` `exports`                         | `packages/vite-config/src/index.ts`               | Dev resolves `src`, builds and Node resolve `dist`                  |
+| Composition root                 | `apps/web/src/server/*.ts`                                     | `createAuthRuntime`, `getDatabase`, theme adapter | Application policy (paths, provider, org policy, copy) in one place |
+| Service composition root         | `services/api/src/server/*.ts`                                 | `createApp`, `startService`                       | Auth, database, logging and shutdown for the reference service      |
 
 ### Application layout
 
@@ -384,10 +384,20 @@ the base's latest. The identity migration's comment still names `db/migrations`,
 because its bytes cannot change. Run `atlas migrate hash --dir file://packages/db/migrations` after
 adding a migration.
 
-The workspace feature is the only database caller. `countVisibleRows` (`features/workspace/server/
-rows.ts`) inserts the caller's `accounts` and `profiles` rows just in time, then counts what the
-policies expose. Without `DATABASE_URL`, `getDatabase()` returns `null` and the page reports that no
-transaction ran.
+Queries are typed Drizzle over `@littleorgans/drizzle-schema` (`db/drizzle/`), the schema
+`root:drizzle-generate` writes from the migrations and `root:drizzle-check` keeps current.
+`createDatabase({ schema })` types every scoped transaction by it. The schema says nothing about row
+level security: `root:rls-verify` is the authority on that.
+The service's timestamp expression is typed `string | null`: PostgreSQL `to_char` returns NULL for
+infinite timestamps even on a NOT NULL column. The service rejects that result with 500 rather than
+returning an account whose required `createdAt` is null.
+
+In the web app, the `/app` loader is the only database caller. In one scoped transaction it calls
+`ensureIdentityRows` (`src/server/identity.ts`), which inserts the caller's `accounts` and `profiles`
+rows just in time, and then `countVisibleRows` (`features/workspace/server/rows.ts`), which counts
+what the policies expose. Without `DATABASE_URL`, `getDatabase()` returns `null` and the page
+reports that no transaction ran. Tests run the same queries against a Drizzle `pg-proxy` database
+that records each statement and answers it from a function.
 
 ```mermaid
 erDiagram

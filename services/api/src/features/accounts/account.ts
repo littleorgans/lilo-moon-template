@@ -1,6 +1,8 @@
 import type { Principal } from "@littleorgans/auth";
-import type { SQL } from "drizzle-orm";
+import type * as schema from "@littleorgans/drizzle-schema";
+import { accounts } from "@littleorgans/drizzle-schema";
 import { sql } from "drizzle-orm";
+import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 
 /** The caller's organization, as this service exposes it. */
 export interface Account {
@@ -10,12 +12,11 @@ export interface Account {
 }
 
 /**
- * The slice of a scoped transaction these queries need. Declared structurally, as in the web app's
- * workspace feature, so a route test can supply a plain object instead of a Drizzle database.
+ * What these queries need from a scoped transaction: Drizzle over the project's generated schema.
+ * Any Postgres driver's database satisfies it, as in the web app, so a route test builds a real one
+ * over `drizzle-orm/pg-proxy` and answers its queries from a plain function.
  */
-export interface AccountTransaction {
-  execute(query: SQL): Promise<{ readonly rows: readonly Record<string, unknown>[] }>;
-}
+export type AccountTransaction = PgDatabase<PgQueryResultHKT, typeof schema>;
 
 /** Runs `body` scoped to `principal`. Satisfied by `Database.withPrincipal`. */
 export type ScopedRunner = <T>(
@@ -23,19 +24,24 @@ export type ScopedRunner = <T>(
   body: (tx: AccountTransaction) => Promise<T>,
 ) => Promise<T>;
 
-// Rows come back from the driver untyped. A shape this code did not ask for is a bug, not a value.
-function toAccount(row: Record<string, unknown>): Account {
-  const { id, workos_org_id: orgId, created_at: createdAt } = row;
-  if (typeof id !== "string" || typeof orgId !== "string" || typeof createdAt !== "string") {
-    throw new TypeError("accounts row has an unexpected shape");
-  }
-  return { id, orgId, createdAt };
-}
-
 // Drizzle's node-postgres session returns timestamptz as Postgres text, not a Date, so the query
 // writes the timestamp in the API's format itself: ISO 8601 in UTC, as Date#toISOString would.
-const columns = sql`id::text, workos_org_id,
-  to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS created_at`;
+const columns = {
+  id: accounts.id,
+  orgId: accounts.workosOrgId,
+  createdAt: sql<
+    string | null
+  >`to_char(${accounts.createdAt} AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')`,
+};
+
+// PostgreSQL permits +/-infinity in a NOT NULL timestamptz, but to_char returns NULL for those
+// values. Narrow the expression's nullable result to the HTTP contract's required timestamp.
+function toAccount(
+  row: Omit<Account, "createdAt"> & { readonly createdAt: string | null },
+): Account {
+  if (row.createdAt === null) throw new TypeError("account creation timestamp is not finite");
+  return { id: row.id, orgId: row.orgId, createdAt: row.createdAt };
+}
 
 /**
  * The caller's account, or null when their organization has none yet.
@@ -46,9 +52,8 @@ const columns = sql`id::text, workos_org_id,
  * integration test that exists to catch one.
  */
 export async function findAccount(tx: AccountTransaction): Promise<Account | null> {
-  const { rows } = await tx.execute(sql`SELECT ${columns} FROM accounts`);
-  const [row] = rows;
-  return row === undefined ? null : toAccount(row);
+  const [account] = await tx.select(columns).from(accounts);
+  return account === undefined ? null : toAccount(account);
 }
 
 /**
@@ -60,12 +65,12 @@ export async function findAccount(tx: AccountTransaction): Promise<Account | nul
 export async function provisionAccount(
   tx: AccountTransaction,
 ): Promise<{ readonly account: Account; readonly created: boolean }> {
-  const inserted = await tx.execute(
-    sql`INSERT INTO accounts (workos_org_id) VALUES (app.current_org_id())
-        ON CONFLICT (workos_org_id) DO NOTHING RETURNING ${columns}`,
-  );
-  const [row] = inserted.rows;
-  if (row !== undefined) return { account: toAccount(row), created: true };
+  const [inserted] = await tx
+    .insert(accounts)
+    .values({ workosOrgId: sql`app.current_org_id()` })
+    .onConflictDoNothing({ target: accounts.workosOrgId })
+    .returning(columns);
+  if (inserted !== undefined) return { account: toAccount(inserted), created: true };
   const existing = await findAccount(tx);
   if (existing === null) throw new Error("account conflicted on insert but is not visible");
   return { account: existing, created: false };
