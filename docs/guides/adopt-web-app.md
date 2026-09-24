@@ -1,9 +1,7 @@
 # Adopt the packages in a web app
 
-> Release status: these instructions target the upcoming `0.2.0` release, which includes typed
-> database schemas, the full database tools and `@littleorgans/create-app`. Run the registry/tag
-> commands after that release exists. For the published `0.1.0`, use the guide at `v0.1.0`: it
-> copies the glue by hand and has no typed schema option.
+> Still on `0.1.0`? Use [this guide at `v0.1.0`](https://github.com/littleorgans/lilo-moon-template/blob/v0.1.0/docs/guides/adopt-web-app.md),
+> which copies the glue by hand.
 
 This guide starts a new project with a TanStack Start web app on the published
 `@littleorgans/*` packages at `^0.2.0`. `@littleorgans/create-app` writes the project: the
