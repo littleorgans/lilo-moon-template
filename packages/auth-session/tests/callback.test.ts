@@ -344,6 +344,19 @@ describe("handleCallback", () => {
     },
   );
 
+  it.each(["configuration", "provider"] as const)(
+    "reports %s as a server failure",
+    async (reason) => {
+      const { jar } = jarWith({ [STATE_COOKIE]: issued });
+      const response = await handleCallback(
+        request(`?code=the-code&state=${issued}`),
+        jar,
+        callbackDeps(refusingAuth(reason)),
+      );
+      expect(response.status).toBe(500);
+    },
+  );
+
   it("keeps a step this application has not built at 400", async () => {
     const { jar } = jarWith({ [STATE_COOKIE]: issued });
     const response = await handleCallback(
@@ -423,7 +436,7 @@ describe("handleCallback", () => {
       jar,
       callbackDeps(auth),
     );
-    expect(response.status).toBe(400);
+    expect(response.status).toBe(500);
     expect(logged[0]).toMatchObject({ reason: "provider" });
   });
 });

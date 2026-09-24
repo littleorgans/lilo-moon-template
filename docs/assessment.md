@@ -99,7 +99,7 @@ provider outages and rate limits. Monitoring cannot tell a user error from an ou
 Email-start failures are logged as `auth.callback.failed` because they reuse
 `kind: "callback"` (`email.ts` line 61, `auth-tanstack/src/log.ts` line 20). Addressed (roadmap
 item 11): `retry` is served as 503, and email failures are logged as `auth.email.failed` with their
-step; `docs/auth-screens.md` records why the other dispositions stay 400.
+step; `docs/auth-screens.md` records the reason-based 400/500/503 mapping.
 
 **B5. Packages claim a license that the repository does not ship.** Every library `package.json`
 declares `"license": "MIT"`, while `docs/how-to-instantiate.md` (retired; its surviving sections are in `docs/maintaining.md` and `docs/guides/`) line 89 says there is no `LICENSE`
@@ -139,7 +139,7 @@ hard-coded to "Task board" (`apps/web/src/routes/__root.tsx` line 39). The publi
 `/theme` lab ships as a production route. The signed-in page prints the whole `Principal` JSON. All
 of this is documented as replaceable. It is also what a hurried product ships. Addressed for the
 title, the sign-in copy and `/theme` (roadmap item 19): the copy is in
-`apps/web/src/server/product.ts`, and a production build answers `/theme` with 404. The signed-in
+`apps/web/src/server/product.ts`, and production defaults `/theme` to 404 (a build flag can opt in). The signed-in
 page still prints the `Principal`.
 
 ## The Ugly

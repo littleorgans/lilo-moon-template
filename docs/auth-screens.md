@@ -283,7 +283,8 @@ ones collapse.
 | --------------- | ------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- | ------ |
 | `retry`         | `rate-limited`, `unavailable`                                                                                                   | Temporarily unavailable, try again    | 503    |
 | `unsupported`   | `email-verification-required`, `organization-selection-required`, the three `mfa-*`, `radar-challenge-required`, `sso-required` | A step this application has not built | 400    |
-| `misconfigured` | `invalid-request`, `unauthorized`, `not-found`, `conflict`, `configuration`, `provider`                                         | Not set up correctly, recorded        | 400    |
+| `misconfigured` | `invalid-request`, `unauthorized`, `not-found`, `conflict`                                                                      | Not set up correctly, recorded        | 400    |
+| `misconfigured` | `configuration`, `provider`                                                                                                     | Not set up correctly, recorded        | 500    |
 
 **`retry` is the only one that tells someone to try again**, because waiting is the entire remedy
 for exactly those two and advice that cannot work is worse than none.
@@ -297,14 +298,14 @@ trace the framework would have printed, and a callback that renders without repo
 page for a silent outage. The default destination is one JSON line per failure on stderr,
 overridable by the application.
 
-**Only `retry` is a 5xx.** Until 2026-09-24 every row was a 400, so monitoring could not tell a
-provider outage from a person's mistake. A rate limit or an outage is the provider unable to serve
-anyone, which is what 503 means and what an alert on 5xx should hear. `unsupported` is a property
-of the account signing in. `misconfigured` holds reasons that are ours, but `invalid-request` is
-the provider calling the request malformed, which a submitted value can cause as easily as our
-code, so a 5xx there would page someone for a typo; its log line is what makes a wrong API key
-findable. The refusals that come before the provider is asked (a forged or stale `state`, no code,
-no address, an expired email cookie) are the request's own fault and stay 400.
+**HTTP status uses the reason, not only the display disposition.** Provider rate limits and
+outages return 503. Known configuration errors and unexpected failures (`configuration`, `provider`)
+return 500, so a swallowed exception still reaches monitoring. Malformed requests and ambiguous
+provider 4xx refusals (`invalid-request`, `unauthorized`, `not-found`, `conflict`) stay 400:
+for example, `unauthorized` includes both OAuth refusals and a wrong API key. The log reason remains
+necessary to distinguish those cases. Unsupported account flows also stay 400. The refusals before
+the provider is asked (a forged or stale `state`, no code, no address, an expired email cookie) are 400. A rejected email code keeps its existing redirect to code entry; its `retry` log disposition
+does not turn a typo into a 503.
 
 **The email-code path collapses its failures the same way and logs them under their own kind.**
 They reused the callback's until 2026-09-24, so a code that could not be sent was logged as

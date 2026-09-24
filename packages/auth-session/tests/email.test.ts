@@ -292,6 +292,8 @@ describe("completeEmailSignIn", () => {
     ["unavailable", 503],
     ["sso-required", 400],
     ["invalid-request", 400],
+    ["configuration", 500],
+    ["provider", 500],
   ] satisfies [WorkOSAuthFailure, number][])(
     "collapses a %s failure exactly as the callback does, served as %i",
     async (reason, status) => {

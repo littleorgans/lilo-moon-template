@@ -117,19 +117,27 @@ export function reasonFor(error: unknown): WorkOSAuthFailure {
 }
 
 /**
- * The status a disposition is served with, so monitoring can tell an outage from a person's error.
- *
- * Only `retry` leaves 400. Its two reasons, a rate limit and a provider outage, are the provider
- * being unable to serve anyone, which is what 503 says and what an alert on 5xx should hear.
- * `unsupported` is a property of the account signing in, not of the service. `misconfigured` stays
- * 400 too, although it holds reasons that are ours: `invalid-request` is the provider calling the
- * request malformed, which a submitted value can cause as easily as our code, and a 5xx for that
- * would page someone for a typo. Its log line, not its status, is what makes a wrong API key findable.
+ * Status needs the reason, not only the display disposition: `misconfigured` includes both
+ * malformed requests and server faults, while `retry` also describes a rejected email code.
+ * Keep ambiguous provider 4xx refusals at 400; configuration and unexpected failures are 500.
  */
-const STATUSES: Readonly<Record<CallbackDisposition, number>> = {
-  retry: 503,
-  unsupported: 400,
-  misconfigured: 400,
+const STATUSES: Readonly<Record<WorkOSAuthFailure, number>> = {
+  "rate-limited": 503,
+  unavailable: 503,
+  "code-rejected": 400,
+  "email-verification-required": 400,
+  "organization-selection-required": 400,
+  "mfa-enrollment-required": 400,
+  "mfa-challenge-required": 400,
+  "mfa-verification-required": 400,
+  "radar-challenge-required": 400,
+  "sso-required": 400,
+  "invalid-request": 400,
+  unauthorized: 400,
+  "not-found": 400,
+  conflict: 400,
+  configuration: 500,
+  provider: 500,
 };
 
 /**
@@ -140,7 +148,7 @@ const STATUSES: Readonly<Record<CallbackDisposition, number>> = {
  * broken.
  *
  * 400 by default, for the failures the request itself caused: a forged or stale state, a missing
- * code, an empty address. A provider refusal goes through `dispositionPage`, which picks the status.
+ * code, an empty address. A provider refusal goes through `providerFailurePage`, which picks the status.
  */
 export function failurePage(message: string, status = 400): Response {
   return new Response(
@@ -154,11 +162,11 @@ export function messageFor(disposition: CallbackDisposition): string {
   return MESSAGES[disposition];
 }
 
-export function statusFor(disposition: CallbackDisposition): number {
-  return STATUSES[disposition];
+export function statusFor(reason: WorkOSAuthFailure): number {
+  return STATUSES[reason];
 }
 
-/** The page for a provider refusal: the disposition's message, served with its status. */
-export function dispositionPage(disposition: CallbackDisposition): Response {
-  return failurePage(messageFor(disposition), statusFor(disposition));
+/** Public copy stays coarse; HTTP status retains the distinction needed by monitoring. */
+export function providerFailurePage(reason: WorkOSAuthFailure): Response {
+  return failurePage(messageFor(dispositionFor(reason)), statusFor(reason));
 }

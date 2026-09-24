@@ -211,30 +211,47 @@ function authEnvironment(origin) {
 async function refusesBadConfiguration(root) {
   const port = await freePort();
   const origin = `http://127.0.0.1:${port}`;
-  const password = "far-too-short";
-  const app = spawnSync(process.execPath, ["apps/web/.output/server/index.mjs"], {
-    cwd: root,
-    env: {
-      ...env,
-      NITRO_HOST: "127.0.0.1",
-      NITRO_PORT: String(port),
-      ...authEnvironment(origin),
-      WORKOS_COOKIE_PASSWORD: password,
-    },
-    encoding: "utf8",
-    timeout: 30_000,
-  });
-  const output = `${app.stdout}${app.stderr}`;
-  assert.notEqual(app.status, 0, `a built server with a short cookie password started:\n${output}`);
-  assert.match(output, /WORKOS_COOKIE_PASSWORD must be at least 32 characters/);
-  assert.doesNotMatch(output, /Listening on/, "the server must refuse before it listens");
-  assert.ok(!output.includes(password), "the refusal must not print the password");
-  process.stdout.write(
-    `published-shape: negative proof, a short cookie password stopped the built server, exit ${app.status}.\n`,
-  );
+  const cases = [
+    [
+      "WORKOS_COOKIE_PASSWORD",
+      "far-too-short",
+      /WORKOS_COOKIE_PASSWORD must be at least 32 characters/,
+    ],
+    [
+      "WORKOS_REDIRECT_URI",
+      "accidentally-pasted-secret",
+      /WORKOS_REDIRECT_URI must be an absolute URL/,
+    ],
+  ];
+  for (const [name, value, message] of cases) {
+    const app = spawnSync(process.execPath, ["apps/web/.output/server/index.mjs"], {
+      cwd: root,
+      env: {
+        ...env,
+        NITRO_HOST: "127.0.0.1",
+        NITRO_PORT: String(port),
+        ...authEnvironment(origin),
+        [name]: value,
+      },
+      encoding: "utf8",
+      timeout: 30_000,
+    });
+    const output = `${app.stdout}${app.stderr}`;
+    assert.equal(app.error, undefined, "the invalid server must exit, not time out");
+    assert.ok(
+      Number.isInteger(app.status) && app.status !== 0,
+      "the invalid server must exit nonzero",
+    );
+    assert.match(output, message);
+    assert.doesNotMatch(output, /Listening on/, "the server must refuse before it listens");
+    assert.ok(!output.includes(value), "the refusal must not print the invalid value");
+    process.stdout.write(
+      `published-shape: negative proof, invalid ${name} stopped the built server, exit ${app.status}.\n`,
+    );
+  }
 }
 
-async function exercise(root) {
+async function exercise(root, themeLab = false) {
   const port = await freePort();
   const origin = `http://127.0.0.1:${port}`;
   const app = spawn(process.execPath, ["apps/web/.output/server/index.mjs"], {
@@ -253,7 +270,7 @@ async function exercise(root) {
     assert.ok(response?.ok, "built consumer must serve the sign-in page");
     // The theme lab is a reference page for the dev server; a production build must not serve it.
     const lab = await fetch(`${origin}/theme`, { signal: AbortSignal.timeout(5000) });
-    assert.equal(lab.status, 404, "a production build must not serve the theme lab");
+    assert.equal(lab.status, themeLab ? 200 : 404, "the build must honor the theme lab opt-in");
     const anonymous = await fetch(`${origin}/app`, {
       redirect: "manual",
       signal: AbortSignal.timeout(5000),
@@ -1001,6 +1018,15 @@ async function checkSnapshot() {
   run(snapshot, "moon", ["run", "web:build"]);
   await refusesBadConfiguration(snapshot);
   await exercise(snapshot);
+  // Prove the public build flag in a real SSR bundle, not only in a mocked route test.
+  const optInEnv = join(snapshot, "apps/web/.env.theme-lab-check");
+  writeFileSync(optInEnv, "VITE_ENABLE_THEME_LAB=true\n");
+  try {
+    run(snapshot, "moon", ["run", "web:build", "--", "--mode", "theme-lab-check"]);
+    await exercise(snapshot, true);
+  } finally {
+    rmSync(optInEnv);
+  }
 
   mkdirSync(tarballs);
   const artifacts = new Map();

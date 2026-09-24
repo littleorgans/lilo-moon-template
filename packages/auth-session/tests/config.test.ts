@@ -1,3 +1,5 @@
+import { inspect } from "node:util";
+
 import { describe, expect, it } from "vitest";
 
 import { loadAuthConfig } from "../src/config.js";
@@ -208,4 +210,18 @@ it("refuses plaintext callbacks outside loopback", () => {
   expect(() =>
     loadAuthConfig({ ...complete, WORKOS_REDIRECT_URI: "http://production.example/callback" }),
   ).toThrow("HTTPS");
+});
+
+// Startup prints the entire exception, including custom properties and causes, not only message.
+it("refuses a malformed redirect without exposing its value on stderr", () => {
+  const value = "accidentally-pasted-secret";
+  let thrown: unknown;
+  try {
+    loadAuthConfig({ ...complete, WORKOS_REDIRECT_URI: value });
+  } catch (error) {
+    thrown = error;
+  }
+  expect(thrown).toBeInstanceOf(Error);
+  expect(inspect(thrown)).toContain("WORKOS_REDIRECT_URI must be an absolute URL");
+  expect(inspect(thrown)).not.toContain(value);
 });

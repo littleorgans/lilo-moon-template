@@ -4,7 +4,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { getRouter } from "../../src/router.js";
 import { rootLoader } from "../../src/routes/__root.js";
-import * as product from "../../src/server/product.js";
 import { setThemeResponse, themeCookieName } from "../../src/server/theme.js";
 
 const origin = "https://example.test";
@@ -163,13 +162,25 @@ describe("the theme lab route", () => {
   // server's 404 is asserted end to end by root:published-shape.
   describe("outside the dev server", () => {
     afterEach(() => {
-      vi.doUnmock("../../src/server/product.js");
+      vi.unstubAllEnvs();
       vi.resetModules();
+    });
+
+    it("lets a product explicitly enable the lab in production", async () => {
+      vi.resetModules();
+      vi.stubEnv("DEV", false);
+      vi.stubEnv("VITE_ENABLE_THEME_LAB", "true");
+      const { getRouter: productionRouter } = await import("../../src/router.js");
+      const router = productionRouter();
+      router.update({ history: createMemoryHistory({ initialEntries: ["/theme"] }) });
+      await router.load();
+      expect(renderToStaticMarkup(<RouterProvider router={router} />)).toContain("Theme lab");
     });
 
     it("answers /theme as not found and renders no lab", async () => {
       vi.resetModules();
-      vi.doMock("../../src/server/product.js", () => ({ ...product, SHOW_THEME_LAB: false }));
+      vi.stubEnv("DEV", false);
+      vi.stubEnv("VITE_ENABLE_THEME_LAB", "false");
       const { getRouter: productionRouter } = await import("../../src/router.js");
       const router = productionRouter();
       router.update({ history: createMemoryHistory({ initialEntries: ["/theme"] }) });

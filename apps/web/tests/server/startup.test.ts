@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import startup, { checkConfiguration, checkStartup } from "../../src/server/startup.js";
 
@@ -11,6 +11,7 @@ const valid = {
 
 // The finding this closes: a bad cookie password passed the deploy and failed the first request.
 describe("checkConfiguration", () => {
+  afterEach(() => vi.unstubAllEnvs());
   it("accepts a complete configuration", () => {
     expect(() => {
       checkConfiguration(valid, false);
@@ -47,8 +48,21 @@ describe("checkConfiguration", () => {
     }).toThrow(/Missing required environment/);
   });
 
-  // Vitest runs with DEV set, like the dev server, so the plugin itself must not demand an env.
+  it("validates supplied configuration in dev too", () => {
+    expect(() => checkConfiguration(valid, true)).not.toThrow();
+    expect(() => checkConfiguration({ WORKOS_API_KEY: "partial" }, true)).toThrow(
+      /Missing required/,
+    );
+    expect(() => checkConfiguration({ ...valid, WORKOS_COOKIE_PASSWORD: "short" }, true)).toThrow(
+      /at least 32/,
+    );
+  });
+
+  // Vitest runs with DEV set, like the dev server.
   it("is the Nitro plugin, and quiet outside a production build", () => {
+    for (const name of [...Object.keys(valid), "WORKOS_COOKIE_PASSWORD_PREVIOUS"]) {
+      vi.stubEnv(name, undefined);
+    }
     expect(startup).toBe(checkStartup);
     expect(() => {
       checkStartup();

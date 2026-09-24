@@ -3,7 +3,8 @@
  * than hunting for the reference app's name across its routes.
  *
  * Plain data with no imports, because the routes render it in the browser as well as on the
- * server. The views take all of it as props, so nothing here is baked into a package.
+ * server. This is public composition data, not a server-only module; never add secrets or service
+ * imports here. `server/` names ownership, not a compiler boundary. The views take it as props.
  */
 export const PRODUCT = {
   /** The document title on every page, and the heading on the sign-in page. */
@@ -18,10 +19,8 @@ export const PRODUCT = {
 } as const;
 
 /**
- * Whether `/theme`, the theme lab, is served. It is a reference page for working on the theme, not
- * a product page, so a production build answers it with 404 and only the dev server renders it.
- *
- * Fixed when the bundle is built rather than read from the environment: the route is matched in the
- * browser too, where there is no environment to read.
+ * The reference lab is development-only by default. A product can opt in at build time with
+ * VITE_ENABLE_THEME_LAB=true; this public flag is identical in the SSR and browser bundles.
  */
-export const SHOW_THEME_LAB: boolean = import.meta.env.DEV;
+export const SHOW_THEME_LAB: boolean =
+  import.meta.env.DEV || import.meta.env["VITE_ENABLE_THEME_LAB"] === "true";

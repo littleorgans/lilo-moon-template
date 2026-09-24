@@ -133,7 +133,14 @@ export function loadAuthConfig(env: NodeJS.ProcessEnv = process.env): AuthConfig
 
   const clientId = values.WORKOS_CLIENT_ID;
   const redirectUri = values.WORKOS_REDIRECT_URI;
-  const redirect = new URL(redirectUri);
+  let redirect: URL;
+  try {
+    redirect = new URL(redirectUri);
+  } catch {
+    // Node's TypeError carries an `input` property that stderr prints on an uncaught startup error.
+    // Replace it without a cause so neither the URI nor an accidentally pasted secret is logged.
+    throw new Error("WORKOS_REDIRECT_URI must be an absolute URL.");
+  }
   if (
     redirect.protocol !== "https:" &&
     !(

@@ -3,7 +3,7 @@ import type { WorkOSAuth } from "@littleorgans/auth-workos";
 import { ensureOrganization, establishSession } from "./callback.js";
 import type { SessionDeps } from "./callback.js";
 import type { CookieJar } from "./cookies.js";
-import { dispositionFor, dispositionPage, failurePage, reasonFor } from "./failure.js";
+import { dispositionFor, providerFailurePage, failurePage, reasonFor } from "./failure.js";
 import type { EmailFailure } from "./failure.js";
 import { refuseCrossOrigin } from "./origin.js";
 import { EMAIL_COOKIE } from "./session.js";
@@ -94,7 +94,7 @@ export async function startEmailSignIn(
     const reason = reasonFor(error);
     const disposition = dispositionFor(reason);
     deps.log({ kind: "email", step: "start", reason, disposition, error });
-    return dispositionPage(disposition);
+    return providerFailurePage(reason);
   }
 
   // Written only after the provider accepted the address, so the cookie always names an email a
@@ -171,7 +171,7 @@ export async function completeEmailSignIn(
     const disposition = dispositionFor(reason);
     deps.log({ kind: "email", step: "verify", reason, disposition, error });
     if (reason === "code-rejected") return retry;
-    return dispositionPage(disposition);
+    return providerFailurePage(reason);
   }
 
   // Spent only on success. A typo must not cost the person the address they already proved they

@@ -52,8 +52,10 @@ touch either.
 ## Failure pages
 
 A sign-in the provider refuses renders a plain page with no script or stylesheet. The status tells
-monitoring whose problem it is: 503 for the `retry` disposition (the provider rate-limited us or is
-down) and 400 for everything else, including every refusal made before the provider is asked. The
+monitoring whose problem it is: 503 for provider rate limits and outages, 500 for `configuration`
+and unexpected `provider` failures, and 400 for unsupported flows and ambiguous provider 4xx
+refusals. Refusals before the provider is asked stay 400; a rejected email code still redirects to
+code entry. Display dispositions remain coarse, while HTTP status uses the underlying reason. The
 dispositions, and why only one is a 5xx, are in `docs/auth-screens.md` in the repository.
 
 Every refusal is handed to the `log` dependency as an `AuthFailureReport`: `kind: "callback"` for the
