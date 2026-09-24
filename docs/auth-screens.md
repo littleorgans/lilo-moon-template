@@ -142,7 +142,8 @@ organization, one membership. Provisioning after an orphaned organization was cr
 the orphan adopted, one membership added, no second organization.
 
 After the refresh the token carries `org_id`, and the `accounts` and `profiles` rows are inserted
-by the application's `countVisibleRows` transaction in the first request that follows.
+by the application's `ensureIdentityRows`, which the `/app` loader calls in the first request
+that follows.
 
 ### 3. Signed in, no entitlements
 

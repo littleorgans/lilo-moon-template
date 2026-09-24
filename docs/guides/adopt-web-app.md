@@ -70,7 +70,7 @@ cp "$REF"/{.editorconfig,.gitignore,.npmrc,.prototools,.env.example,.oxlintrc.js
 cp "$REF"/{commitlint.config.js,lefthook.yml,justfile,renovate.json,tsconfig.options.json,vitest.config.ts,package.json,pnpm-workspace.yaml} .
 mkdir -p .moon/tasks .vscode .github/workflows scripts
 cp "$REF"/.moon/{workspace,toolchains}.yml .moon/
-cp "$REF"/.moon/tasks/{node,node-application,node-service}.yml .moon/tasks/
+cp "$REF"/.moon/tasks/{node,node-library,node-application,node-service}.yml .moon/tasks/
 cp "$REF"/.vscode/{extensions,settings}.json .vscode/
 cp "$REF"/.github/workflows/ci.yml .github/workflows/
 cp "$REF"/scripts/{check-security,assert-tsgolint-lockstep,install-hooks}.mjs scripts/
@@ -184,6 +184,9 @@ tasks:
     inputs:
       - "@globs(sources)"
       - ".oxlintrc.json"
+    # Type-aware lint reads the typed schema's declarations, which only its build writes.
+    deps:
+      - "#ts-library:build"
     options:
       shell: false
       runInCI: "always"
@@ -225,6 +228,7 @@ tasks:
       - "apps/*/tsconfig*.json"
       - "packages/*/tsconfig*.json"
       - "services/*/tsconfig*.json"
+      - "db/drizzle/tsconfig*.json"
       - "tsconfig.json"
       - "tsconfig.options.json"
     options:
@@ -281,15 +285,15 @@ git commit -m "chore: add the workspace root"
 
 What each part is for:
 
-| Files                                                                                | Purpose                                                                                      |
-| ------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------- |
-| `.prototools`, `.moon/workspace.yml`, `.moon/toolchains.yml`                         | The Moon, Node and pnpm pins. `.prototools` also pins Atlas, for `atlas migrate hash`.       |
-| `.moon/tasks/node.yml`, `node-application.yml`, `node-service.yml`                   | Tasks every project inherits: typecheck and tests, plus build, dev, preview or start by tag. |
-| `moon.yml`, `scripts/`                                                               | The workspace-wide gates, and the scripts two of them run.                                   |
-| `package.json`, `pnpm-workspace.yaml`, `.npmrc`                                      | Tool versions, the catalog, and the supply-chain policy.                                     |
-| `tsconfig.options.json`, `vitest.config.ts`, `.oxlintrc.json`, `.oxfmtrc.json`       | Compiler, test and coverage floor, lint and format settings shared by every project.         |
-| `.secretlintrc.json`, `.secretlintignore`, `lefthook.yml`, `commitlint.config.js`    | Secret scanning, the pre-commit subset of the gates, and Conventional Commits.               |
-| `.github/workflows/ci.yml`, `renovate.json`, `justfile`, `.editorconfig`, `.vscode/` | CI runs `moon ci`, dependency updates, command aliases, and editor settings.                 |
+| Files                                                                                  | Purpose                                                                                       |
+| -------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `.prototools`, `.moon/workspace.yml`, `.moon/toolchains.yml`                           | The Moon, Node and pnpm pins. `.prototools` also pins Atlas, for `atlas migrate hash`.        |
+| `.moon/tasks/node.yml`, `node-library.yml`, `node-application.yml`, `node-service.yml` | Tasks every project inherits: typecheck and tests, plus build, dev, preview or start by kind. |
+| `moon.yml`, `scripts/`                                                                 | The workspace-wide gates, and the scripts two of them run.                                    |
+| `package.json`, `pnpm-workspace.yaml`, `.npmrc`                                        | Tool versions, the catalog, and the supply-chain policy.                                      |
+| `tsconfig.options.json`, `vitest.config.ts`, `.oxlintrc.json`, `.oxfmtrc.json`         | Compiler, test and coverage floor, lint and format settings shared by every project.          |
+| `.secretlintrc.json`, `.secretlintignore`, `lefthook.yml`, `commitlint.config.js`      | Secret scanning, the pre-commit subset of the gates, and Conventional Commits.                |
+| `.github/workflows/ci.yml`, `renovate.json`, `justfile`, `.editorconfig`, `.vscode/`   | CI runs `moon ci`, dependency updates, command aliases, and editor settings.                  |
 
 From `0.2.0`, `tsconfig.options.json`, `.oxlintrc.json`, `vitest.config.ts`, `renovate.json` and
 `ci.yml` extend or call shared pieces from this repository instead of holding the settings
@@ -301,12 +305,19 @@ them together: `.prototools` and `versionConstraint` must name the same Moon ver
 
 ## 4. Add the web app
 
-Copy the reference app:
+Copy the reference app, and the typed database schema it queries through:
 
 ```sh
-mkdir -p apps
+mkdir -p apps db
 cp -R "$REF"/apps/web apps/web
+cp -R "$REF"/db/drizzle db/drizzle
 ```
+
+`db/drizzle/` is the project's typed Drizzle schema as a workspace package. `db-tools
+drizzle-generate` writes its `_generated/schema.ts` from the migrations, and the package builds it
+so the app and any service import the tables. The reference's copy is generated from the identity
+migrations that step 6 takes, so it is current until your own migrations change it.
+`.moon/workspace.yml` and `pnpm-workspace.yaml` from step 3 already name it.
 
 The whole directory is [the scaffold copy list](../direction.md#e-scaffolding) plus the files
 that list imports. All of it is glue that the project now owns:
@@ -316,13 +327,14 @@ that list imports. All of it is glue that the project now owns:
 | `vite.config.ts`                                           | Plugins, the development port, and `workspaceSourceConfig` from `@littleorgans/vite-config`.             |
 | `src/server/auth.ts`                                       | The composition root: `createAuthRuntime` with `organizationPolicy`, `throttle` and `serviceOrigins`.    |
 | `src/server/throttle.ts`                                   | The in-memory email sign-in throttle (see [Operate it](#8-operate-it)).                                  |
-| `src/server/database.ts`                                   | The pool, built lazily from `DATABASE_URL`, and `null` without one.                                      |
+| `src/server/database.ts`                                   | The pool, built lazily from `DATABASE_URL`, and `null` without one, typed by the project's schema.       |
+| `src/server/identity.ts`                                   | `ensureIdentityRows`: the caller's `accounts` and `profiles` rows, created just in time.                 |
 | `src/server/theme.ts`                                      | The theme cookie, and the Origin-checked `/api/theme` handler.                                           |
 | `src/server/product.ts`                                    | The product's name and sign-in copy, and `SHOW_THEME_LAB`, which serves `/theme` on the dev server only. |
 | `src/server/startup.ts`                                    | A Nitro plugin that validates the auth environment before the standalone Node server listens.            |
 | `src/routes/(auth)/`, `src/routes/api/auth/`               | The OAuth callback, the email code page and the session error page, plus sign-in, email and sign-out.    |
 | `src/routes/__root.tsx`, `index.tsx`, `app.tsx`            | The document shell, the sign-in page and the signed-in page.                                             |
-| `src/features/workspace/`                                  | The signed-in page's loader and view. Replace it with your own first feature.                            |
+| `src/features/workspace/`                                  | The signed-in page's loader and view. Replace it, keeping the `ensureIdentityRows` call.                 |
 | `src/routes/theme.tsx`, `src/routes/api/theme.ts`          | Optional: the `/theme` reference page, 404 in a production build, and its POST route.                    |
 | `src/router.tsx`, `src/routeTree.gen.ts`, `src/styles.css` | The router, its generated route tree (rewritten by every build), and the stylesheet registrations.       |
 | `tests/`                                                   | The route, wiring and feature tests. The coverage floor is per file, so copy them all.                   |
@@ -372,13 +384,20 @@ tasks:
 }
 ```
 
+Name the schema package for your scope, and point the app's imports at it:
+
+```sh
+(cd db/drizzle && npm pkg set name=@acme/drizzle-schema)
+grep -rl @littleorgans/drizzle-schema apps/web | xargs perl -pi -e 's#\@littleorgans/drizzle-schema#\@acme/drizzle-schema#g'
+```
+
 Install. `@littleorgans/db` takes `drizzle-orm`, `pg` and `@types/pg` as peers, and
 `@littleorgans/ui` takes `tailwindcss`. The app supplies all four, so each package uses the app's
 single copy:
 
 ```sh
 pnpm install
-pnpm add --filter @acme/web @littleorgans/auth@catalog: @littleorgans/auth-tanstack@catalog: @littleorgans/db@catalog: @littleorgans/theme@catalog: @littleorgans/ui@catalog: @littleorgans/views@catalog: @tanstack/react-router@catalog: @tanstack/react-start@catalog: react@catalog: react-dom@catalog: drizzle-orm@catalog: pg@catalog:
+pnpm add --filter @acme/web @acme/drizzle-schema@workspace:* @littleorgans/auth@catalog: @littleorgans/auth-tanstack@catalog: @littleorgans/db@catalog: @littleorgans/theme@catalog: @littleorgans/ui@catalog: @littleorgans/views@catalog: @tanstack/react-router@catalog: @tanstack/react-start@catalog: react@catalog: react-dom@catalog: drizzle-orm@catalog: pg@catalog:
 pnpm add --filter @acme/web -D @littleorgans/vite-config@catalog: @tailwindcss/vite@catalog: @types/node@catalog: @types/pg@catalog: @types/react@catalog: @types/react-dom@catalog: @vitejs/plugin-react@catalog: nitro@catalog: tailwindcss@catalog: vite@catalog:
 pnpm peers check
 ```
@@ -543,7 +562,10 @@ Generate the typed Drizzle schema, which `drizzle-check` keeps honest from now o
 moon run root:drizzle-generate
 ```
 
-It writes `db/drizzle/_generated/schema.ts`. Commit it, and never edit it by hand.
+It writes `db/drizzle/_generated/schema.ts`. Commit it, and never edit it by hand. The app imports
+it as `@acme/drizzle-schema`, and `createDatabase({ connectionString, schema })` types every scoped
+transaction by it. It records tables and columns, not security: `rls-verify` is the authority on the
+policies.
 
 ### In a real database
 

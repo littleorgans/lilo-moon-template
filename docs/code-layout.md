@@ -35,6 +35,7 @@ apps/web/src/
 ├── server/
 │   ├── auth.ts
 │   ├── database.ts
+│   ├── identity.ts
 │   ├── product.ts
 │   ├── startup.ts
 │   ├── theme.ts
@@ -53,7 +54,7 @@ under their corresponding directory. Dotted filenames remain available when an e
 would make navigation harder. Regenerate `routeTree.gen.ts` through the app build after moving routes.
 
 `features/workspace/` demonstrates a complete feature. Its model describes the page data, its server
-modules provision and query the application's tables, and its page receives the result as props.
+modules query the application's tables, and its page receives the result as props.
 The route invokes the feature loader through an explicit Start server function and passes loader
 data to the page. The page can be tested without importing the route or constructing a router. The dependency runs one
 way: `root:lint` fails a module under `features/` that imports from `routes/` or the generated route
@@ -61,7 +62,9 @@ tree (`no-restricted-imports` in `@littleorgans/oxlint-config`).
 
 `server/` contains application-wide adapters and service construction. Name each module for its
 service or behavior. Put a feature's query alongside that feature. The database package owns pooling
-and scoped transactions; the workspace feature owns the accounts/profiles queries it executes.
+and scoped transactions. `server/database.ts` types them by the project's schema
+(`@littleorgans/drizzle-schema`), and `server/identity.ts` provisions the caller's `accounts` and
+`profiles` rows, which every feature can then assume. The workspace feature owns the count it runs.
 
 `server/product.ts` is the explicit public-data exception: the composition root owns the product
 name, screen copy and theme-lab policy, and routes import that plain data in both browser and SSR

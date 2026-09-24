@@ -78,12 +78,17 @@ uses raw `sql` templates (`apps/web/src/features/workspace/server/rows.ts` lines
 `db/drizzle/_generated/schema.ts` misreports the SELECT policies (its own header says so).
 `root:drizzle-generate` and `root:drizzle-check` keep that artifact in sync, spending a Docker
 Postgres in CI, but no code consumes it. Drizzle is used as a SQL executor, not as a typed query
-layer.
+layer. Addressed by roadmap item 9: `db/drizzle/` is the `@littleorgans/drizzle-schema` workspace
+package, `createDatabase({ schema })` types every scoped transaction by it, and the web app and
+`services/api` query through typed Drizzle. The policy misreport stands; `rls-verify` is still the
+authority on row level security.
 
 **B2. A function named "count" writes.** `countVisibleRows` inserts `accounts` and `profiles` rows
 before counting (`rows.ts` lines 35–52), and it runs from a GET loader (`routes/app.tsx`). The
 just-in-time provisioning is intended (`docs/user-entity.md`). Hiding it in a diagnostic count on a
-GET path is the pattern products will copy.
+GET path is the pattern products will copy. Addressed by roadmap item 10: `ensureIdentityRows`
+(`apps/web/src/server/identity.ts`) provisions, the `/app` loader calls it explicitly before it
+reads, and `countVisibleRows` only counts.
 
 **B3. The email-code endpoints lack the Origin check that sign-out has.** `startEmailSignIn` and
 `completeEmailSignIn` accept any cross-origin POST (`packages/auth-session/src/email.ts` lines

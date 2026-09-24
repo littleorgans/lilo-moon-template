@@ -60,7 +60,9 @@ live subscriptions is unpleasant, which is why it is written down before the fir
    new user does not.
 5. The app creates the organization and adds the user to it, automatically, with no screen.
 6. Refresh. The token now carries `org_id`.
-7. In the transaction that verified that token, insert the `accounts` and `profiles` rows.
+7. The app lands on its signed-in page, whose loader inserts the `accounts` and `profiles` rows
+   in the transaction scoped to that token's Principal. See
+   [Provisioning the rows](#provisioning-the-rows).
 
 Step 5 is the one that surprises people: social signup hands you an identity, not a tenant. It is
 **permanently application code**, because WorkOS has no setting that creates an organization for a
@@ -70,6 +72,25 @@ The organization is named from the profile when one exists and from the full ema
 otherwise, it is created with **no domains attached**, and creation is keyed on the WorkOS user id
 so a retry cannot produce two. The reasoning behind all three rules, and the screens either side of
 this step, are [The auth screens](auth-screens.md).
+
+### Provisioning the rows
+
+The rows are created just in time, from the verified Principal, because WorkOS tells the app
+nothing when a user or organization is created. In the reference app that is one named function,
+`ensureIdentityRows` in `apps/web/src/server/identity.ts`:
+
+- It inserts the `accounts` row for `orgId`, when the Principal has one, and the `profiles` row for
+  `userId`, each with `ON CONFLICT DO NOTHING`. It is idempotent, so a retry or a second tab is
+  harmless.
+- It runs inside `withPrincipal`, so the insert policies check the values against the claims.
+- It is a write, so it is called by name and never hidden inside a read. The `/app` loader calls it,
+  because `/app` is where every sign-in lands, and then counts the rows in the same transaction.
+- Another route that needs the rows calls it first as well. A session outlives the sign-in that
+  started it, so a bookmarked deep link can arrive before `/app` has run for the current
+  organization.
+
+`services/api` has no landing page, so its callers create the account explicitly with
+`PUT /v1/account`, which returns 201 or 200.
 
 ### Payment
 
