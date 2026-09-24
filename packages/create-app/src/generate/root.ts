@@ -108,6 +108,8 @@ const TASKS = {
     "published-shape",
     "release-rehearsal",
     "scripts-test",
+    "skills-check",
+    "skills-sync",
   ],
 } as const;
 

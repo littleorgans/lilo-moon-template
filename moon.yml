@@ -103,6 +103,26 @@ tasks:
       shell: false
       runInCI: "always"
 
+  # A skill may cite any path in the repository, so any rename or deletion can break one. Nothing
+  # narrower than the whole tree is its input: it runs uncached on every change.
+  skills-check:
+    description: "Check that the skills keep the catalog's rules and every repository path they cite exists"
+    type: "test"
+    command: "node scripts/check-skills.mjs"
+    options:
+      shell: false
+      cache: false
+      runInCI: "always"
+
+  skills-sync:
+    description: "Copy the committed skills into an agent-runtimes catalog checkout: moon run root:skills-sync -- <catalog>"
+    type: "run"
+    command: "node scripts/sync-skills.mjs"
+    options:
+      shell: false
+      cache: false
+      runInCI: false
+
   scripts-test:
     type: "test"
     command: "node"
@@ -161,6 +181,7 @@ tasks:
       - "*"
       - ".*"
       - "docs/**/*"
+      - "skills/**/*"
       - ".github/**/*"
       - ".vscode/**/*"
       - ".changeset/**/*"
