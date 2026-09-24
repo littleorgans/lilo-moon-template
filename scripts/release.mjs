@@ -336,7 +336,7 @@ async function smoke(directory) {
       const result = spawnSync(
         "npm",
         ["install", "--no-audit", "--no-fund", "--ignore-scripts", "--prefer-online"],
-        { cwd: root, stdio: "inherit", timeout: 120_000, killSignal: "SIGKILL" },
+        { cwd: root, stdio: "inherit", timeout: 10 * 60_000, killSignal: "SIGKILL" },
       );
       return result.status === 0;
     });

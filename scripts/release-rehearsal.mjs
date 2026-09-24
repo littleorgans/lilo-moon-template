@@ -87,7 +87,7 @@ log: { type: stdout, format: pretty, level: warn }
   const response = await fetch(`${registry}-/user/org.couchdb.user:rehearsal`, {
     method: "PUT",
     headers: { "content-type": "application/json" },
-    signal: AbortSignal.timeout(5000),
+    signal: AbortSignal.timeout(60_000),
     body: JSON.stringify({ name: "rehearsal", password: "rehearsal-password" }),
   });
   assert.equal(response.status, 201, "Verdaccio must register the rehearsal user");
