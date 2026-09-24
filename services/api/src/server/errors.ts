@@ -1,3 +1,4 @@
+import { DrizzleQueryError } from "drizzle-orm";
 import type { ErrorHandler, NotFoundHandler } from "hono";
 import { HTTPException } from "hono/http-exception";
 
@@ -42,10 +43,13 @@ const unreachable = new Set([
 ]);
 
 function codeOf(error: unknown): string | null {
-  if (typeof error !== "object" || error === null || !("code" in error)) return null;
+  // A failed query reaches here as Drizzle's wrapper, with the driver's error, and its code, as the
+  // cause. A failure to connect comes from the pool before any query, unwrapped.
+  const failure = error instanceof DrizzleQueryError ? error.cause : error;
+  if (typeof failure !== "object" || failure === null || !("code" in failure)) return null;
   // Only fixed-format codes are logged: errno names and five-character SQLSTATEs.
-  return typeof error.code === "string" && /^(?:E[A-Z_]+|[0-9A-Z]{5})$/.test(error.code)
-    ? error.code
+  return typeof failure.code === "string" && /^(?:E[A-Z_]+|[0-9A-Z]{5})$/.test(failure.code)
+    ? failure.code
     : null;
 }
 

@@ -1,3 +1,4 @@
+import { DrizzleQueryError } from "drizzle-orm";
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { describe, expect, it } from "vitest";
@@ -25,6 +26,14 @@ describe("isUnavailable", () => {
     ["null", null],
   ])("is false for %s", (_, error) => {
     expect(isUnavailable(error)).toBe(false);
+  });
+
+  // Every query error reaches the handler this way, so a code read only from the top would miss all
+  // of them.
+  it("reads the driver's code through Drizzle's query error", () => {
+    const failed = (code: string) => new DrizzleQueryError("select 1", [], withCode(code));
+    expect(isUnavailable(failed("57P01"))).toBe(true);
+    expect(isUnavailable(failed("23505"))).toBe(false);
   });
 });
 
