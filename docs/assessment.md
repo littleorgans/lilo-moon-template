@@ -204,8 +204,8 @@ only. Addressed by roadmap item 14: `packages/workos-contract` tests each of the
 against the staging environment and signs in by email code in a browser. A daily workflow runs it
 and opens an issue when it fails ([Run the WorkOS contract tests](maintaining.md#run-the-workos-contract-tests)).
 It found that the staging environment does not rotate refresh tokens, which the refresh design
-assumes it does. That is harmless to the code, and the [system overview](system-overview.md#testing-strategy)
-lists what the suite cannot test.
+assumes it does. The rotation replay-window test therefore skips explicitly; the
+[system overview](system-overview.md#testing-strategy) lists what the suite cannot establish.
 
 **U7. The template maintainer is a single point of knowledge.** The docs explain decisions through
 incidents the maintainer lived through, so the reasoning lives with one person and a long narrative.

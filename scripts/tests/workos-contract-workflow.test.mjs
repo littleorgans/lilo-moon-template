@@ -16,15 +16,23 @@ const pins = (steps) =>
 // from this repository, runs without them.
 await test("workos-contract.yml reads the staging secrets in one step and fails without them", () => {
   const workflow = readYaml(WORKFLOW);
-  assert.deepEqual(Object.keys(workflow.on), ["schedule", "workflow_dispatch", "pull_request"]);
+  assert.deepEqual(Object.keys(workflow.on), ["schedule", "workflow_dispatch"]);
   assert.deepEqual(workflow.permissions, {});
   const { contract, report } = workflow.jobs;
   assert.deepEqual(contract.permissions, { contents: "read" });
-  assert.match(contract.if, /head\.repo\.full_name == github\.repository/, "skip forks");
+  assert.equal(
+    contract.if,
+    "github.ref == format('refs/heads/{0}', github.event.repository.default_branch)",
+  );
+  assert.deepEqual(workflow.concurrency, {
+    group: "workos-contract-staging",
+    "cancel-in-progress": false,
+  });
+  assert.equal(contract.steps[0].with["persist-credentials"], false);
   assert.equal(contract["continue-on-error"], undefined);
 
   const run = contract.steps.at(-1);
-  assert.equal(run.run, "moon run workos-contract:contract");
+  assert.equal(run.run, "moon run workos-contract:contract --upstream none");
   assert.deepEqual(run.env, {
     WORKOS_API_KEY: "${{ secrets.WORKOS_API_KEY }}",
     WORKOS_CLIENT_ID: "${{ secrets.WORKOS_CLIENT_ID }}",
@@ -38,7 +46,7 @@ await test("workos-contract.yml reads the staging secrets in one step and fails 
   }
 
   assert.equal(report.needs, "contract");
-  assert.equal(report.if, "always() && github.event_name != 'pull_request'");
+  assert.equal(report.if, "always() && needs.contract.result != 'skipped'");
   assert.deepEqual(report.permissions, { issues: "write" });
 });
 

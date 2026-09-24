@@ -94,7 +94,9 @@ describe.skipIf(credentials === null)("email-code sign-in through the reference 
       stdio: ["ignore", "pipe", "pipe"],
     });
     const record = (chunk: Buffer) => {
-      output += chunk.toString();
+      output = (output + chunk.toString())
+        .replaceAll(apiKey, "[REDACTED]")
+        .replaceAll(clientId, "[REDACTED]");
     };
     app.stdout?.on("data", record);
     app.stderr?.on("data", record);
@@ -112,10 +114,25 @@ describe.skipIf(credentials === null)("email-code sign-in through the reference 
   });
 
   afterAll(async () => {
-    await browser?.close();
-    app?.kill();
-    // Empty unless beforeAll got as far as the provider.
-    if (created.size > 0) await removeUsers(admin, created);
+    // Attempt provider cleanup even if closing the browser fails. Look up the unique address too:
+    // the app may have created its user before navigation or the first test-side lookup failed.
+    const cleanup = await Promise.allSettled([
+      browser?.close(),
+      (async () => {
+        app?.kill();
+        if (admin === undefined) return;
+        try {
+          const { data } = await admin.userManagement.listUsers({ email });
+          for (const user of data) created.add(user.id);
+        } finally {
+          await removeUsers(admin, created);
+        }
+      })(),
+    ]);
+    const failures = cleanup.flatMap((result) =>
+      result.status === "rejected" ? [result.reason] : [],
+    );
+    if (failures.length > 0) throw new AggregateError(failures, "Browser contract cleanup failed.");
   });
 
   it("signs in with a code, lands in the workspace with a personal organization, and signs out", async () => {

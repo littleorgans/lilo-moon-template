@@ -146,7 +146,8 @@ It has two parts. The provider suite checks each behaviour the packages depend o
 JWKS, the token claims, the one-time code errors, organization provisioning, refresh, and logout.
 The browser test signs in by email code through the reference app's built server, then signs out.
 The browser types a code it got from the API: `createMagicAuth` returns the code it mints, so no
-inbox is involved. The suite deletes every user and organization it creates, even when a test fails.
+inbox is involved. The suite attempts to delete every user and organization it creates, even when a test fails,
+and reports cleanup failures.
 It also removes contract users more than an hour old that an interrupted run left behind.
 
 Run it locally with the staging credentials in the environment. The first command installs the one
@@ -161,12 +162,16 @@ Without both variables the suite prints why and skips, and it refuses any key th
 with `sk_test_`. `moon ci` never runs it: the task is `runInCI: false`. Its unit tests and
 typecheck run there like any project's.
 
-`.github/workflows/workos-contract.yml` runs the suite:
+`.github/workflows/workos-contract.yml` runs the suite daily and on demand from the Actions tab,
+on the default branch only. Pull requests do not run it: even a same-repository branch can change
+code that reads the credentials. Keeping secrets in the final step limits their exposure but does
+not make unreviewed code safe. One concurrency group serializes all runs without cancelling an
+active run, so cleanup and failure-issue updates finish before the next run starts. The one-hour
+stale-user cutoff exceeds the workflow's 20-minute timeout; local runs use unique addresses too.
 
-- daily, and on demand from the Actions tab;
-- on pull requests from this repository that touch `packages/auth*`, the sign-in views,
-  `apps/web/src`, the suite, or the dependency pins. A fork's pull request gets no secrets, so it
-  does not run there.
+Concurrent refreshes are checked on every live run. The separate rotation replay-window test skips
+explicitly when staging returns the original refresh token; it waits 26 seconds only when rotation
+actually occurs. A pass in the nonrotating environment cannot prove the replay window.
 
 It is not a required check, and the release gate does not run it, because a provider outage must
 not block unrelated merges or a release. When a scheduled or manual run fails, the workflow opens an
@@ -182,13 +187,15 @@ The contract workflow reads two organization secrets, limited to selected reposi
 | `WORKOS_API_KEY`   | The staging environment's secret key, `sk_test_…`            |
 | `WORKOS_CLIENT_ID` | The client id of the AuthKit application in that environment |
 
-Nothing else is a secret. The workflow generates the cookie password and the redirect URI for
-each run. Projects built from this repository need no WorkOS secrets in CI: `create-app` does not
+No additional stored secrets are needed. The browser test generates the cookie password and sets
+the redirect URI for each run. Projects built from this repository need no WorkOS secrets in CI: `create-app` does not
 copy this workflow, and the shared `moon-ci.yml` declares no secrets. `published-shape` runs each
 generated project's `moon ci` with every `WORKOS_` variable removed.
 
 To let another repository read an organization secret, add it to the secret's selected
-repositories. This needs a token with the `admin:org` scope:
+repositories. For an OAuth token or classic PAT this needs `admin:org`, plus `repo` for a private
+repository; a fine-grained token needs organization Secrets write permission. See the
+[GitHub endpoint permissions](https://docs.github.com/en/rest/actions/secrets#add-selected-repository-to-an-organization-secret).
 
 ```sh
 repo_id="$(gh api repos/<owner>/<repo> --jq .id)"

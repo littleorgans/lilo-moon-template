@@ -1,11 +1,16 @@
 # Contract tests against a live WorkOS staging environment. Private: nothing here is published or
 # generated into a project. The inherited typecheck, lint and unit tests run in `moon ci` like any
 # project's; the contract suite itself does not, because it needs the staging credentials and the
-# network. .github/workflows/workos-contract.yml runs it on a schedule and on auth pull requests.
+# network. .github/workflows/workos-contract.yml runs it on a schedule and on demand.
 language: "typescript"
 layer: "automation"
 
 fileGroups:
+  # assumptions.test.ts reads these sources, so their changes must invalidate its cached result.
+  sources:
+    - "/packages/auth-session/src/access.ts"
+    - "/packages/auth-session/src/email.ts"
+    - "/packages/auth/src/verify.ts"
   tests:
     - "tests/**/*"
     - "contract/**/*"

@@ -543,11 +543,13 @@ minted by the API, which supersedes the one the app emailed.
 
 Some provider behaviours the code depends on are not tested:
 
-- **The 30-second reuse window's upper bound.** The suite proves a spent refresh token still
-  refreshes 25 seconds after first use, which is what the early-refresh margin needs. Measured on
-  2026-09-24, the staging environment did not rotate refresh tokens at all: each refresh returned
-  the refresh token it was given, still accepted 70 seconds later. So the end of the window, and
-  what happens past it, cannot be observed there. The code is safe under both behaviours.
+- **The rotation replay window.** The concurrent-refresh test proves that returned tokens verify
+  and remain usable. The separate replay-window test skips explicitly if refresh does not rotate;
+  otherwise it waits 26 seconds after the first response and reuses the original token. Measured
+  again on 2026-09-24, staging returned the same refresh token, accepted it after 70 seconds, and
+  returned different access tokens on replay. Neither bound of a rotation replay window can be
+  measured in that environment, nor does it establish identical rotated pairs. The packages'
+  rotation assumptions need validation in an environment configured to rotate.
 - **Rate-limit and 5xx translation.** Provoking a 429 or a 5xx on purpose is abuse of a shared
   environment.
 - **The Google OAuth callback and `state` round trip.** They need a Google account.
@@ -556,7 +558,9 @@ Some provider behaviours the code depends on are not tested:
 - **JWKS key rotation.** WorkOS controls its timing.
 
 `tests/assumptions.test.ts`, which does run in `moon ci`, fails when a package changes a constant
-the contract measures against, such as `REFRESH_MARGIN_SECONDS`.
+the contract measures against, such as `REFRESH_MARGIN_SECONDS`. These source-text checks also
+fail on harmless syntax changes; their source files are explicit Moon inputs. Exporting shared
+constants would avoid that coupling but requires a separate published-package API decision.
 
 ## CI and release
 
@@ -574,9 +578,8 @@ release tag ([Use the shared configuration](guides/shared-config.md)). Tasks mar
 its inputs change: apps, packages, services, scripts, `.moon`, the root manifests, the lockfile or
 `moon.yml`. A documentation-only change skips it.
 
-`.github/workflows/workos-contract.yml` runs the WorkOS contract suite daily, on demand, and on
-this repository's pull requests that touch the auth packages, the sign-in views or the reference
-app. It is the only workflow that reads the WorkOS secrets
+`.github/workflows/workos-contract.yml` runs the WorkOS contract suite daily and on demand from
+the default branch, with runs serialized against the shared staging environment. It is the only workflow that reads the WorkOS secrets
 ([CI secrets](maintaining.md#ci-secrets)). It is neither a required check nor part of the release
 gate, and a failed scheduled run opens an issue.
 

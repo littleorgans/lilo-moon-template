@@ -6,38 +6,26 @@ name: WorkOS contract
 #
 # Not part of `moon ci` and not a required check: a provider outage must not block unrelated pull
 # requests, and the release gate stays a function of the commit alone. Drift shows up here instead,
-# daily, and on the pull requests most likely to cause or meet it.
+# daily and on demand, using reviewed code on the default branch.
 
 on:
   schedule:
     # Daily, off the hour so it does not queue behind every other scheduled workflow.
     - cron: "37 5 * * *"
   workflow_dispatch:
-  pull_request:
-    branches: [main]
-    paths:
-      - "packages/auth*/**"
-      - "packages/views/src/sign-in/**"
-      - "packages/views/src/verify-code/**"
-      - "packages/workos-contract/**"
-      - "apps/web/src/**"
-      # The SDK, jose and playwright-core pins, which Renovate bumps.
-      - "pnpm-workspace.yaml"
-      - "pnpm-lock.yaml"
-      - ".github/workflows/workos-contract.yml"
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  # A newer push supersedes a pull request's run. A scheduled run finishes, so its report is whole.
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  # One shared staging environment and one failure issue, across every trigger.
+  group: workos-contract-staging
+  cancel-in-progress: false
 
 permissions: {}
 
 jobs:
   contract:
     name: WorkOS contract
-    # A fork's pull request gets no secrets, so the suite would skip and prove nothing.
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    # A manual dispatch must not run a branch's unreviewed code with staging credentials.
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
     # Not vars.CI_RUNNER: the browser install needs apt, which only the hosted Ubuntu image promises.
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -67,13 +55,13 @@ jobs:
       - name: Install the browser
         run: pnpm --filter @littleorgans/workos-contract exec playwright-core install --with-deps --only-shell chromium
 
-      # Everything the suite needs, built before any step can read a secret. The next step's builds
-      # are then cache hits, so no build tool runs with the credentials in its environment.
+      # Build without staging credentials. The final step excludes upstream tasks so it cannot
+      # rebuild dependencies with secrets in its environment.
       - name: Build
         run: moon run workos-contract:typecheck
 
       - name: Run the contract suite against staging
-        run: moon run workos-contract:contract
+        run: moon run workos-contract:contract --upstream none
         env:
           WORKOS_API_KEY: ${{ secrets.WORKOS_API_KEY }}
           WORKOS_CLIENT_ID: ${{ secrets.WORKOS_CLIENT_ID }}
@@ -81,11 +69,11 @@ jobs:
           WORKOS_CONTRACT_REQUIRED: "true"
 
   # A failed scheduled run is easy to miss, so it opens an issue, or comments on the one already
-  # open, and the next passing run closes it. A pull request's run reports on the pull request.
+  # open, and the next passing run closes it.
   report:
     name: Report
     needs: contract
-    if: always() && github.event_name != 'pull_request'
+    if: always() && needs.contract.result != 'skipped'
     runs-on: ubuntu-latest
     permissions:
       issues: write

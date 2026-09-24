@@ -169,27 +169,46 @@ describe.skipIf(credentials === null)("WorkOS staging, as the auth packages use 
     expect((await services.verify(signedIn.accessToken)).orgId).toBe(organizationId);
   });
 
-  it(`still refreshes with a spent refresh token ${REUSE_NEEDED_SECONDS} seconds after its first use`, async () => {
-    // access.ts: a request still carrying the old cookie, here or on another instance, refreshes
-    // with the token the winner spent, for up to the early-refresh margin plus the clock tolerance.
-    const spent = signedIn.refreshToken;
-    const firstUse = Date.now();
-    const winner = await services.auth.refreshTokens({ refreshToken: spent });
+  it("returns usable tokens to concurrent refreshes of the same session", async () => {
+    const original = signedIn.refreshToken;
     const racing = await Promise.all([
-      services.auth.refreshTokens({ refreshToken: spent }),
-      services.auth.refreshTokens({ refreshToken: spent }),
+      services.auth.refreshTokens({ refreshToken: original }),
+      services.auth.refreshTokens({ refreshToken: original }),
     ]);
+    await Promise.all(
+      racing.map(async (renewed) => {
+        expect(await services.verify(renewed.accessToken)).toMatchObject({
+          userId,
+          orgId: organizationId,
+        });
+        // Every response may become the browser's cookie; every returned refresh token must work.
+        const usable = await services.auth.refreshTokens({ refreshToken: renewed.refreshToken });
+        expect(await services.verify(usable.accessToken)).toMatchObject({
+          userId,
+          orgId: organizationId,
+        });
+      }),
+    );
+    signedIn = await services.auth.refreshTokens({ refreshToken: original });
+  });
 
-    await sleep(firstUse + (REUSE_NEEDED_SECONDS + 1) * 1000 - Date.now());
+  it(`accepts a rotated refresh token again after ${REUSE_NEEDED_SECONDS} seconds`, async (context) => {
+    const spent = signedIn.refreshToken;
+    signedIn = await services.auth.refreshTokens({ refreshToken: spent });
+    if (signedIn.refreshToken === spent) {
+      context.skip(
+        "Staging does not rotate refresh tokens; its rotation replay window cannot be measured.",
+      );
+      return;
+    }
+    // Start after the response: this cannot accidentally measure less than the required interval
+    // because the first call took time. One extra second avoids timer/clock boundary rounding.
+    await sleep((REUSE_NEEDED_SECONDS + 1) * 1000);
     const late = await services.auth.refreshTokens({ refreshToken: spent });
-
-    const principals = await Promise.all(
-      [winner, ...racing, late].map((renewed) => services.verify(renewed.accessToken)),
-    );
-    expect(principals.map((principal) => principal.orgId)).toEqual(
-      principals.map(() => organizationId),
-    );
-    // The pair a late request writes into its cookie must itself be usable.
+    expect(await services.verify(late.accessToken)).toMatchObject({
+      userId,
+      orgId: organizationId,
+    });
     signedIn = await services.auth.refreshTokens({ refreshToken: late.refreshToken });
   });
 
