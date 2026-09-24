@@ -211,7 +211,8 @@ managed scratch space for that path, so
 shows which checkout, possibly deleted, each container belongs to. Containers made by this
 repository's old root scripts have the same name, image and binding but no label. They can still
 host new scratch databases, so existing database gates keep working. `clean` and image replacement
-refuse to delete an unlabelled container: inspect and remove it manually when it is disposable.
+refuse to delete an unlabelled container, and print the `docker rm --force <name>` command that
+removes it when nothing in it is needed.
 A label naming another checkout is always refused. Start, replacement and removal act on the
 inspected container ID, so a name reassigned in the meantime cannot redirect them.
 

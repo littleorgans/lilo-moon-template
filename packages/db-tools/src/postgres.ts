@@ -193,10 +193,12 @@ function inspectContainer(target: Server): Container | null {
   return { id, image, port: Number(port), host, owned: owner === target.root };
 }
 
-function removeContainer(target: Server, container: Container): void {
+// The old root scripts made unlabelled containers. Removing one stays a person's decision, so the
+// refusal names the one command that makes it.
+function removeContainer(target: Server, container: Container, why = ""): void {
   if (!container.owned) {
     throw new Error(
-      `Refusing to remove unlabelled container ${target.container}. It may be used for scratch work, but inspect and remove it manually if it is disposable.`,
+      `Refusing to remove ${target.container}${why}: it is unlabelled, as containers from the old root scripts are, so db-tools cannot tell it holds only scratch data. If nothing in it is needed, run \`docker rm --force ${target.container}\`; the next command creates a labelled container.`,
     );
   }
   const result = docker(target, ["rm", "--force", container.id]);
@@ -215,7 +217,11 @@ function ensurePostgres(target: Server): Server {
     );
   }
   if (existing !== null && existing.image !== target.image) {
-    removeContainer(target, existing);
+    removeContainer(
+      target,
+      existing,
+      ` to replace its image ${existing.image} with ${target.image}`,
+    );
     existing = null;
   }
   if (existing === null) {

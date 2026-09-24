@@ -169,13 +169,16 @@ it("psqlInput runs in the inspected container and only for its URL", () => {
 
 it("never removes an unlabelled container merely because its name matches", () => {
   const fixture = dockerFixture("unrelated-image");
-  expect(() => removePostgres(fixture)).toThrow("unlabelled");
+  const { container } = postgresIdentity(fixture.root);
+  expect(() => removePostgres(fixture)).toThrow(`run \`docker rm --force ${container}\``);
   expect(readFileSync(fixture.log, "utf8")).not.toMatch(/^rm /m);
 });
 
 it("refuses replacement of an unlabelled container and any use of a foreign-labelled one", () => {
   const legacy = dockerFixture("postgres:16-alpine");
-  expect(() => startPostgres(legacy)).toThrow("unlabelled");
+  expect(() => startPostgres(legacy)).toThrow(
+    "to replace its image postgres:16-alpine with postgres:17-alpine: it is unlabelled",
+  );
   expect(readFileSync(legacy.log, "utf8")).not.toMatch(/^(rm|run|start) /m);
   const foreign = dockerFixture("postgres:17-alpine", "/another/checkout");
   expect(() => startPostgres(foreign)).toThrow("another checkout");

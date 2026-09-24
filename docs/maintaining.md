@@ -53,8 +53,9 @@ clones and worktrees own separate containers. Override `LILO_PG_PORT` when a por
 `just clean` before changing that override on an existing container. Cleanup (`db-tools clean`, then
 `moon clean`) removes only a container labelled as this checkout path's managed scratch space.
 Compatible unlabelled containers left by the old root scripts still run the gates, but automated
-cleanup and image replacement refuse to delete them. Inspect and remove those manually when they
-are disposable; a reused path or matching name alone does not establish that.
+cleanup and image replacement refuse to delete them, and print the `docker rm --force <name>` command
+to run when nothing in the container is needed; a reused path or matching name alone does not
+establish that.
 
 ## Library conventions
 
