@@ -580,6 +580,9 @@ release tag ([Use the shared configuration](guides/shared-config.md)). Tasks mar
 maintainer dispatches it on, and the release gate runs it before publishing. Both call
 `moon exec root:published-shape --ignore-ci-checks`, because with `CI` set moon leaves a
 `runInCI: false` task out of `moon run` too.
+The nightly result appears in Actions; [GitHub's scheduled-run notifications](https://docs.github.com/en/actions/concepts/workflows-and-actions/notifications-for-workflow-runs)
+go to the schedule's author (or last cron editor / re-enabler), subject to that user's notification
+settings, so they are not a team alert.
 
 `.github/workflows/workos-contract.yml` runs the WorkOS contract suite daily on the default
 branch, and on any branch a maintainer dispatches it on; pull requests do not trigger it. Runs are

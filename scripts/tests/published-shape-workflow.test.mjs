@@ -66,19 +66,38 @@ const marker = (name) => ({
 // Every runner sets CI, and under CI moon drops a `runInCI: false` task from `moon run` as well as
 // from `moon ci`. The real task, with its command swapped for a marker, goes through `moon ci` on a
 // change to packages/, through `moon run`, and through the workflows' command, all with CI set. A
-// probe task on the same inputs shows `moon ci` ran at all.
+// probe task on the same inputs shows `moon ci` ran at all. An upstream build must finish before
+// published-shape starts, as the real script imports the built db-tools package.
 await test("with CI set, moon ci and moon run skip published-shape and the workflows' command runs it", (t) => {
   const root = mkdtempSync(join(tmpdir(), "published-shape-ci-"));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const { fileGroups, tasks } = readYaml("moon.yml");
   for (const [file, content] of Object.entries({
-    ".moon/workspace.yml": 'projects:\n  sources:\n    root: "."\nvcs:\n  defaultBranch: "main"\n',
+    ".moon/workspace.yml":
+      'projects:\n  sources:\n    root: "."\n    library: "packages/library"\nvcs:\n  defaultBranch: "main"\n',
     ".gitignore": ".moon/cache/\n*.ran\n",
     "moon.yml": stringify({
+      dependsOn: ["library"],
       fileGroups: { sources: fileGroups.sources },
       tasks: {
-        "published-shape": { ...tasks["published-shape"], ...marker("published-shape") },
+        "published-shape": {
+          ...tasks["published-shape"],
+          command: "node",
+          args: [
+            "-e",
+            'require("node:assert/strict").ok(require("node:fs").existsSync("library.ran"), "upstream build must run first"); ' +
+              marker("published-shape").args[1],
+          ],
+        },
         probe: { ...marker("probe"), inputs: ["@globs(sources)"], options: { cache: false } },
+      },
+    }),
+    "packages/library/moon.yml": stringify({
+      tasks: {
+        build: {
+          ...marker("library"),
+          options: { cache: false, runFromWorkspaceRoot: true },
+        },
       },
     }),
     "packages/auth/change.txt": "base\n",
@@ -95,7 +114,7 @@ await test("with CI set, moon ci and moon run skip published-shape and the workf
 
   const ran = (name) => existsSync(join(root, `${name}.ran`));
   const moon = (args, env = {}) => {
-    for (const name of ["published-shape", "probe"])
+    for (const name of ["published-shape", "probe", "library"])
       rmSync(join(root, `${name}.ran`), { force: true });
     return execFileSync("moon", args, {
       cwd: root,

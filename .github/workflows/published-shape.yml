@@ -3,8 +3,9 @@ name: Published shape
 # root:published-shape on the default branch, nightly: the packed packages, the projects the packed
 # create-app writes, and the npm consumers. It takes minutes, so pull request CI leaves it out
 # (runInCI: false) and the release gate runs it before publishing. This run shows a packaging slip
-# the day it lands rather than at release time. A failed scheduled run notifies through GitHub's
-# own workflow failure emails. A maintainer can dispatch it on a branch before merging.
+# the day it lands rather than at release time. GitHub sends scheduled-run notifications to the
+# schedule's author (or last cron editor / re-enabler), subject to their Actions notification
+# settings; this is not a team alert. A maintainer can dispatch it on a branch before merging.
 
 on:
   schedule:

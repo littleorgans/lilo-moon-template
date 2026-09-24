@@ -25,6 +25,8 @@ read only, exactly as CI does. Use `check` while working and `ci` before deliver
 holds aliases only: a command that exists in two places drifts, so a new command becomes a Moon
 task.
 
+With `CI` set, `runInCI: false` hides a task from `moon run` too; use `moon exec <project>:<task> --ignore-ci-checks` when a workflow must explicitly run it.
+
 ## Pick the layer, and the task follows
 
 A member's `moon.yml` `layer`, `language` and `tags` select what it inherits from `.moon/tasks/`:
