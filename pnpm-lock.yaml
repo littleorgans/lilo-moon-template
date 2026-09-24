@@ -179,6 +179,9 @@ importers:
       '@littleorgans/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@littleorgans/drizzle-schema':
+        specifier: workspace:*
+        version: link:../../db/drizzle
       '@littleorgans/theme':
         specifier: workspace:*
         version: link:../../packages/theme
@@ -237,6 +240,18 @@ importers:
       vite:
         specifier: 'catalog:'
         version: 8.2.1(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.12)(yaml@2.9.0)
+
+  db/drizzle:
+    devDependencies:
+      '@types/pg':
+        specifier: 'catalog:'
+        version: 8.23.1
+      drizzle-orm:
+        specifier: 'catalog:'
+        version: 0.45.2(@types/pg@8.23.1)(pg@8.23.0)
+      pg:
+        specifier: 'catalog:'
+        version: 8.23.0
 
   packages/auth:
     dependencies:
@@ -440,6 +455,9 @@ importers:
       '@littleorgans/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@littleorgans/drizzle-schema':
+        specifier: workspace:*
+        version: link:../../db/drizzle
       drizzle-orm:
         specifier: 'catalog:'
         version: 0.45.2(@types/pg@8.23.1)(pg@8.23.0)

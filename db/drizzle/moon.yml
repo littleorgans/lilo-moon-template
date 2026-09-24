@@ -1,0 +1,17 @@
+# The typed schema db-tools drizzle-generate writes to _generated/, built so applications and
+# services import it as a workspace package. The file is generated, so there is nothing to test
+# here: root:drizzle-check proves it matches the migrations.
+language: "typescript"
+layer: "library"
+tags:
+  - "ts-library"
+
+fileGroups:
+  sources:
+    - "_generated/**/*"
+    - "package.json"
+    - "tsconfig.json"
+
+workspace:
+  inheritedTasks:
+    exclude: ["test", "test-coverage", "test-watch"]

@@ -1,5 +1,6 @@
-# Inherited only by publishable JavaScript libraries. Application build tasks
-# belong in their own layer-scoped task file.
+# Inherited by JavaScript libraries that build to dist: the published packages, and a
+# project's own, such as the typed schema in db/drizzle. Application build tasks belong in
+# their own layer-scoped task file.
 
 inheritedBy:
   toolchains: ["javascript"]

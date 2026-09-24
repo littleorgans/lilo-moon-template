@@ -2,6 +2,7 @@ packages:
   - "apps/*"
   - "packages/*"
   - "services/*"
+  - "db/drizzle"
 
 # lefthook's npm postinstall is unused. Root prepare runs scripts/install-hooks.mjs, which runs
 # lefthook install from the main checkout only.

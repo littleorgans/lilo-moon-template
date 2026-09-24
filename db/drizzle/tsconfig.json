@@ -1,0 +1,7 @@
+{
+  "extends": "../../tsconfig.options.json",
+  "include": ["_generated/**/*.ts"],
+  "compilerOptions": {
+    "outDir": "../../.moon/cache/types/db/drizzle"
+  }
+}

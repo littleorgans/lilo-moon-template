@@ -12,6 +12,7 @@
     "@littleorgans/auth": "workspace:*",
     "@littleorgans/auth-http": "workspace:*",
     "@littleorgans/db": "workspace:*",
+    "@littleorgans/drizzle-schema": "workspace:*",
     "drizzle-orm": "catalog:",
     "hono": "catalog:",
     "pg": "catalog:"
