@@ -1,33 +1,42 @@
 # Adopt the packages in a web app
 
 > Release status: these instructions target the upcoming `0.2.0` release, which includes typed
-> database schemas and the full database tools. Run the registry/tag commands after that release
-> exists. For the published `0.1.0`, use the guide at `v0.1.0`; its glue has no typed schema option.
+> database schemas, the full database tools and `@littleorgans/create-app`. Run the registry/tag
+> commands after that release exists. For the published `0.1.0`, use the guide at `v0.1.0`: it
+> copies the glue by hand and has no typed schema option.
 
 This guide starts a new project with a TanStack Start web app on the published
-`@littleorgans/*` packages at `^0.2.0`. The project installs the packages from npm and copies a
-small amount of glue from the reference app in this repository. It then owns that glue. Fixes
-reach it through package upgrades, not through copying the glue again.
+`@littleorgans/*` packages at `^0.2.0`. `@littleorgans/create-app` writes the project: the
+workspace root, the web app and, if you want one, the database. The project installs the packages
+from npm and owns every file it was given. Fixes reach it through package upgrades, not through
+running the command again.
 
-Work through it from top to bottom. Each step says what to run and which files it writes. For a
-TypeScript service, set up the workspace root here and then follow
+The command does the deterministic writing. This guide covers the decisions it asks you for and
+the steps it leaves to you, in order. For a TypeScript service, alone or beside the web app, see
 [Adopt the packages in a service](adopt-service.md). The `lilo/build/start-project` skill
 ([`skills/lilo/build/start-project/SKILL.md`](../../skills/lilo/build/start-project/SKILL.md))
-covers the judgment calls this checklist leaves to you.
+covers the judgment calls.
 
 The commands name the project `acme` and the app `web`. The app's directory name is also its
-Moon project id, so `apps/portal` runs as `portal:build`. If you choose another name, change it
-everywhere it appears.
+Moon project id, so `apps/portal` runs as `portal:build`.
 
 ## 0. Decide first
 
-- **Organization policy.** `personal` gives every new user their own organization at first
-  sign-in. `existing` leaves membership to you. It is set in `src/server/auth.ts`.
-- **Ports.** Pick the web app's development port and preview port now, because the OAuth callback
-  you register depends on them (step 5).
-- **Database.** The web app signs people in without one. Without a database, skip step 6.
-- **Web app, service, or both.** A service lives in the same workspace under `services/<name>/`
+Each decision is a flag. Nothing here has a default that hides it: the command requires the
+organization policy, and it prints every default it takes.
+
+- **Organization policy** (`--organization-policy`). `personal` gives every new user their own
+  organization at first sign-in. `existing` leaves membership to you. It is written to
+  `organizationPolicy` in `apps/<name>/src/server/auth.ts`.
+- **Ports** (`--web-port`, default `5199`, the reference's). Pick the web app's port now, because
+  the OAuth callback you register depends on it (step 3). Development and preview share it.
+- **Database** (`--db`). The web app signs people in without one. Without `--db`, skip step 5.
+- **Web app, service, or both** (`--web`, `--service`). A service lives in the same workspace
+  under `services/<name>/` and always has the database
   ([Adopt the packages in a service](adopt-service.md)).
+- **Names** (`--web-name`, default `web`, and `--name`, default the directory's name). `--name` is
+  the root package name and the scope of the project's own packages, such as `@acme/web` and
+  `@acme/drizzle-schema`.
 
 ## 1. Install the tools
 
@@ -45,301 +54,77 @@ moon --version       # must print 2.5.5
 Finish the proto installer's prompt so that `~/.proto/bin` is on `PATH`. `.moon/workspace.yml`
 pins `versionConstraint: "=2.5.5"`, so Moon refuses to run under any other version.
 
-Moon's Node and pnpm serve its tasks. The `npm pkg` and `pnpm` commands in steps 3, 4 and 6 run
-outside Moon, so a Node `24` with `npm`, and a pnpm `11`, must also be on your `PATH`. Any version
-manager will do. `node --version` and `pnpm --version` must both answer before step 3.
+Moon's Node and pnpm serve its tasks. `pnpm create` and the install in step 2 run outside Moon, so
+a Node `24` and a pnpm `11` must also be on your `PATH`. Any version manager will do.
 
-## 2. Fetch the reference at the release tag
-
-Copy the glue from the tag that matches the package version you install, so that the code and the
-packages agree:
+## 2. Create the project
 
 ```sh
-git clone --depth 1 --branch v0.2.0 https://github.com/littleorgans/lilo-moon-template.git /tmp/lilo-ref
-export REF=/tmp/lilo-ref
+pnpm create @littleorgans/app acme --web --organization-policy personal --web-port 5199 --db
 ```
 
-Every later command reads from `$REF`. To read one file at a tag without cloning, use
-`https://raw.githubusercontent.com/littleorgans/lilo-moon-template/v0.2.0/<path>`.
+`npm create @littleorgans/app acme -- --web …` does the same; npm passes flags to the command only
+after `--`. At a terminal, the command asks for any choice step 0 lists that has no default. In a
+script it fails and names each missing flag instead. [Its README](../../packages/create-app/README.md)
+lists every option.
 
-## 3. Create the workspace root
-
-The root holds the Moon workspace, the toolchain pins, the workspace-wide gates and the supply-chain
-policy. A standalone service project uses the same root.
+It writes into a new or empty directory and prints what it took by default and the steps that
+follow. Nothing is installed or committed yet. Follow the printed steps, which are the ones below:
+commit, then install, which turns on the Git hooks, then commit the lockfile.
 
 ```sh
-mkdir acme && cd acme
-git init -b main
-cp "$REF"/{.editorconfig,.gitignore,.npmrc,.prototools,.env.example,.oxlintrc.json,.oxfmtrc.json,.secretlintrc.json,.secretlintignore} .
-cp "$REF"/{commitlint.config.js,lefthook.yml,justfile,renovate.json,tsconfig.options.json,vitest.config.ts,package.json,pnpm-workspace.yaml} .
-mkdir -p .moon/tasks .vscode .github/workflows scripts
-cp "$REF"/.moon/{workspace,toolchains}.yml .moon/
-cp "$REF"/.moon/tasks/{node,node-library,node-application,node-service}.yml .moon/tasks/
-cp "$REF"/.vscode/{extensions,settings}.json .vscode/
-cp "$REF"/.github/workflows/ci.yml .github/workflows/
-cp "$REF"/scripts/{check-security,assert-tsgolint-lockstep,install-hooks}.mjs scripts/
+cd acme
+git init -b main && git add -A && git commit -m "chore: start from @littleorgans/create-app"
+pnpm install
+git add pnpm-lock.yaml && git commit -m "chore: lock dependencies"
 ```
 
-Remove this repository's publishing tools from the root manifest, and keep the gate tools:
+Moon needs a commit before it can run. The first install sets up the hooks, which call Moon.
 
-```sh
-npm pkg set name=acme
-npm pkg delete license scripts.changeset scripts.changeset:version
-npm pkg delete devDependencies.@arethetypeswrong/cli devDependencies.@changesets/changelog-github devDependencies.@changesets/cli
-npm pkg delete devDependencies.publint devDependencies.drizzle-orm devDependencies.pg devDependencies.@littleorgans/db-tools
-npm pkg set devDependencies.@littleorgans/tsconfig=catalog: devDependencies.@littleorgans/oxlint-config=catalog: devDependencies.@littleorgans/vite-config=catalog:
-```
+pnpm waits a day before installing a newly published version (`minimumReleaseAge` in
+`pnpm-workspace.yaml`), and that applies to `@littleorgans/*` too. To install a release on the day
+it ships, list it under `minimumReleaseAgeExclude` (for example `"@littleorgans/auth@0.2.0"`), and
+remove the entry afterwards.
 
-In `pnpm-workspace.yaml`, add the packages to the top of `catalog:`. They move together, because
-every release publishes them all at one version:
+### What it wrote
 
-```yaml
-catalog:
-  "@littleorgans/auth": "^0.2.0"
-  "@littleorgans/auth-http": "^0.2.0"
-  "@littleorgans/auth-tanstack": "^0.2.0"
-  "@littleorgans/db": "^0.2.0"
-  "@littleorgans/db-tools": "^0.2.0"
-  "@littleorgans/oxlint-config": "^0.2.0"
-  "@littleorgans/tsconfig": "^0.2.0"
-  "@littleorgans/theme": "^0.2.0"
-  "@littleorgans/ui": "^0.2.0"
-  "@littleorgans/views": "^0.2.0"
-  "@littleorgans/vite-config": "^0.2.0"
-  # ...the reference's third-party pins stay below
-```
+The files come from this repository at the release tag: the reference app, the typed schema
+package, the workspace root and the migrations `@littleorgans/db` ships. The build of
+`@littleorgans/create-app` generates them from that commit, and `root:published-shape` runs each
+kind of project it writes through its own first `moon ci --force` before a release, so they cannot
+drift from the reference. What differs from the reference is what tied it to this repository:
+`workspace:` dependencies become `catalog:` pins at the release, the names, ports and organization
+policy become yours, and this repository's publishing tools, tests and documentation stay behind.
 
-The three shared configuration dependencies above must use `catalog:`, replacing the copied
-`workspace:*` references: this project installs them from npm. In the copied
-`.github/workflows/ci.yml`, change `uses: ./.github/workflows/moon-ci.yml` to
-`uses: littleorgans/lilo-moon-template/.github/workflows/moon-ci.yml@v0.2.0`. Only the caller was
-copied; the reusable workflow stays in the reference repository.
+| Files                                                                                           | Purpose                                                                                                                                             |
+| ----------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `.prototools`, `.moon/workspace.yml`, `.moon/toolchains.yml`                                    | The Moon, Node and pnpm pins. `.prototools` also pins Atlas, for `atlas migrate hash`.                                                              |
+| `.moon/tasks/node.yml`, `node-library.yml`, `node-application.yml`, `node-service.yml`          | Tasks every project inherits: typecheck and tests, plus build, dev, preview or start by kind.                                                       |
+| `moon.yml`, `scripts/`                                                                          | The workspace-wide gates (lint, format, secrets, audit, lockstep, references, and with `--db` the database gates), and the scripts two of them run. |
+| `package.json`, `pnpm-workspace.yaml`, `.npmrc`                                                 | Tool versions, the catalog with every `@littleorgans/*` package at `^0.2.0`, and the supply-chain policy.                                           |
+| `tsconfig.json`, `tsconfig.options.json`, `vitest.config.ts`, `.oxlintrc.json`, `.oxfmtrc.json` | Project references, and the compiler, test and coverage, lint and format settings shared by every project.                                          |
+| `.secretlintrc.json`, `.secretlintignore`, `lefthook.yml`, `commitlint.config.js`               | Secret scanning, the pre-commit subset of the gates, and Conventional Commits.                                                                      |
+| `.github/workflows/ci.yml`, `renovate.json`, `justfile`, `.editorconfig`, `.vscode/`            | CI runs `moon ci` through this repository's workflow at `v0.2.0`, dependency updates, aliases, editor settings.                                     |
+| `.env.example`, `.gitignore`, `AGENTS.md`                                                       | The variables the project reads, what Git ignores, and a pointer for agents to the skills and the reference.                                        |
+| `db/drizzle/`                                                                                   | The typed Drizzle schema as a workspace package, `@acme/drizzle-schema`, which the app queries through.                                             |
 
-The rest of that file is policy: build-script approval, the one-day `minimumReleaseAge`, the
-trust policy and the audit level. Keep it. The named `catalogs:` hold this repository's peer
-ranges and are unused here. The one-day wait also applies to `@littleorgans/*`. To install a
-release on the day it ships, list it under `minimumReleaseAgeExclude` (for example
-`"@littleorgans/auth@0.2.0"`), and remove the entry afterwards.
-
-Write the root `tsconfig.json`. `moon sync` fills in its references:
-
-```json
-{
-  "extends": "./tsconfig.options.json",
-  "files": [],
-  "references": [],
-  "compilerOptions": {
-    "outDir": ".moon/cache/types"
-  }
-}
-```
-
-Write the root `moon.yml`. It holds the workspace-wide gates. They run once for the whole
-workspace, not once per project:
-
-```yaml
-# The repository root as a project: the workspace-wide gates run once, not per project.
-layer: "application"
-
-# A task holder, not a TypeScript project, so it inherits none of .moon/tasks/node.yml.
-workspace:
-  inheritedTasks:
-    include: []
-  mergeStrategies:
-    fileGroups: "replace"
-
-fileGroups:
-  sources:
-    - ".moon/**/*"
-    - "apps/**/*"
-    - "packages/**/*"
-    - "services/**/*"
-    - "scripts/**/*"
-    - "db/**/*"
-    - "!.moon/cache/**/*"
-    - "!.moon/docker/**/*"
-    - "!**/node_modules/**/*"
-    - "!**/dist/**/*"
-    - "!**/.output/**/*"
-    - "!**/build/**/*"
-    - "!**/out/**/*"
-    - "!**/coverage/**/*"
-    - "!**/*.tsbuildinfo"
-    - "package.json"
-    - "pnpm-workspace.yaml"
-    - "tsconfig.json"
-    - "tsconfig.options.json"
-  configs: []
-  tests: []
-
-tasks:
-  clean:
-    type: "run"
-    script: "moon clean"
-    options:
-      cache: false
-      runInCI: false
-
-  tsgolint-lockstep:
-    type: "test"
-    command: "node scripts/assert-tsgolint-lockstep.mjs"
-    inputs:
-      - "package.json"
-      - "pnpm-workspace.yaml"
-      - "scripts/assert-tsgolint-lockstep.mjs"
-    options:
-      shell: false
-      runInCI: "always"
-
-  lint:
-    type: "test"
-    command: "oxlint --type-aware --deny-warnings --no-error-on-unmatched-pattern"
-    inputs:
-      - "@globs(sources)"
-      - ".oxlintrc.json"
-    # Type-aware lint reads the typed schema's declarations, which only its build writes.
-    deps:
-      - "#ts-library:build"
-    options:
-      shell: false
-      runInCI: "always"
-
-  lint-fix:
-    type: "run"
-    command: "oxlint --type-aware --fix --no-error-on-unmatched-pattern"
-    options:
-      shell: false
-      cache: false
-      runInCI: false
-
-  format-check:
-    type: "test"
-    command: "oxfmt --check --no-error-on-unmatched-pattern"
-    inputs:
-      - "@globs(sources)"
-      - "*"
-      - ".*"
-      - "docs/**/*"
-      - ".github/**/*"
-      - ".vscode/**/*"
-    options:
-      shell: false
-      runInCI: "always"
-
-  format:
-    type: "run"
-    command: "oxfmt --no-error-on-unmatched-pattern"
-    options:
-      shell: false
-      cache: false
-      runInCI: false
-
-  project-refs:
-    type: "test"
-    script: "test ! -f tsconfig.json || tsc --build --pretty --dry"
-    inputs:
-      - "apps/*/tsconfig*.json"
-      - "packages/*/tsconfig*.json"
-      - "services/*/tsconfig*.json"
-      - "db/drizzle/tsconfig*.json"
-      - "tsconfig.json"
-      - "tsconfig.options.json"
-    options:
-      runInCI: "always"
-
-  secrets:
-    type: "test"
-    command: "node scripts/check-security.mjs"
-    inputs:
-      - "@globs(sources)"
-      - "/.github/**/*"
-      - "/.env.example"
-      - "/.npmrc"
-      - "/.secretlintrc.json"
-      - "/.secretlintignore"
-    options:
-      shell: false
-      cache: false
-      runInCI: "always"
-
-  audit:
-    type: "test"
-    command: "pnpm audit"
-    inputs:
-      - "/package.json"
-      - "/pnpm-lock.yaml"
-      - "/pnpm-workspace.yaml"
-    options:
-      shell: false
-      cache: false
-      runInCI: "always"
-```
-
-Write a short `AGENTS.md` that points agents at the skills and the reference:
-
-```md
-# AGENTS.md
-
-This project is built on the `@littleorgans/*` packages. Moon owns the task graph and pnpm owns
-the packages. `moon ci` is read only and is what CI runs. `just check` repairs formatting and lint.
-
-- Starting or extending the project: the `lilo/build/start-project` skill.
-- The glue in `apps/*/src/server/` and `services/*/src/server/` came from
-  https://github.com/littleorgans/lilo-moon-template at the tag matching the installed
-  `@littleorgans/*` version. Compare against that tag, not `main`.
-```
-
-Moon needs a commit before it can run. Commit now, before the first install turns on the Git hooks:
-
-```sh
-git add -A
-git commit -m "chore: add the workspace root"
-```
-
-What each part is for:
-
-| Files                                                                                  | Purpose                                                                                       |
-| -------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| `.prototools`, `.moon/workspace.yml`, `.moon/toolchains.yml`                           | The Moon, Node and pnpm pins. `.prototools` also pins Atlas, for `atlas migrate hash`.        |
-| `.moon/tasks/node.yml`, `node-library.yml`, `node-application.yml`, `node-service.yml` | Tasks every project inherits: typecheck and tests, plus build, dev, preview or start by kind. |
-| `moon.yml`, `scripts/`                                                                 | The workspace-wide gates, and the scripts two of them run.                                    |
-| `package.json`, `pnpm-workspace.yaml`, `.npmrc`                                        | Tool versions, the catalog, and the supply-chain policy.                                      |
-| `tsconfig.options.json`, `vitest.config.ts`, `.oxlintrc.json`, `.oxfmtrc.json`         | Compiler, test and coverage floor, lint and format settings shared by every project.          |
-| `.secretlintrc.json`, `.secretlintignore`, `lefthook.yml`, `commitlint.config.js`      | Secret scanning, the pre-commit subset of the gates, and Conventional Commits.                |
-| `.github/workflows/ci.yml`, `renovate.json`, `justfile`, `.editorconfig`, `.vscode/`   | CI runs `moon ci`, dependency updates, command aliases, and editor settings.                  |
-
-From `0.2.0`, `tsconfig.options.json`, `.oxlintrc.json`, `vitest.config.ts`, `renovate.json` and
-`ci.yml` extend or call shared pieces from this repository instead of holding the settings
-themselves. [Use the shared configuration](shared-config.md) shows each file.
+`tsconfig.options.json`, `.oxlintrc.json`, `vitest.config.ts`, `renovate.json` and `ci.yml`
+extend or call shared pieces from this repository instead of holding the settings themselves.
+[Use the shared configuration](shared-config.md) explains each. `.oxfmtrc.json` sorts imports from
+the project's own scope (`@acme/`) as internal ones, after the packages.
 
 A project now owns `packageManager`, `engines`, the catalog pins and the Moon version. Upgrade
 them together: `.prototools` and `versionConstraint` must name the same Moon version, and
 `tsgolint-lockstep` fails when `typescript` and `oxlint-tsgolint` disagree.
 
-## 4. Add the web app
-
-Copy the reference app, and the typed database schema it queries through:
-
-```sh
-mkdir -p apps db
-cp -R "$REF"/apps/web apps/web
-cp -R "$REF"/db/drizzle db/drizzle
-```
-
-`db/drizzle/` is the project's typed Drizzle schema as a workspace package. `db-tools
-drizzle-generate` writes its `_generated/schema.ts` from the migrations, and the package builds it
-so the app and any service import the tables. The reference's copy is generated from the identity
-migrations that step 6 takes, so it is current until your own migrations change it.
-`.moon/workspace.yml` and `pnpm-workspace.yaml` from step 3 already name it.
-
-The whole directory is [the scaffold copy list](../direction.md#e-scaffolding) plus the files
-that list imports. All of it is glue that the project now owns:
+The web app, `apps/web/`, is the reference app with the project's names:
 
 | Path under `apps/web/`                                     | What it is                                                                                               |
 | ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
 | `vite.config.ts`                                           | Plugins, the development port, and `workspaceSourceConfig` from `@littleorgans/vite-config`.             |
+| `moon.yml`                                                 | The `web-app` task layer, and the preview port, equal to the development port.                           |
 | `src/server/auth.ts`                                       | The composition root: `createAuthRuntime` with `organizationPolicy`, `throttle` and `serviceOrigins`.    |
-| `src/server/throttle.ts`                                   | The in-memory email sign-in throttle (see [Operate it](#8-operate-it)).                                  |
+| `src/server/throttle.ts`                                   | The in-memory email sign-in throttle (see [Operate it](#7-operate-it)).                                  |
 | `src/server/database.ts`                                   | The pool, built lazily from `DATABASE_URL`, and `null` without one, typed by the project's schema.       |
 | `src/server/identity.ts`                                   | `ensureIdentityRows`: the caller's `accounts` and `profiles` rows, created just in time.                 |
 | `src/server/theme.ts`                                      | The theme cookie, and the Origin-checked `/api/theme` handler.                                           |
@@ -350,241 +135,119 @@ that list imports. All of it is glue that the project now owns:
 | `src/features/workspace/`                                  | The signed-in page's loader and view. Replace it, keeping the `ensureIdentityRows` call.                 |
 | `src/routes/theme.tsx`, `src/routes/api/theme.ts`          | Optional: the `/theme` reference page, 404 in a production build, and its POST route.                    |
 | `src/router.tsx`, `src/routeTree.gen.ts`, `src/styles.css` | The router, its generated route tree (rewritten by every build), and the stylesheet registrations.       |
-| `tests/`                                                   | The route, wiring and feature tests. The coverage floor is per file, so copy them all.                   |
+| `tests/`                                                   | The route, wiring and feature tests. The coverage floor is per file, so keep them with the files.        |
+
+`@littleorgans/db` takes `drizzle-orm`, `pg` and `@types/pg` as peers, and `@littleorgans/ui`
+takes `tailwindcss`. The app's manifest supplies all four, so each package uses the app's single
+copy. `pnpm peers check` prints `No peer dependency issues found`.
 
 Keep `/theme` for the first green run. Removing it later means deleting its two routes, running
 `moon run web:build` to regenerate `routeTree.gen.ts`, and updating the tests that name those
 routes. `moon run web:typecheck web:test` lists them.
 
-Three files carry this repository's workspace wiring. Replace them. `apps/web/package.json`:
+Replace the product's name and sign-in copy in `apps/web/src/server/product.ts`; the routes and
+tests read them from there. This module is public data bundled for the browser as well as SSR:
+never put secrets or service imports in it. To serve the theme lab in production, set
+`SHOW_THEME_LAB` to `true` there; it is then public, so add your product's access checks if it
+should not be. `/api/theme` remains available for product theme controls and redirects to `/`
+when no same-origin referer is supplied.
 
-```json
-{
-  "name": "@acme/web",
-  "version": "0.0.0",
-  "private": true,
-  "type": "module"
-}
-```
+## 3. Claim the ports and register the callback
 
-`apps/web/moon.yml`, with the preview port you chose. It has no `dependsOn`, because the libraries
-are installed now, not built in this workspace:
-
-```yaml
-language: "typescript"
-layer: "application"
-tags: ["web-app"]
-
-tasks:
-  preview:
-    # Match server.port in vite.config.ts, so dev and preview share one OAuth callback.
-    env:
-      PORT: "5199"
-```
-
-`apps/web/tsconfig.json`, which is the reference's without its project references:
-
-```json
-{
-  "extends": "../../tsconfig.options.json",
-  "include": ["src/**/*.ts", "src/**/*.tsx", "tests/**/*.ts", "tests/**/*.tsx", "vite.config.ts"],
-  "compilerOptions": {
-    "lib": ["ES2024", "DOM", "DOM.Iterable"],
-    "jsx": "react-jsx",
-    "verbatimModuleSyntax": false,
-    "outDir": "../../.moon/cache/types/apps/web"
-  }
-}
-```
-
-Name the schema package for your scope, and point the app's imports at it:
-
-```sh
-(cd db/drizzle && npm pkg set name=@acme/drizzle-schema)
-grep -rl @littleorgans/drizzle-schema apps/web | xargs perl -pi -e 's#\@littleorgans/drizzle-schema#\@acme/drizzle-schema#g'
-```
-
-Install. `@littleorgans/db` takes `drizzle-orm`, `pg` and `@types/pg` as peers, and
-`@littleorgans/ui` takes `tailwindcss`. The app supplies all four, so each package uses the app's
-single copy:
-
-```sh
-pnpm install
-pnpm add --filter @acme/web "@acme/drizzle-schema@workspace:*" @littleorgans/auth@catalog: @littleorgans/auth-tanstack@catalog: @littleorgans/db@catalog: @littleorgans/theme@catalog: @littleorgans/ui@catalog: @littleorgans/views@catalog: @tanstack/react-router@catalog: @tanstack/react-start@catalog: react@catalog: react-dom@catalog: drizzle-orm@catalog: pg@catalog:
-pnpm add --filter @acme/web -D @littleorgans/vite-config@catalog: @tailwindcss/vite@catalog: @types/node@catalog: @types/pg@catalog: @types/react@catalog: @types/react-dom@catalog: @vitejs/plugin-react@catalog: nitro@catalog: tailwindcss@catalog: vite@catalog:
-pnpm peers check
-```
-
-The first `pnpm add` warns about peers, and the second one supplies them. `pnpm peers check` must
-print `No peer dependency issues found`.
-
-Now set `organizationPolicy` in `apps/web/src/server/auth.ts`. Replace the product's name and
-sign-in copy in `apps/web/src/server/product.ts`; the routes and tests read them from there.
-This module is public data bundled for the browser as well as SSR: never put secrets or service
-imports in it. To serve the theme lab in production, set `SHOW_THEME_LAB` to `true` there; it is
-then public, so add your product's access checks if it should not be. `/api/theme` remains
-available for product theme controls and redirects to `/` when no same-origin referer is supplied.
-
-## 5. Claim the ports and register the callback
-
-- **Development:** `server.port` in `apps/web/vite.config.ts` (`5199` in the reference, with
-  `strictPort`, so a busy port fails rather than moving).
-- **Preview:** `PORT` under `tasks.preview.env` in `apps/web/moon.yml`. Keep it equal to the
-  development port so that one callback serves both.
+- **Development:** `server.port` in `apps/web/vite.config.ts` (`--web-port`, with `strictPort`, so
+  a busy port fails rather than moving).
+- **Preview:** `PORT` under `tasks.preview.env` in `apps/web/moon.yml`. The command writes the same
+  port there, so one callback serves both. Keep them equal.
 - **Callback:** `WORKOS_REDIRECT_URI` is `http://localhost:<port>/callback` locally and your
   public `https://` URL in production. Register each one on the WorkOS application under
   **Redirects**, including the port. A mismatch fails at the provider with an error that points at
-  the wrong system.
+  the wrong system. Only you can register it, and sign-in fails until you do.
 - **Several apps:** give each one its own port and callback. Auth cookies are namespaced by client
   id and redirect URI, and the theme cookie by origin, so apps on one host do not overwrite each
   other's cookies.
-- **Postgres:** the database gates (step 6) run in a container that `db-tools` names and ports
+- **Postgres:** the database gates (step 5) run in a container that `db-tools` names and ports
   after the checkout's absolute path, so separate clones and worktrees get separate containers.
   Set `LILO_PG_PORT` when that port is taken. Run `just clean` before you change it for an
   existing container. Unlabelled containers from the old scripts still run the gates, but cleanup
   refuses to delete them; inspect and remove them manually when they are disposable.
 
-## 6. Set up the database
-
-Skip this step if the app has no database.
-
-### In the project
-
-Take the identity migrations from the installed `@littleorgans/db` into the project's own
-`db/migrations/`, where the project's own migrations will join them. Take the Atlas desired-state
-schema from the reference. Then install the database gates:
+## 4. Set the environment
 
 ```sh
-mkdir -p db/migrations
-cp apps/web/node_modules/@littleorgans/db/migrations/* db/migrations/
-cp "$REF"/db/schema.sql db/
-pnpm add -Dw @littleorgans/db-tools@catalog: pg@catalog: drizzle-kit@catalog:
+cp .env.example .env.local
 ```
 
-`db/migrations/` now holds the two identity migrations and their `atlas.sum`. `db/schema.sql`
-holds `accounts` and `profiles`, the user entity described in
-[The user entity](../user-entity.md).
+Fill in `.env.local`: `WORKOS_CLIENT_ID`, `WORKOS_API_KEY`, `WORKOS_REDIRECT_URI` (step 3), and a
+random `WORKOS_COOKIE_PASSWORD` of at least 32 characters (`openssl rand -base64 32` prints one).
+With a database, set `DATABASE_URL` to the login role from step 5. Without one, `.env.example` has
+no `DATABASE_URL`, and the app's `database()` is `null`.
 
-The gates need Docker, Atlas and drizzle-kit. `.prototools` from step 3 pins Atlas, so
-`proto install` puts it on `PATH`, and `drizzle-kit` is the package just installed.
+Moon loads `.env.local` for `dev` and `preview`. Vite does not, so running `vite`
+directly starts without it. `loadAuthConfig`
+([`packages/auth-session/src/config.ts`](../../packages/auth-session/src/config.ts)) validates the
+values. It names every missing variable at once, refuses a cookie password under 32 characters,
+and refuses a non-HTTPS redirect URI except on localhost. The standalone Node server that
+`moon run web:preview` runs checks it before it listens (`src/server/startup.ts`) and exits on a
+bad value, so a deploy fails instead of its first request. Other Nitro presets may initialize
+plugins on a cold request; this repository does not claim a pre-listen guarantee for them, so
+verify startup and readiness when adopting another preset. The dev server skips the check only
+when every auth value is absent or empty, so the UI runs without credentials; a partial or invalid
+configuration fails it in development too. Errors name the variable without printing its value,
+including a malformed redirect URI.
+Leave `WORKOS_COOKIE_PASSWORD_PREVIOUS` empty until you rotate the cookie password.
+
+## 5. Set up the database
+
+Skip this step if the app has no database. To add one to a project created without `--db`, create
+a scratch project with the same names and `--db`, and move its `db/migrations/`, `db/schema.sql`,
+`db/rls-seed.sql`, root `moon.yml`, root `package.json` and `.env.example` across.
+
+### What `--db` wrote
+
+- `db/migrations/`: the two identity migrations `@littleorgans/db` ships, and their `atlas.sum`.
+  The project's own migrations join them here.
+- `db/schema.sql`: the Atlas desired state, holding `accounts` and `profiles`, the user entity
+  described in [The user entity](../user-entity.md).
+- `db/rls-seed.sql`: one row per table, so the `rls-verify` claim checks have rows to hide. Add a
+  row for every table you add.
+- In the root `package.json`: `@littleorgans/db-tools`, its `pg` peer, and `drizzle-kit`.
+- In the root `moon.yml`: the database tasks below, and a `clean` task that also removes the
+  checkout's Postgres container.
+
+| Task                    | Runs                                         | In `moon ci` |
+| ----------------------- | -------------------------------------------- | ------------ |
+| `root:atlas-diff`       | `db-tools atlas-diff`                        | No           |
+| `root:atlas-lint`       | `db-tools atlas-lint`                        | Yes          |
+| `root:atlas-apply`      | `db-tools atlas-apply`                       | No           |
+| `root:drizzle-generate` | `db-tools drizzle-generate`                  | No           |
+| `root:drizzle-check`    | `db-tools drizzle-check`                     | Yes          |
+| `root:rls-verify`       | `db-tools rls-verify --seed db/rls-seed.sql` | Yes          |
+
+Every one uses the `db-tools` defaults `db/migrations`, `db/schema.sql` and
+`db/drizzle/_generated`. `db/schema.sql` is the applicability boundary: without it every task
+skips before Docker or Atlas starts. The three checks skip locally without Docker and say so. In
+CI, which sets `CI`, they fail instead. They are `cache: false` because the database is not a file
+input: a cached pass would stand in for a run that never happened. `atlas-lint` lints the
+migrations added since `MOON_BASE`, which `.github/workflows/ci.yml` sets to the pull request's
+base, or the latest migration without it.
+
+The gates need Docker, Atlas and drizzle-kit. `.prototools` pins Atlas, so `proto install` puts it
+on `PATH`, and `drizzle-kit` is a root development dependency.
 [The db-tools README](../../packages/db-tools/README.md#install) says why each one is installed the
 way it is.
 
-Write `db/rls-seed.sql`, so that the claim checks have rows to hide:
-
-```sql
--- One row per table, so rls-verify's claim checks have rows to hide. Runs as the server login,
--- which bypasses row level security, in a scratch database rls-verify drops afterwards.
-INSERT INTO accounts (workos_org_id) VALUES ('org_seed');
-INSERT INTO profiles (workos_user_id) VALUES ('user_seed');
-```
-
-Add the database tasks to the root `moon.yml`, under `tasks:`. Every one runs `db-tools` from the
-package just installed, with the defaults `db/migrations`, `db/schema.sql` and
-`db/drizzle/_generated`. `db/schema.sql` is the applicability boundary: without it every task
-skips before Docker or Atlas starts. The three checks skip locally without Docker and say so. In
-CI, which sets `CI`, they fail instead.
-
-```yaml
-atlas-diff:
-  type: "run"
-  command: "db-tools atlas-diff"
-  checks:
-    - check: "condition"
-      script: "test ! -f db/schema.sql"
-  options:
-    shell: false
-    cache: false
-    runInCI: false
-
-atlas-lint:
-  type: "test"
-  command: "db-tools atlas-lint"
-  checks:
-    - check: "condition"
-      script: "test ! -f db/schema.sql"
-  options:
-    shell: false
-    cache: false
-    runInCI: "always"
-
-atlas-apply:
-  type: "run"
-  command: "db-tools atlas-apply"
-  checks:
-    - check: "condition"
-      script: "test ! -f db/schema.sql"
-  options:
-    shell: false
-    cache: false
-    runInCI: false
-
-drizzle-generate:
-  type: "run"
-  command: "db-tools drizzle-generate"
-  checks:
-    - check: "condition"
-      script: "test ! -f db/schema.sql"
-  options:
-    shell: false
-    cache: false
-    runInCI: false
-
-drizzle-check:
-  type: "test"
-  command: "db-tools drizzle-check"
-  checks:
-    - check: "condition"
-      script: "test ! -f db/schema.sql"
-  options:
-    shell: false
-    cache: false
-    runInCI: "always"
-
-# Applies db/migrations and the seed to a scratch database and runs rls-verify against it.
-rls-verify:
-  type: "test"
-  command: "db-tools rls-verify --seed db/rls-seed.sql"
-  checks:
-    - check: "condition"
-      script: "test ! -f db/schema.sql"
-  options:
-    shell: false
-    cache: false
-    runInCI: "always"
-```
-
-The checks are `cache: false` because the database is not a file input: a cached pass would stand
-in for a run that never happened. `atlas-lint` lints the migrations added since `MOON_BASE`, which
-`.github/workflows/ci.yml` sets to the pull request's base, or the latest migration without it.
-
-Change the `clean` task, so that it also removes the checkout's Postgres container:
-
-```yaml
-clean:
-  type: "run"
-  script: "db-tools clean && moon clean"
-  options:
-    cache: false
-    runInCI: false
-```
-
-Generate the typed Drizzle schema, which `drizzle-check` keeps honest from now on:
-
-```sh
-moon run root:drizzle-generate
-```
-
-It writes `db/drizzle/_generated/schema.ts`. Commit it, and never edit it by hand. The app imports
-it as `@acme/drizzle-schema`, and `createDatabase({ connectionString, schema })` types every scoped
-transaction by it. It records tables and columns, not security: `rls-verify` is the authority on the
-policies.
+`db/drizzle/_generated/schema.ts` is the typed Drizzle schema of those migrations. `drizzle-check`
+keeps it honest, and `moon run root:drizzle-generate` rewrites it after your migrations change.
+Commit it, and never edit it by hand. The app imports it as `@acme/drizzle-schema`, and
+`createDatabase({ connectionString, schema })` types every scoped transaction by it. It records
+tables and columns, not security: `rls-verify` is the authority on the policies.
 
 ### In a real database
 
 To set up a real database (Postgres 16 or later), follow
 [the db package's setup](../../packages/db/README.md#set-up-the-database), reading the migrations
-from `db/migrations/` instead of `node_modules`. As the migration owner:
+from `db/migrations/` instead of `node_modules`. The command printed these steps with your names.
+As the migration owner:
 
 ```sh
 (
@@ -613,62 +276,32 @@ DATABASE_URL="postgres://acme_web:…@host:5432/app" pnpm exec rls-verify
 To add a table, add it to `db/schema.sql` and run `moon run root:atlas-diff`, which writes the
 versioned migration. Atlas does not model row level security, so add a hand-written migration that
 enables and forces it and creates the table's policies, then run
-`atlas migrate hash --dir file://db/migrations`. Finish with `moon run root:drizzle-generate`. The
-`rls-verify` gate fails on any `public` table that is not forced. `moon run root:atlas-apply`
-applies pending migrations to the database in `DATABASE_URL`.
+`atlas migrate hash --dir file://db/migrations`. Add a row to `db/rls-seed.sql`, and finish with
+`moon run root:drizzle-generate`. The `rls-verify` gate fails on any `public` table that is not
+forced. `moon run root:atlas-apply` applies pending migrations to the database in `DATABASE_URL`.
 
-## 7. Reach the first green `moon ci`
-
-```sh
-pnpm install
-moon sync
-moon run root:format
-moon run web:typecheck web:build web:test
-git add -A
-git commit -m "feat: add the web app"
-moon ci
-```
-
-`moon sync` adds `apps/web` to the root `tsconfig.json` references. `root:format` rewrites the
-files that the edits above left unformatted. `moon ci` then runs typecheck, build, coverage, lint,
-format, secrets, audit, the lockstep and reference checks, and, with a database, `atlas-lint`,
-`drizzle-check` and `rls-verify`. Nothing may fail.
-CI runs the same command from `.github/workflows/ci.yml`.
-
-Set the environment:
+## 6. Reach the first green `moon ci`
 
 ```sh
-cp .env.example .env.local
+moon ci --force
 ```
 
-Fill in `.env.local`: `WORKOS_CLIENT_ID`, `WORKOS_API_KEY`, `WORKOS_REDIRECT_URI` (step 5), and a
-random `WORKOS_COOKIE_PASSWORD` of at least 32 characters (`openssl rand -base64 32` prints one).
-Set `DATABASE_URL` to the login role from step 6, or delete the line if there is no database.
+`--force` runs every task, where a plain `moon ci` checks only what the last commit touched. It
+runs typecheck, build, coverage, lint, format, secrets, audit, the lockstep and reference checks,
+and, with a database, `atlas-lint`, `drizzle-check` and `rls-verify`. Nothing may fail, and nothing
+needs fixing first: before a release, `published-shape` runs a web app, a service and both through this same first run. Without Docker the database checks
+skip locally and say so; CI runs them. CI runs `moon ci` from `.github/workflows/ci.yml`.
+
 Then run the app:
 
 ```sh
 moon run web:dev
 ```
 
-Moon loads `.env.local` for `dev` and `preview`. Vite does not, so running `vite`
-directly starts without it. `loadAuthConfig`
-([`packages/auth-session/src/config.ts`](../../packages/auth-session/src/config.ts)) validates the
-values. It names every missing variable at once, refuses a cookie password under 32 characters,
-and refuses a non-HTTPS redirect URI except on localhost. The standalone Node server that
-`moon run web:preview` runs checks it before it listens (`src/server/startup.ts`) and exits on a
-bad value, so a deploy fails instead of its first request. Other Nitro presets may initialize
-plugins on a cold request; this repository does not claim a pre-listen guarantee for them, so
-verify startup and readiness when adopting another preset. The dev server skips the check only
-when every auth value is absent or empty, so the UI runs without credentials; a partial or invalid
-configuration fails it in development too. Errors name the variable without printing its value,
-including a malformed redirect URI.
-Leave `WORKOS_COOKIE_PASSWORD_PREVIOUS` empty until you rotate the cookie password. The
-comments in `.env.example` describe the reference repository, and the variable names are the same.
-
 Sign in once with Google and once with an emailed code, and land on `/app`. `moon run web:preview`
 serves the production build on the preview port.
 
-## 8. Operate it
+## 7. Operate it
 
 ### Email sign-in throttle and the per-address lockout
 
@@ -720,7 +353,7 @@ first, as `apps/web/src/server/theme.ts` does for `/api/theme`. See
 ### Calling a service
 
 `auth.asUser().fetch` sends the signed-in person's token only to origins listed in
-`serviceOrigins`. [Adopt the packages in a service](adopt-service.md#7-call-it-from-the-web-app)
+`serviceOrigins`. [Adopt the packages in a service](adopt-service.md#6-call-it-from-the-web-app)
 covers the setup.
 
 ### Rotating the cookie password
@@ -737,6 +370,7 @@ previous.
 ## Upgrade
 
 Every release publishes all the packages at one version. Change the `@littleorgans/*` catalog
-entries together, run `pnpm install`, and read the changelog of each package for "action
-required" notes, which are glue changes to make by hand. Compare your glue against the reference
-at the new tag (step 2), not against `main`.
+entries and the `moon-ci.yml` tag together (the `littleorgans` Renovate group does), run
+`pnpm install`, and read the changelog of each package for "action required" notes, which are glue
+changes to make by hand. Compare your glue against the reference at the new tag, not against
+`main`. Running `@littleorgans/create-app` again writes a new project; it never updates one.

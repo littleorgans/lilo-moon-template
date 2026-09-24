@@ -182,6 +182,17 @@ work; the green run proves the valid state.
 - Keep shared tooling free of app-specific paths, ports and coverage exceptions. Scope runtime tasks
   explicitly so adding a different language or application runtime inherits the right checks.
 
+## Keep the create-app template generated
+
+`@littleorgans/create-app` writes new projects from `apps/web`, `services/api`, `db/` and the
+workspace root. Its build generates the template from them (`packages/create-app/src/generate/`),
+so a change to the reference reaches new projects with the next release. The generator classifies
+every root entry, root task and `.env.example` paragraph, and rewrites anchored text such as ports
+and names. A new root file, a new root task, a new `.env.example` paragraph or a moved anchor fails
+`moon run create-app:build` with the file to edit. Decide whether a project gets it, record that
+there, and never commit a generated template. `root:published-shape` proves each kind of project the
+packed command writes passes its own `moon ci --force`.
+
 ## Follow repository conventions
 
 - Use Conventional Commits. The Git history and pull request titles depend on the type, optional
