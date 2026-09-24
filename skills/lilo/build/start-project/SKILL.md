@@ -58,9 +58,9 @@ Run it without a terminal, every choice as a flag, for example:
 pnpm create @littleorgans/app acme --web --organization-policy personal --web-port 5199 --db
 ```
 
-It fails with exit 2 and names every missing or invalid flag, and exit 1 when the directory is not
-empty; it never overwrites a file. On success it prints the defaults it took and the remaining
-steps. Relay both to the person, then do the steps you can: the commit, `pnpm install`, the
+It reports missing or invalid choices with exit 2, and a nonempty directory with exit 1; it never
+overwrites a file. On success it prints the defaults it took and the remaining steps. Relay both
+to the person, then do the steps you can: the commit, `pnpm install`, the
 lockfile commit and `moon ci --force`. If `pnpm install` stops with
 `ERR_PNPM_NO_MATURE_MATCHING_VERSION`, a dependency has no matching version old enough to install.
 Do not add a `minimumReleaseAgeExclude` entry yourself: tell the person, who decides whether to

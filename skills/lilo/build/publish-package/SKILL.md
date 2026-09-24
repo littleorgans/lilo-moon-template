@@ -45,7 +45,8 @@ same edit to the reference in the same pull request, so the next generated proje
   `db`; `react` and `react-dom` for `ui` and `views`, and `tailwindcss` for `ui`;
   `@littleorgans/auth` for `auth-http`, which recognizes `AuthError` by class. An adapter's
   framework is an optional peer, as `hono` is.
-- Peer ranges are caret ranges from a named `*-peer` catalog in `pnpm-workspace.yaml`.
+- External peer floors live in the named `*-peer` catalogs in `pnpm-workspace.yaml`. Peers on
+  workspace packages use `workspace:^`, as `packages/auth-http/package.json` shows.
   `root:published-shape` checks `db`'s caret peer ranges, tests its peer floors, and compares
   `publishConfig.exports` to `exports` with `@littleorgans/source` removed. Use that gate when
   changing peers or exports; a floor you cannot install and test is a floor you cannot claim.
