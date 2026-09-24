@@ -64,6 +64,11 @@ grant, and the first `moon ci --force`.
 [Adopt the packages in a web app](https://github.com/littleorgans/lilo-moon-template/blob/main/docs/guides/adopt-web-app.md)
 explains each step. Read it at the tag that matches the version you installed.
 
+The generated project keeps the one-day release-age policy for `@littleorgans/*` too. If no
+matching version is old enough, pnpm reports `ERR_PNPM_NO_MATURE_MATCHING_VERSION`. Wait, or review
+and approve exact versions under `minimumReleaseAgeExclude`, then remove those approvals once the
+versions mature. There is no permanent scope exemption.
+
 Exit codes: 0 created, 1 failed (for example, the directory is not empty), 2 usage error.
 
 The command writes no secrets or `.env.local`. The generated `.env.example` leaves

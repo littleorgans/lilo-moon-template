@@ -67,8 +67,8 @@ export function report(choices: Choices, template: Template, target: string): st
       '  git add pnpm-lock.yaml && git commit -m "chore: lock dependencies"',
       "",
       "pnpm installs a version only once it is a day old, @littleorgans/* included. If the install",
-      "stops with ERR_PNPM_NO_MATURE_MATCHING_VERSION, wait, or list those exact versions under",
-      "minimumReleaseAgeExclude in pnpm-workspace.yaml and remove them once they are a day old.",
+      "stops with ERR_PNPM_NO_MATURE_MATCHING_VERSION, wait, or review and approve exact versions",
+      "under minimumReleaseAgeExclude in pnpm-workspace.yaml; remove them once they are a day old.",
     ],
   ];
   if (choices.web !== null) {
