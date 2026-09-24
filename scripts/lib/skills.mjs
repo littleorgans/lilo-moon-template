@@ -1,7 +1,8 @@
 // The skills under skills/lilo and the rules that keep them true. The agent-runtimes catalog
-// renders them for agents (skills/tm/runtime/skill-matters in that repository). This check covers
-// our narrow authoring format; loading the complete catalog remains a separate release check. And a skill teaches by pointing at this repository, so
-// every repository path it cites must exist.
+// renders them for agents (skills/tm/runtime/skill-matters in that repository), so what it refuses
+// at load in skills/lilo is refused here first, in the one narrow format this repository writes. A
+// conflict with another owner shows only when the whole catalog loads. And a skill teaches by
+// pointing at this repository, so every repository path it cites must exist.
 //
 // A cited path is an inline code span naming a file, a directory (trailing slash) or a glob from the
 // repository root: its first segment is a top-level directory, or it is one of ROOT_FILES. A span
@@ -50,6 +51,7 @@ const ROOT_DIRECTORIES = [
 
 // The catalog's own limits (agent_runtime_compiler/skills.py).
 const COMPONENT = /^[a-z](?:[a-z0-9-]{0,62}[a-z0-9])?$/;
+const GENERATED_NAME = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const MAX_GENERATED_NAME = 64;
 
 function gitOutput(root, args) {
@@ -105,17 +107,11 @@ export function treeAt(root, ref) {
 export function latestReleaseTag(root) {
   const versions = gitOutput(root, ["tag", "--list", "v*"])
     .split("\n")
-    .map((tag) => ({
-      tag,
-      parts: /^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.exec(tag)?.slice(1).map(BigInt),
-    }))
+    .map((tag) => ({ tag, parts: /^v(\d+)\.(\d+)\.(\d+)$/.exec(tag)?.slice(1).map(Number) }))
     .filter(({ parts }) => parts !== undefined)
-    .toSorted((a, b) => {
-      for (let i = 0; i < 3; i += 1) {
-        if (a.parts[i] !== b.parts[i]) return a.parts[i] > b.parts[i] ? -1 : 1;
-      }
-      return 0;
-    });
+    .toSorted(
+      (a, b) => b.parts[0] - a.parts[0] || b.parts[1] - a.parts[1] || b.parts[2] - a.parts[2],
+    );
   return versions[0]?.tag ?? null;
 }
 
@@ -316,7 +312,7 @@ export function shapeProblems(skills) {
     }
     const [, , domain, name] = parts;
     const generated = `${OWNER}-${domain}-${name}`;
-    if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(generated))
+    if (!GENERATED_NAME.test(generated))
       problems.push(`${file}: invalid generated name ${generated}`);
     if (generatedNames.has(generated))
       problems.push(`${file}: generated name collision ${generated}`);
@@ -325,8 +321,8 @@ export function shapeProblems(skills) {
     for (const component of [domain, name]) {
       if (!COMPONENT.test(component)) problems.push(`${file}: ${component} is not a valid ID part`);
     }
-    if (`${OWNER}-${domain}-${name}`.length > MAX_GENERATED_NAME) {
-      problems.push(`${file}: ${OWNER}-${domain}-${name} exceeds ${MAX_GENERATED_NAME} characters`);
+    if (generated.length > MAX_GENERATED_NAME) {
+      problems.push(`${file}: ${generated} exceeds ${MAX_GENERATED_NAME} characters`);
     }
     const fields = frontmatter(content);
     if (fields === null) {

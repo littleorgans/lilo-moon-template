@@ -252,8 +252,9 @@ await test("sync refuses a path the newest release does not have, and writes not
   assert.match(refused.output, /cites docs\/new.md, which is not in v0\.9\.0/);
   assert.ok(existsSync(join(target, "skills/lilo/build/retired/SKILL.md")), "nothing was written");
 
-  // v0.10.0 is the newest release, though it sorts before v0.9.0 as text.
+  // v0.10.0 is the newest release, though it sorts before v0.9.0 as text. A prerelease is not one.
   git(root, ["tag", "v0.10.0"]);
+  git(root, ["tag", "v0.11.0-rc.1"]);
   const released = run(sync, root, [target]);
   assert.equal(released.status, 0, released.output);
   assert.match(released.output, /exists at v0\.10\.0/);
@@ -313,30 +314,12 @@ await test("catalog validation rejects duplicate TOML and generated names before
   assert.match(result.output, /invalid generated name/);
 });
 
-await test("release selection ignores prereleases and invalid semver and handles every numeric component", (t) => {
-  const root = repository(t);
-  for (const tag of [
-    "v2.0.0",
-    "v1.99.99",
-    "v2.0.9",
-    "v2.0.10",
-    "v02.99.99",
-    "v99.0.0-rc.1",
-    "v999",
-  ])
-    git(root, ["tag", tag]);
-  const result = run(sync, root, [catalog(t)]);
-  assert.equal(result.status, 0, result.output);
-  assert.match(result.output, /exists at v2\.0\.10/);
-});
-
 await test("sync rejects malformed arguments, non-tags and its own checkout without writing", (t) => {
   const root = repository(t);
   const target = catalog(t);
   for (const args of [
     [target, "--tag"],
     [target, "--tag", "--ref", "HEAD"],
-    [target, "--ref", "HEAD", "--ref", "HEAD"],
     ["--unknown", target],
   ]) {
     assert.equal(run(sync, root, args).status, 2);

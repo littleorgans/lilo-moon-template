@@ -27,24 +27,15 @@ function fail(message, code = 1) {
 }
 
 const args = process.argv.slice(2);
-const options = { ref: "HEAD", tag: undefined };
+const options = { ref: undefined, tag: undefined };
 let catalog;
-let invalid = false;
-const seen = new Set();
 while (args.length > 0) {
   const arg = args.shift();
-  if (
-    (arg === "--ref" || arg === "--tag") &&
-    args.length > 0 &&
-    !args[0].startsWith("-") &&
-    !seen.has(arg)
-  ) {
-    options[arg.slice(2)] = args.shift();
-    seen.add(arg);
-  } else if (!arg.startsWith("-") && catalog === undefined) catalog = resolve(arg);
-  else invalid = true;
+  if ((arg === "--ref" || arg === "--tag") && args.length > 0) options[arg.slice(2)] = args.shift();
+  else if (!arg.startsWith("-") && catalog === undefined) catalog = resolve(arg);
+  else catalog = null;
 }
-if (catalog === undefined || invalid) {
+if (catalog === undefined || catalog === null) {
   fail("Usage: moon run root:skills-sync -- <catalog> [--ref <ref>] [--tag <tag>]", 2);
 }
 if (!existsSync(join(catalog, "skills"))) {
@@ -56,16 +47,17 @@ if (realpathSync(join(catalog, "skills")) === realpathSync(join(root, "skills"))
   fail("The catalog must be separate from the source checkout.", 2);
 }
 const git = (...gitArgs) => execFileSync("git", gitArgs, { cwd: root, encoding: "utf8" }).trim();
-if (!seen.has("--ref") && git("status", "--porcelain", "--", SKILLS_ROOT) !== "") {
+if (options.ref === undefined && git("status", "--porcelain", "--", SKILLS_ROOT) !== "") {
   fail(`${SKILLS_ROOT} has uncommitted changes. Commit them, or pass --ref, before syncing.`);
 }
 const tag = options.tag ?? latestReleaseTag(root);
 if (tag === null) fail("No v<version> release tag found. Fetch tags, or pass --tag.");
 const release = git("rev-parse", "--verify", `refs/tags/${tag}^{commit}`);
 
-const commit = git("rev-parse", "--verify", `${options.ref}^{commit}`);
+const ref = options.ref ?? "HEAD";
+const commit = git("rev-parse", "--verify", `${ref}^{commit}`);
 const skills = skillsAt(root, commit);
-if (skills.size === 0) fail(`${options.ref} has no ${SKILLS_ROOT}.`);
+if (skills.size === 0) fail(`${ref} has no ${SKILLS_ROOT}.`);
 const problems = shapeProblems(skills);
 const { missing } = checkCitations(skills, treeAt(root, release));
 problems.push(
