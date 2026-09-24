@@ -1,0 +1,45 @@
+language: "typescript"
+layer: "library"
+tags:
+  - "ts-library"
+
+# The template is generated from the reference app, the reference service, db/ and the workspace
+# root (src/generate/). Every task that reads it hashes them, so a change there rebuilds the
+# template and reruns the tests that check it.
+fileGroups:
+  reference:
+    - "/*"
+    - "/.*"
+    - "/.github/workflows/**/*"
+    - "/.moon/*.yml"
+    - "/.moon/tasks/**/*"
+    - "/.vscode/**/*"
+    - "/scripts/*.mjs"
+    - "/apps/web/**/*"
+    - "/services/api/**/*"
+    - "/db/**/*"
+    - "/packages/*/package.json"
+    - "/packages/db/migrations/**/*"
+    - "!/**/node_modules/**/*"
+  owned:
+    - "templates/**/*"
+
+tasks:
+  # The library build without declarations, since nothing imports this package, then the template
+  # beside the command that reads it.
+  build:
+    script: >-
+      node -e "require('node:fs').rmSync('dist', { recursive: true, force: true })" &&
+      tsc --project tsconfig.build.json --declaration false --declarationMap false &&
+      node src/generate/index.ts ../.. dist/template.json
+    inputs:
+      - "@globs(reference)"
+      - "@globs(owned)"
+  test:
+    inputs:
+      - "@globs(reference)"
+      - "@globs(owned)"
+  test-coverage:
+    inputs:
+      - "@globs(reference)"
+      - "@globs(owned)"

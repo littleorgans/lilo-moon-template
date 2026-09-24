@@ -45,6 +45,7 @@ catalog:
   typescript: "~7.0.2"
   vite: "^8.2.1"
   vitest: "^4.1.11"
+  yaml: "2.9.0"
 
 # Libraries declare peer ranges rather than the app pin: a caret on the supported major, never an
 # open-ended >=, so a future major is an explicit decision.
