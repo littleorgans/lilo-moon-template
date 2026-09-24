@@ -76,6 +76,22 @@ await test("the contract suite stays out of moon ci and out of the workflows pro
   }
 });
 
+// assumptions.test.ts reads package sources outside its project. Unless they are inputs of the
+// tasks that run it, a change to them replays a cached pass.
+await test("the package sources assumptions.test.ts reads are inputs of its test tasks", () => {
+  const text = readFileSync("packages/workos-contract/tests/assumptions.test.ts", "utf8");
+  const read = [...new Set([...text.matchAll(/source\("([^"]+)"\)/g)].map(([, path]) => path))];
+  assert.ok(read.length > 0, "assumptions.test.ts reads no sources: update this test");
+  const { tasks } = readYaml("packages/workos-contract/moon.yml");
+  for (const task of ["test", "test-coverage"]) {
+    assert.deepEqual(
+      tasks[task].inputs.toSorted(),
+      read.map((path) => `/packages/${path}`).toSorted(),
+      task,
+    );
+  }
+});
+
 await test("the report opens one issue, comments while it stays open, and closes it on a pass", (t) => {
   const root = mkdtempSync(join(tmpdir(), "workos-contract-report-"));
   t.after(() => rmSync(root, { recursive: true, force: true }));
