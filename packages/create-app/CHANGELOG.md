@@ -1,5 +1,19 @@
 # @littleorgans/create-app
 
+## 0.2.1
+
+### Patch Changes
+
+- [#130](https://github.com/littleorgans/lilo-moon-template/pull/130) [`70475ed`](https://github.com/littleorgans/lilo-moon-template/commit/70475edce2e8199e833aa2bdca2f96ed1dd0e79f) Thanks [@srobinson](https://github.com/srobinson)! - `create-app` classifies this repository's new nightly `published-shape.yml` workflow as the
+  template's own, so a generated project gets no copy of it. Generated projects are unchanged.
+
+- [#125](https://github.com/littleorgans/lilo-moon-template/pull/125) [`14e3800`](https://github.com/littleorgans/lilo-moon-template/commit/14e38007df5ed1655b84a863063672ea71494481) Thanks [@srobinson](https://github.com/srobinson)! - A generated project's `AGENTS.md` names the full `lilo/build` skill set, and the `lilo/build-core`
+  bundle that selects it, instead of `lilo/build/start-project` alone.
+
+- [#127](https://github.com/littleorgans/lilo-moon-template/pull/127) [`0976e1e`](https://github.com/littleorgans/lilo-moon-template/commit/0976e1e742579b019cecfd29f70b50a20e02eda6) Thanks [@srobinson](https://github.com/srobinson)! - `create-app` classifies this repository's new `workos-contract.yml` workflow as the template's own,
+  so a generated project gets no copy of it and needs no WorkOS secrets in CI. Generated projects are
+  unchanged.
+
 ## 0.2.0
 
 ### Minor Changes

@@ -1,6 +1,6 @@
 {
   "name": "@littleorgans/auth-http",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Bearer authentication for HTTP services on Fetch Request and Response, with a Hono adapter and a service config loader.",
   "license": "MIT",
   "repository": {

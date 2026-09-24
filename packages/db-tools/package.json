@@ -1,6 +1,6 @@
 {
   "name": "@littleorgans/db-tools",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Database gates for Postgres projects: rls-verify, Atlas and Drizzle wrappers, and a per-checkout Postgres container.",
   "license": "MIT",
   "repository": {
