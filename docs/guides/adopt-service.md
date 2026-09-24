@@ -1,9 +1,7 @@
 # Adopt the packages in a service
 
-> Release status: these instructions target the upcoming `0.2.0` release, which includes typed
-> database schemas, the full database tools and `@littleorgans/create-app`. Run the registry/tag
-> commands after that release exists. For the published `0.1.0`, use the guide at `v0.1.0`: it
-> copies the service by hand and has no typed schema option.
+> Still on `0.1.0`? Use [this guide at `v0.1.0`](https://github.com/littleorgans/lilo-moon-template/blob/v0.1.0/docs/guides/adopt-service.md),
+> which copies the service by hand.
 
 This guide adds a TypeScript HTTP service on the published `@littleorgans/*` packages at `^0.2.0`.
 The service authenticates callers with `@littleorgans/auth-http` and reads Postgres through
