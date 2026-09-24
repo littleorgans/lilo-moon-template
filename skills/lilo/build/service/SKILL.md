@@ -39,10 +39,11 @@ line and no start, so a bad deploy fails before it takes a request.
 
 ## How it fails
 
-Every failure body is `{"error": "<code>"}` with `Cache-Control: no-store`, the shape auth-http
-uses. Keep the reference's split, in `services/api/src/server/errors.ts`:
+The reference's own failure bodies use `{"error": "<code>"}` with `Cache-Control: no-store`, the shape auth-http
+uses. Hono `HTTPException` responses pass through unchanged, so choose middleware with that
+exception in mind. Keep the reference's split, in `services/api/src/server/errors.ts`:
 
-- 401 and 503 `auth_unavailable` come from auth-http. A provider outage is never a 401.
+- 401 auth rejection codes and 503 `auth_unavailable` come from auth-http. A provider outage is never a 401.
 - 403 when the token verified but the request is not allowed, such as a token with no
   organization.
 - 503 `unavailable` when Postgres is unreachable, starting, shutting down or out of connections:

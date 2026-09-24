@@ -22,18 +22,21 @@ Where the loader code goes is [web-app](../web-app/SKILL.md). The rows a signed-
 
 ## The choices a project owns
 
-All of them sit in `apps/<name>/src/server/auth.ts`, the `createAuthRuntime` call
+Runtime options sit in `apps/<name>/src/server/auth.ts`, the `createAuthRuntime` call
 (`apps/web/src/server/auth.ts` in the reference). Change them there, never in a package copy.
 
 - **`organizationPolicy`.** `personal` creates an organization at first sign-in, keyed on the user
   so a retry cannot make two. `existing` leaves membership to an invitation or admin flow the
   product already has. Under `existing` a person without an organization signs in, sees no tenant
-  rows, and every service refuses them with 403. Switching later changes nothing for people who
-  already have one.
+  rows, and the reference service refuses them with 403. Switching later changes nothing for
+  people who already have one.
 - **Roles.** A new organization's creator gets the environment's default role. Whether a creator
   should hold more is a product decision the packages do not take: define the role in WorkOS, then
-  pass `roleSlugs`, as `docs/auth-screens.md` describes. Do not grant WorkOS's `admin`; it governs
-  WorkOS's own widgets, not the product.
+  review the provisioning seam in `packages/auth-session/src/callback.ts` and
+  `packages/auth-workos/src/types.ts`. `provisionOrganization` accepts `roleSlugs`, but
+  `ensureOrganization` does not pass them and `createAuthRuntime` exposes no such option. A custom
+  creator role needs package work before a project can select it. The rationale is in
+  `docs/auth-screens.md`; WorkOS's `admin` is not a product role.
 - **Entitlements** arrive as names in the token (`entitlements` on the `Principal`), never as
   quantities. Gate on "does this organization have the feature", prefix names per product, and read
   seat counts off the request path. `docs/user-entity.md` explains why.
@@ -50,12 +53,13 @@ All of them sit in `apps/<name>/src/server/auth.ts`, the `createAuthRuntime` cal
 ## What each state shows
 
 `auth.access()` and `auth.asUser()` return `signed-in`, `anonymous`, `ended`, `broken` or
-`unavailable`. None of them throws. Keep the reference's destinations; each encodes a decision.
+`unavailable` for auth outcomes. Configuration and integration errors can still throw;
+`asUser()` validates service origins before reading the session. Keep the reference's destinations.
 
 - `ended` clears the cookie and says only that the session ended. It never names the failed check,
   because that tells an attacker which one to change.
-- `broken` means the provider really signed a token we cannot read: our outage. The cookie stays,
-  the screen has no sign-in button, and the failure is logged.
+- `broken` means malformed verified claims, configuration failure or a provider failure: our
+  outage. The cookie stays, the screen has no sign-in button, and the failure is logged.
 - `unavailable` is a provider or key outage: offer a retry, keep the session.
 - A refused sign-in at the callback renders the package's own page with a status that tells
   monitoring whose fault it is (503, 500 or 400). Route those failures through `log`; do not
@@ -94,14 +98,16 @@ There is no machine identity (decision D10). A service that must call another fo
 caller's own token, and a background job cannot call a service yet. Say so rather than inventing a
 shared secret.
 
-## What is enforced for you
+## Gates
 
-- The package handlers answer only POST where state changes, refuse a missing or foreign `Origin`,
-  and ask the throttle before WorkOS; their own tests hold that.
-- The verifier requires `exp` and `sub` and maps every failure to an `AuthFailure` reason
-  (`packages/auth/src/verify.ts`).
-- `throttle` is a required option, so omitting it fails typecheck.
-- An unhandled access state fails typecheck where the loader keeps its `never` default.
+- `auth-session:test-coverage` checks Origin refusal and email throttling. OAuth callbacks use
+  state validation; they are GET routes, not Origin-checked POSTs.
+- `auth-tanstack:test-coverage` checks `postHandlers`, the method restriction used by the
+  reference email and sign-out routes.
+- `auth:test-coverage` checks required claims and the failure mapping in
+  `packages/auth/src/verify.ts`.
+- `web:typecheck` catches a missing `throttle` and unhandled access states where the loader keeps
+  its `never` default.
 
 Your own POST routes are not covered: call `refuseCrossOrigin(request, auth.origin())` first, as
 `apps/web/src/server/theme.ts` does.

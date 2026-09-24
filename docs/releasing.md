@@ -221,11 +221,13 @@ change to skill text between releases:
    and `settings.toml` with the `lilo/build-core` bundle. A skill deleted here disappears there.
    Other owners are untouched. `--ref <commit>` syncs another commit.
 
-2. It writes nothing when `skills/lilo/` has uncommitted changes, when a skill breaks a rule the
-   catalog enforces at load, or when a skill cites a path that the newest `v<version>` tag does not
-   have. Skills send readers to the reference at the tag matching the version they install, so a
+2. It writes nothing when `skills/lilo/` has uncommitted changes and no explicit `--ref` was given,
+   when a skill breaks the local authoring checks, or when a skill cites a path that the newest
+   `v<version>` tag does not have. Skills send readers to the reference at the tag matching the version they install, so a
    path added after that release would send them to nothing. Sync once the release that adds it is
-   out. `--tag <tag>` checks against another release.
+   out. `--tag <tag>` checks against another existing tag. The default selects the highest stable
+   semantic version, ignoring prereleases and malformed version tags. The destination must be
+   separate from the source checkout.
 
 3. In the catalog, review the diff, run `python3 bin/generate.py --catalog` to confirm the catalog
    loads, regenerate the runtimes that select the skills, and open the catalog's pull request. The

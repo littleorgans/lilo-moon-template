@@ -36,7 +36,7 @@ Where the query code goes is [web-app](../web-app/SKILL.md) or [service](../serv
 ## Adding one
 
 The desired state goes in `db/schema.sql`; `atlas-diff` writes the table migration from it. Atlas
-silently drops functions, row level security, policies, roles and grants, so those go in a
+Community silently drops functions, row level security, policies, roles and grants, so those go in a
 hand-written migration beside it, modeled on
 `packages/db/migrations/20260822081700_identity.sql`:
 
@@ -67,10 +67,12 @@ Drizzle schema. Never hand-edit the generated schema, and never trust it for pol
 ## Roles and connections
 
 - Every deployed process logs in as its own role holding the shipped grant, never as the migration
-  owner, a superuser or a `BYPASSRLS` role: each of those skips the policies. One role per process
+  owner, a superuser or a `BYPASSRLS` role. Superusers and `BYPASSRLS` bypass policies even when
+  forced; a table owner is subject to forced RLS but can disable it. One role per process
   lets you revoke one without the others.
-- The grant has no `INHERIT`, so a query outside `withPrincipal` fails with permission denied.
-  Leave it that way.
+- The shipped grant disables inheritance. With no other table privileges or inherited grants,
+  a query outside `withPrincipal` fails with permission denied. Audit existing privileges using
+  `packages/db/README.md`, "Least privilege": the grant does not remove them.
 - A transaction-mode pooler is fine: the role and claims are transaction-local, and `pg` prepares
   only named statements. Do not call Drizzle's `.prepare()` against a pooler port
   (`packages/db/src/database.ts`).
@@ -88,8 +90,8 @@ adopts one, contain it in one module. The shipped grant needs Postgres 16 or lat
 ## Gates
 
 - `rls-verify` (`db-tools`) fails a `public` table without forced row level security, an
-  `authenticated` role that can bypass it, rows visible without claims, and claims that outlive
-  their transaction.
+  `authenticated` role that can bypass it, and rows visible without claims, including after a
+  scoped transaction ends.
 - `atlas-lint` rejects destructive and unsafe migrations. `drizzle-check` fails a stale schema.
 - In CI these run whenever `db/schema.sql` exists. Locally they skip without Docker and say so.
 

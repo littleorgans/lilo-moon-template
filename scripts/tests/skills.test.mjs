@@ -228,6 +228,7 @@ await test("sync reads a commit, not the working tree, and refuses uncommitted s
   assert.equal(dirty.status, 1, dirty.output);
   assert.match(dirty.output, /uncommitted changes/);
 
+  assert.equal(run(sync, root, [catalog(t), "--ref", "HEAD"]).status, 0);
   const target = catalog(t);
   const pinned = run(sync, root, [target, "--ref", first]);
   assert.equal(pinned.status, 0, pinned.output);
@@ -272,4 +273,85 @@ await test("sync refuses a directory that is not a catalog, and a repository wit
   const untagged = run(sync, root, [catalog(t)]);
   assert.equal(untagged.status, 1, untagged.output);
   assert.match(untagged.output, /No v<version> release tag found/);
+});
+
+await test("catalog validation rejects duplicate TOML and generated names before sync writes", (t) => {
+  const cases = [
+    [BUNDLE.replace('"build/beta"', '"build/alpha"'), /duplicate member/],
+    [BUNDLE + BUNDLE.slice(BUNDLE.indexOf("[bundles")), /duplicate bundle/],
+    [
+      BUNDLE.replace("schema_version = 1", "schema_version = 1\nschema_version = 1"),
+      /duplicate schema_version/,
+    ],
+    [BUNDLE.replace('"build/alpha",', '"build/alpha"'), /missing comma/],
+    [BUNDLE.replace("build-core", "1invalid"), /invalid bundle name/],
+    [
+      BUNDLE.replace(
+        'description = "Fixture skills"',
+        'description = "Fixture skills"\ndescription = "Again"',
+      ),
+      /duplicate description/,
+    ],
+    [BUNDLE.replace('"Fixture skills"', '"   "'), /needs a one-line description/],
+  ];
+  for (const [settings, expected] of cases) {
+    const root = repository(t, { "skills/lilo/settings.toml": settings });
+    const target = catalog(t);
+    const result = run(sync, root, [target]);
+    assert.equal(result.status, 1, result.output);
+    assert.match(result.output, expected);
+    assert.ok(existsSync(join(target, "skills/lilo/build/retired/SKILL.md")));
+  }
+  const root = repository(t, {
+    "skills/lilo/build-extra/alpha/SKILL.md": skill("alpha", ""),
+    "skills/lilo/build/extra-alpha/SKILL.md": skill("extra-alpha", ""),
+    "skills/lilo/build/double--dash/SKILL.md": skill("double--dash", ""),
+  });
+  const result = run(check, root);
+  assert.equal(result.status, 1, result.output);
+  assert.match(result.output, /generated name collision/);
+  assert.match(result.output, /invalid generated name/);
+});
+
+await test("release selection ignores prereleases and invalid semver and handles every numeric component", (t) => {
+  const root = repository(t);
+  for (const tag of [
+    "v2.0.0",
+    "v1.99.99",
+    "v2.0.9",
+    "v2.0.10",
+    "v02.99.99",
+    "v99.0.0-rc.1",
+    "v999",
+  ])
+    git(root, ["tag", tag]);
+  const result = run(sync, root, [catalog(t)]);
+  assert.equal(result.status, 0, result.output);
+  assert.match(result.output, /exists at v2\.0\.10/);
+});
+
+await test("sync rejects malformed arguments, non-tags and its own checkout without writing", (t) => {
+  const root = repository(t);
+  const target = catalog(t);
+  for (const args of [
+    [target, "--tag"],
+    [target, "--tag", "--ref", "HEAD"],
+    [target, "--ref", "HEAD", "--ref", "HEAD"],
+    ["--unknown", target],
+  ]) {
+    assert.equal(run(sync, root, args).status, 2);
+  }
+  assert.notEqual(run(sync, root, [target, "--tag", "HEAD"]).status, 0);
+  assert.equal(run(sync, root, [root]).status, 2);
+  assert.ok(existsSync(join(target, "skills/lilo/build/retired/SKILL.md")));
+  assert.ok(existsSync(join(root, "skills/lilo/build/alpha/SKILL.md")));
+});
+
+await test("a missing skill tree fails and nested fence examples do not become citations", (t) => {
+  const root = repository(t);
+  rmSync(join(root, "skills/lilo"), { recursive: true });
+  assert.equal(run(check, root).status, 1);
+  assert.deepEqual(citations("````md\n```sh\n`docs/example.md`\n```\n````\n`docs/real.md`"), [
+    "docs/real.md",
+  ]);
 });

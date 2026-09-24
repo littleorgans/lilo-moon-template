@@ -12,8 +12,9 @@ at the tag that matches the installed `@littleorgans/*` version.
 
 `AGENTS.md` is that repository's working contract. Its sections "Add a workspace member",
 "Configure Moon tasks", "Prove every gate", "Write tests" and "Follow JavaScript and TypeScript
-rules" hold for a project built from it too: follow them rather than a summary here. The parts
-about publishing and the create-app template are that repository's own. `docs/decisions.md`,
+rules" describe the reference workspace. For a generated project, use
+`docs/guides/shared-config.md` for installed configuration and its generated `AGENTS.md` for local
+gates; repository source paths and publishing tasks do not carry over. `docs/decisions.md`,
 "What a green gate actually proves", is why the discipline exists.
 
 ## Two commands
@@ -28,8 +29,8 @@ task.
 A member's `moon.yml` `layer`, `language` and `tags` select what it inherits from `.moon/tasks/`:
 
 - every JavaScript member gets `typecheck`, `test` and `test-coverage` from `.moon/tasks/node.yml`;
-- a library with `tags: ["ts-library"]` gets `build` from `.moon/tasks/node-library.yml`, and root
-  lint builds its declarations;
+- a JavaScript library gets `build` from `.moon/tasks/node-library.yml`; the separate
+  `ts-library` tag selects its declaration build as a root lint dependency;
 - an application tagged `web-app` gets Vite and Nitro from `.moon/tasks/node-application.yml`;
 - an application tagged `node-service` gets `build`, `dev` and `start` from
   `.moon/tasks/node-service.yml`.

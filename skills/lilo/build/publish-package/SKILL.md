@@ -45,10 +45,9 @@ same edit to the reference in the same pull request, so the next generated proje
   `db`; `react` and `react-dom` for `ui` and `views`, and `tailwindcss` for `ui`;
   `@littleorgans/auth` for `auth-http`, which recognizes `AuthError` by class. An adapter's
   framework is an optional peer, as `hono` is.
-- Peer ranges are caret ranges. A floor you cannot install and test is a floor you cannot claim:
-  `root:published-shape` installs `db` at its peer floors.
-- Keep `publishConfig.exports` equal to `exports` without the `@littleorgans/source` condition.
-  `root:published-shape` rejects anything else.
+- `root:published-shape` checks `db`'s caret peer ranges, tests its peer floors, and compares
+  `publishConfig.exports` to `exports` with `@littleorgans/source` removed. Use that gate when
+  changing peers or exports; a floor you cannot install and test is a floor you cannot claim.
 
 ## A new package
 

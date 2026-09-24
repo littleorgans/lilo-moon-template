@@ -9,7 +9,7 @@
 // check fails, and it never commits: the catalog change is reviewed as the catalog's own pull request.
 
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 
 import {
@@ -29,13 +29,22 @@ function fail(message, code = 1) {
 const args = process.argv.slice(2);
 const options = { ref: "HEAD", tag: undefined };
 let catalog;
+let invalid = false;
+const seen = new Set();
 while (args.length > 0) {
   const arg = args.shift();
-  if ((arg === "--ref" || arg === "--tag") && args.length > 0) options[arg.slice(2)] = args.shift();
-  else if (!arg.startsWith("-") && catalog === undefined) catalog = resolve(arg);
-  else catalog = null;
+  if (
+    (arg === "--ref" || arg === "--tag") &&
+    args.length > 0 &&
+    !args[0].startsWith("-") &&
+    !seen.has(arg)
+  ) {
+    options[arg.slice(2)] = args.shift();
+    seen.add(arg);
+  } else if (!arg.startsWith("-") && catalog === undefined) catalog = resolve(arg);
+  else invalid = true;
 }
-if (catalog === undefined || catalog === null) {
+if (catalog === undefined || invalid) {
   fail("Usage: moon run root:skills-sync -- <catalog> [--ref <ref>] [--tag <tag>]", 2);
 }
 if (!existsSync(join(catalog, "skills"))) {
@@ -43,18 +52,22 @@ if (!existsSync(join(catalog, "skills"))) {
 }
 
 const root = process.cwd();
+if (realpathSync(join(catalog, "skills")) === realpathSync(join(root, "skills"))) {
+  fail("The catalog must be separate from the source checkout.", 2);
+}
 const git = (...gitArgs) => execFileSync("git", gitArgs, { cwd: root, encoding: "utf8" }).trim();
-if (options.ref === "HEAD" && git("status", "--porcelain", "--", SKILLS_ROOT) !== "") {
+if (!seen.has("--ref") && git("status", "--porcelain", "--", SKILLS_ROOT) !== "") {
   fail(`${SKILLS_ROOT} has uncommitted changes. Commit them, or pass --ref, before syncing.`);
 }
 const tag = options.tag ?? latestReleaseTag(root);
 if (tag === null) fail("No v<version> release tag found. Fetch tags, or pass --tag.");
+const release = git("rev-parse", "--verify", `refs/tags/${tag}^{commit}`);
 
 const commit = git("rev-parse", "--verify", `${options.ref}^{commit}`);
 const skills = skillsAt(root, commit);
 if (skills.size === 0) fail(`${options.ref} has no ${SKILLS_ROOT}.`);
 const problems = shapeProblems(skills);
-const { missing } = checkCitations(skills, treeAt(root, tag));
+const { missing } = checkCitations(skills, treeAt(root, release));
 problems.push(
   ...missing.map(
     ({ file, path }) =>

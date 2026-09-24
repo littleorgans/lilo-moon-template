@@ -1,6 +1,6 @@
 // The skills under skills/lilo and the rules that keep them true. The agent-runtimes catalog
-// renders them for agents (skills/tm/runtime/skill-matters in that repository), so the shape it
-// refuses at load is refused here first. And a skill teaches by pointing at this repository, so
+// renders them for agents (skills/tm/runtime/skill-matters in that repository). This check covers
+// our narrow authoring format; loading the complete catalog remains a separate release check. And a skill teaches by pointing at this repository, so
 // every repository path it cites must exist.
 //
 // A cited path is an inline code span naming a file, a directory (trailing slash) or a glob from the
@@ -105,24 +105,41 @@ export function treeAt(root, ref) {
 export function latestReleaseTag(root) {
   const versions = gitOutput(root, ["tag", "--list", "v*"])
     .split("\n")
-    .map((tag) => ({ tag, parts: /^v(\d+)\.(\d+)\.(\d+)$/.exec(tag)?.slice(1).map(Number) }))
+    .map((tag) => ({
+      tag,
+      parts: /^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.exec(tag)?.slice(1).map(BigInt),
+    }))
     .filter(({ parts }) => parts !== undefined)
-    .toSorted(
-      (a, b) => b.parts[0] - a.parts[0] || b.parts[1] - a.parts[1] || b.parts[2] - a.parts[2],
-    );
+    .toSorted((a, b) => {
+      for (let i = 0; i < 3; i += 1) {
+        if (a.parts[i] !== b.parts[i]) return a.parts[i] > b.parts[i] ? -1 : 1;
+      }
+      return 0;
+    });
   return versions[0]?.tag ?? null;
 }
 
 function withoutFences(markdown) {
-  let fenced = false;
+  let fence = null;
   return markdown
     .split("\n")
     .filter((line) => {
-      if (/^\s*(```|~~~)/.test(line)) {
-        fenced = !fenced;
+      const marker = /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(line);
+      if (fence !== null) {
+        if (
+          marker !== null &&
+          marker[1][0] === fence[0] &&
+          marker[1].length >= fence.length &&
+          marker[2].trim() === ""
+        )
+          fence = null;
         return false;
       }
-      return !fenced;
+      if (marker !== null) {
+        fence = marker[1];
+        return false;
+      }
+      return true;
     })
     .join("\n");
 }
@@ -227,28 +244,42 @@ export function parseBundles(text) {
   let schema = null;
   let current = null;
   let members = null;
+  let needsComma = false;
+  let keys = new Set();
   for (const [index, raw] of text.split("\n").entries()) {
     const line = raw.replace(/\s+#.*$/, "").trim();
     const where = `line ${index + 1}`;
     if (line === "" || line.startsWith("#")) continue;
     if (members !== null) {
-      const item = /^"([^"]+)",?$/.exec(line);
-      if (item !== null) members.push(item[1]);
-      else if (line === "]") members = null;
+      const item = /^"([^"\\]+)"(,)?$/.exec(line);
+      if (item !== null) {
+        if (needsComma) problems.push(`${where}: missing comma between members`);
+        members.push(item[1]);
+        needsComma = item[2] === undefined;
+      } else if (line === "]") members = null;
       else problems.push(`${where}: expected a quoted member or ]`);
       continue;
     }
     const table = /^\[bundles\.([a-z0-9-]+)\]$/.exec(line);
     const pair = /^([a-z_]+)\s*=\s*(.+)$/.exec(line);
     if (table !== null) {
+      if (!COMPONENT.test(table[1])) problems.push(`${where}: invalid bundle name ${table[1]}`);
+      if (bundles.has(table[1])) problems.push(`${where}: duplicate bundle ${table[1]}`);
       current = { description: null, members: [] };
       bundles.set(table[1], current);
+      keys = new Set();
     } else if (pair?.[1] === "schema_version" && current === null) {
+      if (schema !== null) problems.push(`${where}: duplicate schema_version`);
       schema = pair[2];
     } else if (pair?.[1] === "description" && current !== null) {
-      current.description = /^"([^"]+)"$/.exec(pair[2])?.[1] ?? null;
+      if (keys.has("description")) problems.push(`${where}: duplicate description`);
+      keys.add("description");
+      current.description = /^"([^"\\]+)"$/.exec(pair[2])?.[1].trim() || null;
     } else if (pair?.[1] === "members" && current !== null && pair[2] === "[") {
+      if (keys.has("members")) problems.push(`${where}: duplicate members`);
+      keys.add("members");
       members = current.members;
+      needsComma = false;
     } else {
       problems.push(`${where}: unexpected ${JSON.stringify(line)}`);
     }
@@ -258,6 +289,8 @@ export function parseBundles(text) {
   for (const [name, bundle] of bundles) {
     if (bundle.description === null) problems.push(`bundle ${name} needs a one-line description`);
     if (bundle.members.length === 0) problems.push(`bundle ${name} has no members`);
+    if (new Set(bundle.members).size !== bundle.members.length)
+      problems.push(`bundle ${name} has a duplicate member`);
   }
   return { bundles, problems };
 }
@@ -269,6 +302,7 @@ export function parseBundles(text) {
 export function shapeProblems(skills) {
   const problems = [];
   const skillDirectories = new Set();
+  const generatedNames = new Set();
   for (const [file, content] of skills) {
     const parts = file.split("/");
     if (content === null) {
@@ -281,6 +315,12 @@ export function shapeProblems(skills) {
       continue;
     }
     const [, , domain, name] = parts;
+    const generated = `${OWNER}-${domain}-${name}`;
+    if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(generated))
+      problems.push(`${file}: invalid generated name ${generated}`);
+    if (generatedNames.has(generated))
+      problems.push(`${file}: generated name collision ${generated}`);
+    generatedNames.add(generated);
     skillDirectories.add(`${domain}/${name}`);
     for (const component of [domain, name]) {
       if (!COMPONENT.test(component)) problems.push(`${file}: ${component} is not a valid ID part`);
@@ -302,6 +342,7 @@ export function shapeProblems(skills) {
       problems.push(`${file}: frontmatter needs exactly one one-line description`);
     }
   }
+  if (skillDirectories.size === 0) problems.push(`${SKILLS_ROOT}: no skills found`);
   for (const file of skills.keys()) {
     const parts = file.split("/");
     if (file === `${SKILLS_ROOT}/settings.toml`) continue;

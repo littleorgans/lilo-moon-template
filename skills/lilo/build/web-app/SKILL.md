@@ -42,7 +42,7 @@ components are [ui-and-themes](../ui-and-themes/SKILL.md).
 retry and no sign-in button. [auth](../auth/SKILL.md) says why each lands where it does.
 
 - Keep the `default` branch that assigns the state to `never`. Typecheck then fails when a package
-  adds a state. A `switch` without it compiles and silently falls through.
+  adds a state, even where fallthrough would otherwise satisfy the return type.
 - Take dependencies as a parameter with a live default (`liveDeps()` there), so a test passes an
   access state and a scoped runner with no Start context and no database.
 - A write, such as provisioning identity rows, is called by name where a person lands. Never hide
