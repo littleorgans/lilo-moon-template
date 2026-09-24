@@ -1,11 +1,21 @@
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
-import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { execFileSync, spawnSync } from "node:child_process";
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { test } from "node:test";
 
-import { parse } from "yaml";
+import { parse, stringify } from "yaml";
+
+import { commitProject, git, projectEnvironment } from "../lib/project-files.mjs";
 
 const readYaml = (path) => parse(readFileSync(path, "utf8"));
 const WORKFLOW = ".github/workflows/workos-contract.yml";
@@ -30,7 +40,7 @@ await test("workos-contract.yml reads the staging secrets in one step and fails 
   assert.equal(contract["continue-on-error"], undefined);
 
   const run = contract.steps.at(-1);
-  assert.equal(run.run, "moon run workos-contract:contract --upstream none");
+  assert.equal(run.run, "moon exec workos-contract:contract --upstream none --ignore-ci-checks");
   assert.deepEqual(run.env, {
     WORKOS_API_KEY: "${{ secrets.WORKOS_API_KEY }}",
     WORKOS_CLIENT_ID: "${{ secrets.WORKOS_CLIENT_ID }}",
@@ -73,6 +83,80 @@ await test("the contract suite stays out of moon ci and out of the workflows pro
     const text = readFileSync(`.github/workflows/${workflow}`, "utf8");
     assert.doesNotMatch(text, /WORKOS_|workos-contract/, workflow);
   }
+});
+
+// A task command that leaves <name>.ran in its project directory.
+const marker = (name) => ({
+  command: "node",
+  args: ["-e", `require("node:fs").writeFileSync(${JSON.stringify(`${name}.ran`)}, "")`],
+});
+
+// Every runner sets CI, and under CI moon drops a `runInCI: false` task from `moon run` as well as
+// from `moon ci`: the first dispatched run found no task to run. The contract task's own options, with
+// its command swapped for a marker, go through the workflow's command and through `moon ci`, both
+// with CI set. A probe task beside it shows `moon ci` ran at all. A real upstream build proves the
+// credential-bearing command excludes dependency tasks.
+await test("with CI set, the workflow's command runs the contract task and moon ci does not", (t) => {
+  const root = mkdtempSync(join(tmpdir(), "workos-contract-ci-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const { contract } = readYaml("packages/workos-contract/moon.yml").tasks;
+  for (const [file, content] of Object.entries({
+    ".moon/workspace.yml":
+      'projects:\n  workos-contract: "packages/workos-contract"\n  upstream: "packages/upstream"\nvcs:\n  defaultBranch: "main"\n',
+    ".gitignore": ".moon/cache/\n*.ran\n",
+    "packages/workos-contract/moon.yml": stringify({
+      language: "system",
+      dependsOn: ["upstream"],
+      tasks: {
+        contract: { ...contract, ...marker("contract") },
+        probe: { ...marker("probe"), options: { cache: false } },
+      },
+    }),
+    "packages/upstream/moon.yml": stringify({
+      language: "system",
+      tasks: { build: { ...marker("build"), options: { cache: false } } },
+    }),
+    "packages/workos-contract/change.txt": "base\n",
+  })) {
+    mkdirSync(dirname(join(root, file)), { recursive: true });
+    writeFileSync(join(root, file), content);
+  }
+  git(root, ["init", "--initial-branch=main"]);
+  git(root, ["config", "user.name", "Baseline verification"]);
+  git(root, ["config", "user.email", "baseline@example.invalid"]);
+  commitProject(root, "test: initialize contract fixture");
+  writeFileSync(join(root, "packages/workos-contract/change.txt"), "head\n");
+  commitProject(root, "test: change the contract project");
+
+  const ran = (name) => existsSync(join(root, "packages/workos-contract", `${name}.ran`));
+  const upstreamMarker = join(root, "packages/upstream/build.ran");
+  const moon = (args, env = {}) => {
+    rmSync(join(root, "packages/workos-contract/contract.ran"), { force: true });
+    rmSync(join(root, "packages/workos-contract/probe.ran"), { force: true });
+    rmSync(upstreamMarker, { force: true });
+    execFileSync("moon", args, {
+      cwd: root,
+      env: { ...projectEnvironment(), CI: "true", ...env },
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+      timeout: 30_000,
+      killSignal: "SIGKILL",
+    });
+  };
+
+  moon(["ci"], { MOON_BASE: "HEAD~1", MOON_HEAD: "HEAD" });
+  assert.ok(ran("probe"), "moon ci ran nothing, so it cannot show the contract task stays out");
+  assert.ok(!ran("contract"), "moon ci ran the contract suite");
+
+  const [command, ...args] = readYaml(WORKFLOW).jobs.contract.steps.at(-1).run.split(" ");
+  assert.equal(command, "moon");
+  moon(args);
+  assert.ok(ran("contract"), "the workflow's command did not run the contract task with CI set");
+  assert.ok(!existsSync(upstreamMarker), "the credential-bearing step ran an upstream build");
+
+  // Prove the upstream edge resolves, so the exclusion assertion cannot pass on an empty graph.
+  moon(args.filter((arg, index) => arg !== "--upstream" && args[index - 1] !== "--upstream"));
+  assert.ok(existsSync(upstreamMarker), "the fixture's contract task has no upstream build");
 });
 
 // assumptions.test.ts reads package sources outside its project. Unless they are inputs of the
