@@ -256,8 +256,9 @@ Known limits:
 - **Absolute paths in `pnpm deploy`.** When a dependency is a workspace package, as the libraries
   are for the reference service in this repository, the deployed `out/package.json` and lockfile
   record the build machine's absolute path to it. With the packages from npm, the dependencies are
-  registry versions. The project's `@acme/drizzle-schema` is already a workspace library, so this limit applies even
-  when every `@littleorgans/*` dependency comes from npm. Do not rebuild from `out/` on another machine.
+  registry versions. The project's `@acme/drizzle-schema` is a workspace library, so the limit
+  applies even when every `@littleorgans/*` dependency comes from npm. Do not rebuild from `out/`
+  on another machine.
 - **Library `src` in the image.** The published packages ship `src` beside `dist`, for source
   maps, so `node_modules/@littleorgans/*/src` is in the image. It is never loaded, and it adds size,
   not risk.
