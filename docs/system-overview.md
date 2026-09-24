@@ -162,7 +162,10 @@ tracked environment values. The generated cookie password is empty and must be f
 fresh random value in the ignored `.env.local`; no usable shared secret is shipped. The build
 formats the result as the project's own `format-check` will. `root:published-shape` then runs the
 packed command into scratch projects and requires each to pass its own `moon ci --force`, so the
-template cannot drift from the reference. The template machinery that created, renamed and rebased
+template cannot drift from the reference. Each project installs the packed tarballs through
+overrides, and its `@littleorgans` scope resolves to an empty local registry, so no published byte
+can stand in for a packed one. pnpm otherwise resolves an optional peer it hoists, such as
+db-tools's `@littleorgans/db` at the project root, from the registry past the overrides. The template machinery that created, renamed and rebased
 product repositories was removed in phase 1.
 
 ## Runtime architecture

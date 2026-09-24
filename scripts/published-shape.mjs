@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
+import { once } from "node:events";
 import {
+  appendFileSync,
   cpSync,
   existsSync,
   mkdirSync,
@@ -1017,12 +1019,50 @@ async function exerciseServiceDatabase(root, dbName) {
 }
 
 /**
- * The packed create-app, run as `npm create @littleorgans/app` runs it, into a new directory. The
- * project installs the packed packages in place of the registry's, which has none of these
- * versions yet. It is committed as the printed steps say, and must then be in sync as generated:
- * `moon sync` may not change a file.
+ * Runs `body` with the URL of a registry that has no packages. pnpm links a missing optional peer,
+ * such as db-tools's `@littleorgans/db` at a project root, by asking the registry for the version
+ * it found elsewhere in the graph, past the file: overrides. Whether it asks depends on resolution
+ * order. Against the public registry that mixes published bytes into the proof, or, for a day after
+ * each release, fails minimumReleaseAge. Here the request finds nothing, and pnpm skips an optional
+ * package it cannot resolve. The server is a child process because the installs block this one.
  */
-function scaffold(createApp, packages, name, args) {
+async function withEmptyRegistry(body) {
+  const server = spawn(
+    process.execPath,
+    [
+      "-e",
+      `require("node:http")
+        .createServer((request, response) => {
+          process.stderr.write("published-shape: the empty registry refused " + request.url + "\\n");
+          response.writeHead(404).end();
+        })
+        .listen(0, "127.0.0.1", function () {
+          process.stdout.write(this.address().port + "\\n");
+        });`,
+    ],
+    { stdio: ["ignore", "pipe", "inherit"] },
+  );
+  try {
+    const [port] = await Promise.race([
+      once(server.stdout, "data"),
+      once(server, "exit").then(() => {
+        throw new Error("published-shape: the empty registry did not start");
+      }),
+    ]);
+    return await body(`http://127.0.0.1:${String(port).trim()}/`);
+  } finally {
+    server.kill();
+  }
+}
+
+/**
+ * The packed create-app, run as `npm create @littleorgans/app` runs it, into a new directory. The
+ * project installs the packed packages in place of the registry's, and its `@littleorgans` scope
+ * resolves to `registry`, which has none, so only the packed bytes can be installed. It is
+ * committed as the printed steps say, and must then be in sync as generated: `moon sync` may not
+ * change a file.
+ */
+function scaffold(createApp, packages, registry, name, args) {
   const parent = join(scratch, "scaffolds");
   mkdirSync(parent, { recursive: true });
   run(parent, "npm", [
@@ -1041,6 +1081,7 @@ function scaffold(createApp, packages, name, args) {
     workspace.setIn(["overrides", manifest.name], `file:${artifact}`);
   }
   writeFileSync(workspacePath, workspace.toString({ lineWidth: 0 }));
+  appendFileSync(join(root, ".npmrc"), `@littleorgans:registry=${registry}\n`);
   initializeProject(root, "chore: start from @littleorgans/create-app");
   run(root, "pnpm", ["install"]);
   commitProject(root, "chore: lock dependencies");
@@ -1077,47 +1118,53 @@ function generatedCi(root) {
  * layout lint rule, and moves to db's peer floors.
  */
 async function checkScaffolds(packages, { fixtures }) {
-  const createApp = packages.find(({ manifest }) => manifest.bin?.["create-app"] !== undefined);
-  assert.ok(createApp, "create-app must be packed");
-  const app = "apps/portal";
-  const full = scaffold(createApp, packages, "acme", [
-    "--web",
-    "--service",
-    "--web-name",
-    "portal",
-    "--web-port",
-    "5300",
-    "--organization-policy",
-    "existing",
-    "--service-name",
-    "billing",
-    "--service-port",
-    "8800",
-  ]);
-  generatedCi(full);
-  checkBins(
-    full,
-    packages.filter(({ manifest }) => existsSync(join(full, "node_modules", manifest.name))),
-  );
-  checkPackedCompilerOptions(full, app);
-  rejectViolation(
-    full,
-    `${app}/src/features/gate-probe.ts`,
-    'import { Route } from "../routes/app.tsx";\n\nexport const probe = Route;\n',
-    "root:lint",
-    /no-restricted-imports/,
-  );
-  await refusesBadConfiguration(full, app);
-  if (fixtures) await exercise(full, app);
-  checkDbPeerFloors(full, app);
+  await withEmptyRegistry(async (registry) => {
+    const createApp = packages.find(({ manifest }) => manifest.bin?.["create-app"] !== undefined);
+    assert.ok(createApp, "create-app must be packed");
+    const app = "apps/portal";
+    const full = scaffold(createApp, packages, registry, "acme", [
+      "--web",
+      "--service",
+      "--web-name",
+      "portal",
+      "--web-port",
+      "5300",
+      "--organization-policy",
+      "existing",
+      "--service-name",
+      "billing",
+      "--service-port",
+      "8800",
+    ]);
+    generatedCi(full);
+    checkBins(
+      full,
+      packages.filter(({ manifest }) => existsSync(join(full, "node_modules", manifest.name))),
+    );
+    checkPackedCompilerOptions(full, app);
+    rejectViolation(
+      full,
+      `${app}/src/features/gate-probe.ts`,
+      'import { Route } from "../routes/app.tsx";\n\nexport const probe = Route;\n',
+      "root:lint",
+      /no-restricted-imports/,
+    );
+    await refusesBadConfiguration(full, app);
+    if (fixtures) await exercise(full, app);
+    checkDbPeerFloors(full, app);
 
-  generatedCi(
-    scaffold(createApp, packages, "solo-web", ["--web", "--organization-policy", "personal"]),
-  );
-  generatedCi(scaffold(createApp, packages, "solo-service", ["--service"]));
-  process.stdout.write(
-    "published-shape: the packed create-app's web and service, web alone and service alone passed moon ci.\n",
-  );
+    generatedCi(
+      scaffold(createApp, packages, registry, "solo-web", [
+        "--web",
+        "--organization-policy",
+        "personal",
+      ]),
+    );
+    generatedCi(scaffold(createApp, packages, registry, "solo-service", ["--service"]));
+    process.stdout.write(
+      "published-shape: the packed create-app's web and service, web alone and service alone passed moon ci.\n",
+    );
+  });
 }
 
 // The tarballs the release will publish, checked where a consumer meets them: publint and attw,
