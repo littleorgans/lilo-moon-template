@@ -162,21 +162,31 @@ Without both variables the suite prints why and skips, and it refuses any key th
 with `sk_test_`. `moon ci` never runs it: the task is `runInCI: false`. Its unit tests and
 typecheck run there like any project's.
 
-`.github/workflows/workos-contract.yml` runs the suite daily and on demand from the Actions tab,
-on the default branch only. Pull requests do not run it: even a same-repository branch can change
-code that reads the credentials. Keeping secrets in the final step limits their exposure but does
-not make unreviewed code safe. One concurrency group serializes all runs without cancelling an
-active run, so cleanup and failure-issue updates finish before the next run starts. The one-hour
-stale-user cutoff exceeds the workflow's 20-minute timeout; local runs use unique addresses too.
+`.github/workflows/workos-contract.yml` runs the suite daily on the default branch. Pull requests
+do not trigger it: a branch's code, or a dependency bump a bot opened, would run with the staging
+key before anyone reviewed it. To check an auth change before merging it, dispatch the workflow on
+its branch, then pick the run from `gh run watch`:
+
+```sh
+gh workflow run workos-contract.yml --ref <branch>
+```
+
+Dispatching needs write access, which already reaches every repository secret: any writer can push
+a workflow that reads them. So this is a policy against running unreviewed code by accident, not a
+boundary against writers; enforcing one would need a protected GitHub environment. One concurrency
+group serializes all runs without cancelling an active one, so cleanup and failure-issue updates
+finish before the next run starts. The one-hour stale-user cutoff exceeds the workflow's 20-minute
+timeout; local runs use unique addresses too.
 
 Concurrent refreshes are checked on every live run. The separate rotation replay-window test skips
 explicitly when staging returns the original refresh token; it waits 26 seconds only when rotation
 actually occurs. A pass in the nonrotating environment cannot prove the replay window.
 
 It is not a required check, and the release gate does not run it, because a provider outage must
-not block unrelated merges or a release. When a scheduled or manual run fails, the workflow opens an
-issue titled "WorkOS contract tests are failing", or comments on the one already open. The next
-passing run closes it. In that workflow a missing secret fails the run instead of skipping it.
+not block unrelated merges or a release. When a run on the default branch fails, the workflow opens
+an issue titled "WorkOS contract tests are failing", or comments on the one already open. The next
+passing run there closes it. A run on another branch reports only in its own result. In that
+workflow a missing secret fails the run instead of skipping it.
 
 ## CI secrets
 
@@ -189,8 +199,8 @@ The contract workflow reads two organization secrets, limited to selected reposi
 
 No additional stored secrets are needed. The browser test generates the cookie password and sets
 the redirect URI for each run. Projects built from this repository need no WorkOS secrets in CI:
-`create-app` does not copy this workflow, and the shared `moon-ci.yml` declares no secrets. `published-shape` runs each
-generated project's `moon ci` with every `WORKOS_` variable removed.
+`create-app` does not copy this workflow, and the shared `moon-ci.yml` declares no secrets.
+`published-shape` runs each generated project's `moon ci` with every `WORKOS_` variable removed.
 
 To let another repository read an organization secret, add it to the secret's selected
 repositories. For an OAuth token or classic PAT this needs `admin:org`, plus `repo` for a private

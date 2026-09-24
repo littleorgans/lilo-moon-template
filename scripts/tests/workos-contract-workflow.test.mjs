@@ -20,10 +20,9 @@ await test("workos-contract.yml reads the staging secrets in one step and fails 
   assert.deepEqual(workflow.permissions, {});
   const { contract, report } = workflow.jobs;
   assert.deepEqual(contract.permissions, { contents: "read" });
-  assert.equal(
-    contract.if,
-    "github.ref == format('refs/heads/{0}', github.event.repository.default_branch)",
-  );
+  // A condition on github.event.repository is false on every scheduled run, which has no such
+  // payload: the daily run would skip, green and silent.
+  assert.equal(contract.if, undefined);
   assert.deepEqual(workflow.concurrency, {
     group: "workos-contract-staging",
     "cancel-in-progress": false,
@@ -46,7 +45,10 @@ await test("workos-contract.yml reads the staging secrets in one step and fails 
   }
 
   assert.equal(report.needs, "contract");
-  assert.equal(report.if, "always() && needs.contract.result != 'skipped'");
+  assert.equal(
+    report.if,
+    "always() && (github.event_name == 'schedule' || github.ref == format('refs/heads/{0}', github.event.repository.default_branch))",
+  );
   assert.deepEqual(report.permissions, { issues: "write" });
 });
 

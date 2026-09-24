@@ -6,7 +6,12 @@ name: WorkOS contract
 #
 # Not part of `moon ci` and not a required check: a provider outage must not block unrelated pull
 # requests, and the release gate stays a function of the commit alone. Drift shows up here instead,
-# daily and on demand, using reviewed code on the default branch.
+# daily on the default branch.
+#
+# Pull requests do not trigger it: a branch's code, or a dependency bump a bot opened, would run
+# with the staging key before anyone reviewed it. A maintainer who wants the signal before merging
+# an auth change dispatches it on the branch, which takes write access, the access that already
+# reaches every repository secret.
 
 on:
   schedule:
@@ -24,8 +29,6 @@ permissions: {}
 jobs:
   contract:
     name: WorkOS contract
-    # A manual dispatch must not run a branch's unreviewed code with staging credentials.
-    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
     # Not vars.CI_RUNNER: the browser install needs apt, which only the hosted Ubuntu image promises.
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -69,11 +72,14 @@ jobs:
           WORKOS_CONTRACT_REQUIRED: "true"
 
   # A failed scheduled run is easy to miss, so it opens an issue, or comments on the one already
-  # open, and the next passing run closes it.
+  # open, and the next passing run closes it. A branch's run reports only to whoever dispatched it.
+  # A scheduled event carries no repository payload, but it always runs on the default branch.
   report:
     name: Report
     needs: contract
-    if: always() && needs.contract.result != 'skipped'
+    if: >-
+      always() && (github.event_name == 'schedule' ||
+      github.ref == format('refs/heads/{0}', github.event.repository.default_branch))
     runs-on: ubuntu-latest
     permissions:
       issues: write

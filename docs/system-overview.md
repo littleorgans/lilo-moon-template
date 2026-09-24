@@ -578,10 +578,11 @@ release tag ([Use the shared configuration](guides/shared-config.md)). Tasks mar
 its inputs change: apps, packages, services, scripts, `.moon`, the root manifests, the lockfile or
 `moon.yml`. A documentation-only change skips it.
 
-`.github/workflows/workos-contract.yml` runs the WorkOS contract suite daily and on demand from
-the default branch, with runs serialized against the shared staging environment. It is the only workflow that reads the WorkOS secrets
-([CI secrets](maintaining.md#ci-secrets)). It is neither a required check nor part of the release
-gate, and a failed scheduled run opens an issue.
+`.github/workflows/workos-contract.yml` runs the WorkOS contract suite daily on the default
+branch, and on any branch a maintainer dispatches it on; pull requests do not trigger it. Runs are
+serialized against the shared staging environment. It is the only workflow that reads the WorkOS
+secrets ([CI secrets](maintaining.md#ci-secrets)). It is neither a required check nor part of the
+release gate, and a failed run on the default branch opens an issue.
 
 `.github/workflows/release.yml` runs on pushes to `main`. While changesets are pending, Changesets
 opens or updates the Version Packages pull request. On the commit that merges it, and only when
