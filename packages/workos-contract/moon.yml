@@ -35,4 +35,6 @@ tasks:
       shell: false
       # Every run asks the provider again; a cached pass would prove nothing about today.
       cache: false
+      # Out of `moon ci`. With CI set moon drops it from `moon run` as well, so the workflow calls
+      # `moon exec --ignore-ci-checks`.
       runInCI: false

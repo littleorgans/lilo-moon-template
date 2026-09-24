@@ -63,8 +63,11 @@ jobs:
       - name: Build
         run: moon run workos-contract:typecheck
 
+      # `runInCI: false` keeps the task out of `moon ci`, but with CI set, as it is on every runner,
+      # moon also drops it from `moon run` ("No tasks found"). `moon exec --ignore-ci-checks` is
+      # `moon run` without that one filter; the task keeps its moon.yml definition.
       - name: Run the contract suite against staging
-        run: moon run workos-contract:contract --upstream none
+        run: moon exec workos-contract:contract --upstream none --ignore-ci-checks
         env:
           WORKOS_API_KEY: ${{ secrets.WORKOS_API_KEY }}
           WORKOS_CLIENT_ID: ${{ secrets.WORKOS_CLIENT_ID }}

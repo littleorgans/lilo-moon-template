@@ -160,7 +160,9 @@ WORKOS_API_KEY=… WORKOS_CLIENT_ID=… moon run workos-contract:contract
 
 Without both variables the suite prints why and skips, and it refuses any key that does not start
 with `sk_test_`. `moon ci` never runs it: the task is `runInCI: false`. Its unit tests and
-typecheck run there like any project's.
+typecheck run there like any project's. With `CI` set, as on every runner, moon leaves a
+`runInCI: false` task out of `moon run` too, so the workflow calls
+`moon exec workos-contract:contract --ignore-ci-checks`, and so does a local shell that sets `CI`.
 
 `.github/workflows/workos-contract.yml` runs the suite daily on the default branch. Pull requests
 do not trigger it: a branch's code, or a dependency bump a bot opened, would run with the staging
