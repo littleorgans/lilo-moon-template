@@ -1,5 +1,6 @@
 import type { Principal } from "@littleorgans/auth";
-import { PgDialect } from "drizzle-orm/pg-core";
+import * as schema from "@littleorgans/drizzle-schema";
+import { drizzle } from "drizzle-orm/pg-proxy";
 import { SignJWT, exportJWK, generateKeyPair } from "jose";
 import type { JWK } from "jose";
 
@@ -40,24 +41,37 @@ export function recordingLog(): { log: Log; records: LogRecord[] } {
 }
 
 /**
+ * A real Drizzle database over the generated schema, with `respond` as its driver, so the queries
+ * under test are the ones production runs. Records every statement and answers it from `respond`,
+ * which returns rows as the driver would: arrays of column values in select order for a select
+ * list or RETURNING.
+ */
+export function recordingTransaction(respond: (text: string) => readonly unknown[]): {
+  tx: AccountTransaction;
+  statements: string[];
+} {
+  const statements: string[] = [];
+  const tx = drizzle(
+    (text) => {
+      statements.push(text);
+      return Promise.resolve({ rows: [...respond(text)] });
+    },
+    { schema },
+  );
+  return { tx, statements };
+}
+
+/**
  * Stands in for `database.withPrincipal`: records which Principal each transaction was scoped to
  * and answers every statement from `respond`, in order.
  */
-export function recordingRunner(respond: (text: string) => readonly Record<string, unknown>[]): {
+export function recordingRunner(respond: (text: string) => readonly unknown[]): {
   run: ScopedRunner;
   scopedTo: Principal[];
   statements: string[];
 } {
-  const dialect = new PgDialect();
   const scopedTo: Principal[] = [];
-  const statements: string[] = [];
-  const tx: AccountTransaction = {
-    execute: (query) => {
-      const text = dialect.sqlToQuery(query).sql;
-      statements.push(text);
-      return Promise.resolve({ rows: respond(text) });
-    },
-  };
+  const { tx, statements } = recordingTransaction(respond);
   return {
     scopedTo,
     statements,
