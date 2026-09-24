@@ -811,6 +811,7 @@ function checkDrizzleSkew(packages) {
     join(aligned, "skew.ts"),
     `import { createDatabase } from "${name}";
 import { sql } from "drizzle-orm";
+import { pgTable, text } from "drizzle-orm/pg-core";
 
 const database = createDatabase({ connectionString: "postgres://localhost/unused" });
 const principal = { userId: "user", orgId: null, roles: [], permissions: [], entitlements: [] };
@@ -818,6 +819,14 @@ const result = await database.withPrincipal(principal, (tx) => tx.execute(sql\`s
 // @ts-expect-error A pg QueryResult is not a string; this also rejects an accidental any result.
 const wrong: string = result;
 void wrong;
+
+// A project's schema types each transaction, relational queries included.
+const accounts = pgTable("accounts", { workosOrgId: text("workos_org_id").notNull() });
+const typed = createDatabase({ connectionString: "postgres://localhost/unused", schema: { accounts } });
+const rows = await typed.withPrincipal(principal, (tx) => tx.query.accounts.findMany());
+// @ts-expect-error workos_org_id is text, so the schema types it as a string.
+const orgIds: number[] = rows.map((row) => row.workosOrgId);
+void orgIds;
 `,
   );
   writeJson(join(aligned, "tsconfig.json"), {

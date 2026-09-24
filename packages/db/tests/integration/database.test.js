@@ -7,6 +7,7 @@
 
 import { fileURLToPath } from "node:url";
 
+import { pgTable, text } from "drizzle-orm/pg-core";
 import { describe, expect, it } from "vitest";
 
 import { applyMigrations } from "../../../db-tools/src/atlas.ts";
@@ -14,6 +15,9 @@ import { dockerIsAvailable, withPostgres } from "../../../db-tools/src/postgres.
 import { createDatabase } from "../../src/index.js";
 
 const migrations = fileURLToPath(new URL("../../migrations", import.meta.url));
+
+// A project's schema, cut down to what the test reads. The package never ships one of its own.
+const accounts = pgTable("accounts", { workosOrgId: text("workos_org_id").notNull() });
 
 const principal = {
   userId: "user_integration",
@@ -78,6 +82,28 @@ describe.skipIf(!dockerIsAvailable())("createDatabase", () => {
           return result.rows;
         });
         expect(rows).toStrictEqual([{ workos_user_id: "user_integration" }]);
+      } finally {
+        await database.close();
+      }
+    });
+  }, 60_000);
+
+  it("types each scoped transaction by the project's schema, under the same policies", async () => {
+    await withPostgres("db-test", async (connectionString) => {
+      applyMigrations(connectionString, migrations);
+      const database = createDatabase({ connectionString, schema: { accounts } });
+      try {
+        await database.withPrincipal(
+          { ...principal, userId: "user_other", orgId: "org_other" },
+          async (tx) => {
+            await tx.insert(accounts).values({ workosOrgId: "org_other" });
+          },
+        );
+        const rows = await database.withPrincipal(principal, async (tx) => {
+          await tx.insert(accounts).values({ workosOrgId: "org_integration" });
+          return await tx.query.accounts.findMany();
+        });
+        expect(rows).toStrictEqual([{ workosOrgId: "org_integration" }]);
       } finally {
         await database.close();
       }
