@@ -1,7 +1,7 @@
 # Maintain this repository
 
-This page is for working on this repository: its toolchain, members, database baseline, CI runner
-and publishing. A project that uses the packages starts from
+This page is for working on this repository: its toolchain, members, database baseline, CI runner,
+WorkOS contract tests, CI secrets and publishing. A project that uses the packages starts from
 [Adopt the packages in a web app](guides/adopt-web-app.md) or
 [Adopt the packages in a service](guides/adopt-service.md) instead. The working contract is
 [AGENTS.md](../AGENTS.md).
@@ -138,6 +138,76 @@ when you want a different host. It is a variable, not a secret.
 In `.github/workflows/release.yml`, the release gate job runs on the same runner as CI, because it
 runs the same tasks. The version, publish and smoke jobs stay on `ubuntu-latest`: npm provenance and
 trusted publishing need a GitHub-hosted runner.
+
+## Run the WorkOS contract tests
+
+`packages/workos-contract` tests the auth packages against the live WorkOS staging environment.
+It has two parts. The provider suite checks each behaviour the packages depend on: the issuer and
+JWKS, the token claims, the one-time code errors, organization provisioning, refresh, and logout.
+The browser test signs in by email code through the reference app's built server, then signs out.
+The browser types a code it got from the API: `createMagicAuth` returns the code it mints, so no
+inbox is involved. The suite deletes every user and organization it creates, even when a test fails.
+It also removes contract users more than an hour old that an interrupted run left behind.
+
+Run it locally with the staging credentials in the environment. The first command installs the one
+browser the suite launches:
+
+```sh
+pnpm --filter @littleorgans/workos-contract exec playwright-core install --only-shell chromium
+WORKOS_API_KEY=… WORKOS_CLIENT_ID=… moon run workos-contract:contract
+```
+
+Without both variables the suite prints why and skips, and it refuses any key that does not start
+with `sk_test_`. `moon ci` never runs it: the task is `runInCI: false`. Its unit tests and
+typecheck run there like any project's.
+
+`.github/workflows/workos-contract.yml` runs the suite:
+
+- daily, and on demand from the Actions tab;
+- on pull requests from this repository that touch `packages/auth*`, the sign-in views,
+  `apps/web/src`, the suite, or the dependency pins. A fork's pull request gets no secrets, so it
+  does not run there.
+
+It is not a required check, and the release gate does not run it, because a provider outage must
+not block unrelated merges or a release. When a scheduled or manual run fails, the workflow opens an
+issue titled "WorkOS contract tests are failing", or comments on the one already open. The next
+passing run closes it. In that workflow a missing secret fails the run instead of skipping it.
+
+## CI secrets
+
+The contract workflow reads two organization secrets, limited to selected repositories:
+
+| Secret             | Value                                                        |
+| ------------------ | ------------------------------------------------------------ |
+| `WORKOS_API_KEY`   | The staging environment's secret key, `sk_test_…`            |
+| `WORKOS_CLIENT_ID` | The client id of the AuthKit application in that environment |
+
+Nothing else is a secret. The workflow generates the cookie password and the redirect URI for
+each run. Projects built from this repository need no WorkOS secrets in CI: `create-app` does not
+copy this workflow, and the shared `moon-ci.yml` declares no secrets. `published-shape` runs each
+generated project's `moon ci` with every `WORKOS_` variable removed.
+
+To let another repository read an organization secret, add it to the secret's selected
+repositories. This needs a token with the `admin:org` scope:
+
+```sh
+repo_id="$(gh api repos/<owner>/<repo> --jq .id)"
+gh api -X PUT "orgs/littleorgans/actions/secrets/WORKOS_API_KEY/repositories/$repo_id"
+gh api -X PUT "orgs/littleorgans/actions/secrets/WORKOS_CLIENT_ID/repositories/$repo_id"
+```
+
+Do not use `gh secret set --org littleorgans --repos …` for this. It replaces the whole
+selected-repository list with the repositories you name, so every other repository loses access.
+
+A repository outside the organization, or one that should hold its own values, sets them at the
+repository level instead:
+
+```sh
+gh secret set WORKOS_API_KEY --repo <owner>/<repo>
+gh secret set WORKOS_CLIENT_ID --repo <owner>/<repo>
+```
+
+Each command prompts for the value, so it never reaches the shell history.
 
 ## Enable package publishing
 
