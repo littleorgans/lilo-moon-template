@@ -14,8 +14,6 @@ over `@hono/node-server`. It is private and never published. A new service start
 
 An account is `{ "id", "orgId", "createdAt" }`, with `createdAt` in ISO 8601 UTC. Every `/v1`
 response carries `Cache-Control: no-store`, and every response carries an `x-request-id`.
-The query checks all three returned fields are strings before serving them: Drizzle's schema types
-and `sql<string>` describe expected values but do not validate driver results at runtime.
 
 ## Layout
 

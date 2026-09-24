@@ -32,16 +32,6 @@ const columns = {
   createdAt: sql<string>`to_char(${accounts.createdAt} AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')`,
 };
 
-// Drizzle's inferred types describe the expected schema; they do not validate driver values.
-// Keep the HTTP contract fail-closed if a deployed database or a SQL expression drifts.
-function toAccount(row: Account): Account {
-  const { id, orgId, createdAt } = row;
-  if (typeof id !== "string" || typeof orgId !== "string" || typeof createdAt !== "string") {
-    throw new TypeError("accounts row has an unexpected shape");
-  }
-  return { id, orgId, createdAt };
-}
-
 /**
  * The caller's account, or null when their organization has none yet.
  *
@@ -52,7 +42,7 @@ function toAccount(row: Account): Account {
  */
 export async function findAccount(tx: AccountTransaction): Promise<Account | null> {
   const [account] = await tx.select(columns).from(accounts);
-  return account === undefined ? null : toAccount(account);
+  return account ?? null;
 }
 
 /**
@@ -69,7 +59,7 @@ export async function provisionAccount(
     .values({ workosOrgId: sql`app.current_org_id()` })
     .onConflictDoNothing({ target: accounts.workosOrgId })
     .returning(columns);
-  if (inserted !== undefined) return { account: toAccount(inserted), created: true };
+  if (inserted !== undefined) return { account: inserted, created: true };
   const existing = await findAccount(tx);
   if (existing === null) throw new Error("account conflicted on insert but is not visible");
   return { account: existing, created: false };

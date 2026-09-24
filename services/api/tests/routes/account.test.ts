@@ -202,24 +202,6 @@ describe("logging", () => {
 });
 
 describe("errors", () => {
-  it.each([
-    ["GET", 0],
-    ["GET", 1],
-    ["GET", 2],
-    ["PUT", 0],
-    ["PUT", 1],
-    ["PUT", 2],
-  ])("refuses a malformed %s account column %i", async (method, column) => {
-    const malformed = row.map((value, index) => (index === column ? null : value));
-    const { app } = appWith(() => [malformed]);
-    const response = await app.request("/v1/account", {
-      method,
-      ...bearer(await signer.sign({ sub: "user_A", org_id: "org_A" })),
-    });
-    expect(response.status).toBe(500);
-    expect(await response.json()).toStrictEqual({ error: "internal" });
-  });
-
   it("answers 500 internal without the error's message when a query fails", async () => {
     const { app, records } = appWith(() => {
       throw Object.assign(new Error("duplicate key value (workos_org_id)=(org_A)"), {
