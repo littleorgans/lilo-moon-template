@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { once } from "node:events";
 import {
   appendFileSync,
   cpSync,
@@ -22,6 +21,7 @@ import { fileURLToPath } from "node:url";
 import { dockerIsAvailable, psqlInput, withPostgres } from "@littleorgans/db-tools";
 import { parseDocument } from "yaml";
 
+import { withEmptyRegistry } from "./lib/empty-registry.mjs";
 import {
   CONSUMER_TYPESCRIPT,
   consumerCompilerOptions,
@@ -1019,43 +1019,6 @@ async function exerciseServiceDatabase(root, dbName) {
 }
 
 /**
- * Runs `body` with the URL of a registry that has no packages. pnpm links a missing optional peer,
- * such as db-tools's `@littleorgans/db` at a project root, by asking the registry for the version
- * it found elsewhere in the graph, past the file: overrides. Whether it asks depends on resolution
- * order. Against the public registry that mixes published bytes into the proof, or, for a day after
- * each release, fails minimumReleaseAge. Here the request finds nothing, and pnpm skips an optional
- * package it cannot resolve. The server is a child process because the installs block this one.
- */
-async function withEmptyRegistry(body) {
-  const server = spawn(
-    process.execPath,
-    [
-      "-e",
-      `require("node:http")
-        .createServer((request, response) => {
-          process.stderr.write("published-shape: the empty registry refused " + request.url + "\\n");
-          response.writeHead(404).end();
-        })
-        .listen(0, "127.0.0.1", function () {
-          process.stdout.write(this.address().port + "\\n");
-        });`,
-    ],
-    { stdio: ["ignore", "pipe", "inherit"] },
-  );
-  try {
-    const [port] = await Promise.race([
-      once(server.stdout, "data"),
-      once(server, "exit").then(() => {
-        throw new Error("published-shape: the empty registry did not start");
-      }),
-    ]);
-    return await body(`http://127.0.0.1:${String(port).trim()}/`);
-  } finally {
-    server.kill();
-  }
-}
-
-/**
  * The packed create-app, run as `npm create @littleorgans/app` runs it, into a new directory. The
  * project installs the packed packages in place of the registry's, and its `@littleorgans` scope
  * resolves to `registry`, which has none, so only the packed bytes can be installed. It is
@@ -1081,7 +1044,7 @@ function scaffold(createApp, packages, registry, name, args) {
     workspace.setIn(["overrides", manifest.name], `file:${artifact}`);
   }
   writeFileSync(workspacePath, workspace.toString({ lineWidth: 0 }));
-  appendFileSync(join(root, ".npmrc"), `@littleorgans:registry=${registry}\n`);
+  appendFileSync(join(root, ".npmrc"), `\n@littleorgans:registry=${registry}\n`);
   initializeProject(root, "chore: start from @littleorgans/create-app");
   run(root, "pnpm", ["install"]);
   commitProject(root, "chore: lock dependencies");
