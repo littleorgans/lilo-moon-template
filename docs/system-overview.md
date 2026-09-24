@@ -53,6 +53,7 @@ The baseline makes these choices, recorded in `docs/decisions.md`:
 │   ├── schema.sql          Atlas desired state: accounts and profiles
 │   └── drizzle/            @littleorgans/drizzle-schema: the typed schema in _generated/, which the app and service query through
 ├── scripts/                RLS assertions, security, consumer, release and gate scripts
+├── skills/lilo/build/      The lilo/build skills agents read, synced to the agent-runtimes catalog
 ├── .moon/                  Workspace, toolchains, and inherited task layers
 ├── .changeset/             Pending changesets
 ├── .github/workflows/      moon-ci.yml (reusable: moon ci), its caller ci.yml, and release.yml
@@ -170,6 +171,15 @@ the empty registry it skips that peer. The registry binds an OS-assigned loopbac
 readiness over IPC within ten seconds, and exits when its parent disconnects; normal and failed
 runs wait for its exit. Only the scratch projects' `.npmrc` files select it. The template machinery
 that created, renamed and rebased product repositories was removed in phase 1.
+
+Agents building a project read the `lilo/build` skills under `skills/lilo/build/`: `start-project`
+drives the command, and `web-app`, `auth`, `persistence`, `service`, `ui-and-themes` and
+`monorepo-gates` cover the work after it. `publish-package` is for this repository's maintainers.
+Each teaches judgment and points at the reference code and docs by path. `root:skills-check` fails
+a skill that cites a path the tree does not have, or that the agent-runtimes catalog would refuse,
+and `root:skills-sync` copies the committed skills into a catalog checkout after a release
+([Releasing the packages](releasing.md#sync-the-skills)). The catalog renders them for agent
+runtimes, and `skills/lilo/settings.toml` names the `lilo/build-core` bundle a runtime selects.
 
 ## Runtime architecture
 
@@ -506,7 +516,7 @@ TypeScript project references are written by `moon sync` (`typescript.syncProjec
 | Coverage floor              | V8, per file: 80/75/80/80         | `testDefaults` in `packages/vite-config/src/vitest.ts`                                                               |
 | Database behavior           | Real Postgres 17 in Docker        | `root:rls-verify` (7 assertions), `root:drizzle-check`, `root:atlas-lint`, `packages/db-tools/tests/integration/`    |
 | Service against Postgres    | Real Postgres 17, real listener   | `services/api/tests/integration/database.test.js`: shipped migrations and grant, tenant isolation                    |
-| Repository scripts          | `node --test`                     | `scripts/tests/**` (Moon task shape, hooks, pins, fixed version group, licenses)                                     |
+| Repository scripts          | `node --test`                     | `scripts/tests/**` (Moon task shape, hooks, pins, fixed version group, licenses, skills check and sync)              |
 | Published shape             | Snapshot build, HTTP probes, npm  | `root:published-shape`: gate negative proofs, route status codes, CSS utilities, packed tarballs, generated projects |
 
 Tests reach the security logic through the seams listed above, not through mocks of framework
@@ -534,7 +544,7 @@ checkout (none, all-zero, or replaced by a force push) runs `moon ci --force`, s
 branch gets a full check. A second job named `CI` reports the
 required status check and fails unless `moon ci` succeeded. Projects call the same workflow at a
 release tag ([Use the shared configuration](guides/shared-config.md)). Tasks marked `runInCI: "always"` run on every change. These include `lint`,
-`format-check`, `secrets`, `audit`, `rls-verify` and `drizzle-check`. `published-shape` runs when
+`format-check`, `secrets`, `audit`, `skills-check`, `rls-verify` and `drizzle-check`. `published-shape` runs when
 its inputs change: apps, packages, services, scripts, `.moon`, the root manifests, the lockfile or
 `moon.yml`. A documentation-only change skips it.
 

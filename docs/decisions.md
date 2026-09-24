@@ -272,8 +272,11 @@ whose `rls-verify` command runs them against a consumer's own database; the task
 This is the third instance of the pattern in this record, after `--type-aware` and coverage: a gate
 that reports green while proving nothing.
 
-Which capabilities stay portable across hosts is
-[Supabase as a Postgres host](supabase-boundary.md). The record model and the workflows above it are
+The Postgres wire protocol is the portable boundary, so changing host is a connection string.
+Supabase is one host, and its Storage, Realtime, Edge Functions, Data API and client SDKs are not
+portable: an application that adopts one contains it in one module. Its hosted Data API rejected
+WorkOS tokens in August 2026 (supabase/auth#2476), so access from every language is a direct
+Postgres connection. The record model and the workflows above it are
 [The user entity](user-entity.md).
 
 ## JavaScript library exports
@@ -424,9 +427,25 @@ effect with a renewed access token.
 ## Skills are written here, under the `lilo` owner
 
 Decision D4 in [the direction](direction.md#decisions-approved-2026-09-23) puts skills in this
-repository, with reviewed copies synced to the agent-runtimes catalog later. The owner segment is
-`lilo`, chosen when the first skill landed. Skills live at `skills/lilo/<domain>/<skill>/SKILL.md`,
-so `skills/lilo/build/start-project/SKILL.md` has the catalog ID `lilo/build/start-project`. A skill
-teaches judgment and points at the guides and the reference code. It does not repeat their steps.
-Anything checkable belongs in a gate. The catalog sync, and the check that every path a skill cites
-exists at its tag, are phase 2 work.
+repository, with reviewed copies synced to the agent-runtimes catalog. The owner segment is `lilo`.
+Skills live at `skills/lilo/<domain>/<skill>/SKILL.md`, so `skills/lilo/build/start-project/SKILL.md`
+has the catalog ID `lilo/build/start-project`. A skill teaches judgment and points at the guides and
+the reference code. It does not repeat their steps, and anything checkable belongs in a gate that
+the skill names instead of restating.
+
+A skill cites a repository path as inline code from the root, and `root:skills-check` fails when a
+cited path does not exist. It checks the working tree, not the release tag the skills tell readers
+to read at. A pull request that moves a file must fix the skills in the same change, which is the
+point of writing them here, and checking at the tag in CI would instead fail every pull request that
+teaches something new until the next release. The tag matters when copies reach readers, so
+`root:skills-sync` checks the cited paths again at the newest release tag and refuses to sync until
+that release has them. The tag it checks moves with each release, with nothing to edit. A reader on
+an older release can still meet a path their tag lacks; skills tell them to read at their own tag.
+
+The sync copies files rather than generating them, because the catalog's generator already renders
+`skills/<owner>/<domain>/<skill>/` trees and resolves links between skills. The check rejects what
+that generator refuses at load, such as a frontmatter name that differs from the directory, a
+symlink or an unknown bundle member, so a failed catalog load is caught here. A skill that links
+outside `skills/lilo/` is refused too: the catalog would leave the link pointing at nothing.
+`skills/lilo/settings.toml` defines `lilo/build-core`, every skill except `publish-package`, which
+is for maintainers of this repository.
