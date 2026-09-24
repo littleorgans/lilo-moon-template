@@ -214,3 +214,7 @@ earlier commit, because a released tag never moves: re-run the original run inst
   `node scripts/published-shape.mjs <directory>`, repeat the gate's tarball checks.
 - `changeset version` needs a GitHub token: `@changesets/changelog-github` reads pull request and
   author details from the API. Run `GITHUB_TOKEN=$(gh auth token) pnpm changeset:version`.
+
+The rehearsal bootstrap and release registry calls have a two-minute process timeout; packed
+consumer installs and scaffold commands have a ten-minute timeout. A stalled npm process fails
+the gate instead of waiting indefinitely. The npm bootstrap streams its output for diagnosis.

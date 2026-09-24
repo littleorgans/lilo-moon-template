@@ -87,6 +87,7 @@ log: { type: stdout, format: pretty, level: warn }
   const response = await fetch(`${registry}-/user/org.couchdb.user:rehearsal`, {
     method: "PUT",
     headers: { "content-type": "application/json" },
+    signal: AbortSignal.timeout(5000),
     body: JSON.stringify({ name: "rehearsal", password: "rehearsal-password" }),
   });
   assert.equal(response.status, 201, "Verdaccio must register the rehearsal user");
@@ -102,7 +103,9 @@ try {
   // npm pinned as release.yml pins it, first on PATH.
   const prefix = join(scratch, "npm");
   execFileSync("npm", ["install", "--prefix", prefix, "--no-audit", "--no-fund", `npm@${npmPin}`], {
-    stdio: "ignore",
+    stdio: "inherit",
+    timeout: 120_000,
+    killSignal: "SIGKILL",
   });
   const bin = join(prefix, "node_modules/.bin");
 
@@ -128,7 +131,13 @@ try {
     NPM_CONFIG_CACHE: join(scratch, "npm-cache"),
     NODE_AUTH_TOKEN: token,
   };
-  const npm = (args) => execFileSync("npm", args, { env, encoding: "utf8" }).trim();
+  const npm = (args) =>
+    execFileSync("npm", args, {
+      env,
+      encoding: "utf8",
+      timeout: 120_000,
+      killSignal: "SIGKILL",
+    }).trim();
   assert.equal(npm(["--version"]), npmPin);
   assert.equal(npm(["config", "get", `${scope}:registry`]), registry);
   say(`npm ${npmPin} resolves ${scope} to ${registry}`);
@@ -148,9 +157,12 @@ try {
       ["view", `${name}@${version}`, field, "--json", "--prefer-online"],
       {
         env,
+        timeout: 120_000,
+        killSignal: "SIGKILL",
         encoding: "utf8",
       },
     );
+    if (result.error) throw result.error;
     return result.status === 0 ? JSON.parse(result.stdout) : undefined;
   };
   const onRegistry = () => tarballs.filter(({ name, version }) => view(name, version, "version"));

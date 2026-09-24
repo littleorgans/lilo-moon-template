@@ -80,8 +80,9 @@ function registryIntegrity(name, version) {
   const result = spawnSync(
     "npm",
     ["view", `${name}@${version}`, "dist.integrity", "--json", "--prefer-online"],
-    { encoding: "utf8" },
+    { encoding: "utf8", timeout: 120_000, killSignal: "SIGKILL" },
   );
+  if (result.error) throw result.error;
   const output = result.stdout.trim();
   if (result.status === 0) return output === "" ? undefined : JSON.parse(output);
   let code;
@@ -112,7 +113,10 @@ function publish(directory) {
     // no lifecycle scripts, so these bytes are exactly what the registry receives.
     const result = spawnSync("npm", ["publish", file, "--access", "public", "--ignore-scripts"], {
       stdio: "inherit",
+      timeout: 120_000,
+      killSignal: "SIGKILL",
     });
+    if (result.error) throw result.error;
     if (result.status !== 0) {
       throw new Error(
         `Release: npm publish ${name}@${version} exited ${result.status}. Rerunning publishes the rest and skips what is already up.`,
@@ -332,7 +336,7 @@ async function smoke(directory) {
       const result = spawnSync(
         "npm",
         ["install", "--no-audit", "--no-fund", "--ignore-scripts", "--prefer-online"],
-        { cwd: root, stdio: "inherit" },
+        { cwd: root, stdio: "inherit", timeout: 120_000, killSignal: "SIGKILL" },
       );
       return result.status === 0;
     });

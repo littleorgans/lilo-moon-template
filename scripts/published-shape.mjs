@@ -411,11 +411,22 @@ function consumerDependencies(packages) {
   return dependencies;
 }
 
-const capture = (cwd, command, args) => spawnSync(command, args, { cwd, env, encoding: "utf8" });
+const capture = (cwd, command, args) =>
+  spawnSync(command, args, {
+    cwd,
+    env,
+    encoding: "utf8",
+    timeout: 10 * 60_000,
+    killSignal: "SIGKILL",
+  });
 
 function succeeded(result, description) {
   const output = `${result.stdout}${result.stderr}`;
-  assert.equal(result.status, 0, `${description} failed:\n${output}`);
+  assert.equal(
+    result.status,
+    0,
+    `${description} failed: ${result.error?.message ?? result.signal ?? "nonzero exit"}\n${output}`,
+  );
   return output;
 }
 
