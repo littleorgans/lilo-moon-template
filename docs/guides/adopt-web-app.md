@@ -36,7 +36,9 @@ organization policy, and it prints every default it takes.
   ([Adopt the packages in a service](adopt-service.md)).
 - **Names** (`--web-name`, default `web`, and `--name`, default the directory's name). `--name` is
   the root package name and the scope of the project's own packages, such as `@acme/web` and
-  `@acme/drizzle-schema`.
+  `@acme/drizzle-schema`. Complete package names, including their scope, must fit npm's
+  214-character limit. With a database, the generated login roles must also fit Postgres's
+  63-character limit.
 
 ## 1. Install the tools
 

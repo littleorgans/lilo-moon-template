@@ -57,6 +57,16 @@ describe("resolveChoices", () => {
     }
   });
 
+  it("uses npm's scoped-name limit for projects without a database", () => {
+    const base = { web: true, organizationPolicy: "personal", name: "a".repeat(198) };
+    expect(resolve(base).kind).toBe("valid");
+    expect(errors({ ...base, name: "a".repeat(199) }).join()).toContain("npm's 214 characters");
+    expect(errors({ ...base, webName: "b".repeat(15) }).join()).toContain("npm's 214 characters");
+    expect(
+      resolve({ ...base, name: "northwind-traders-internal-tools", database: true }).kind,
+    ).toBe("valid");
+  });
+
   it("takes the reference's names and ports, and says which it took", () => {
     const resolution = resolve({ web: true, organizationPolicy: "existing" });
     expect(resolution).toStrictEqual({

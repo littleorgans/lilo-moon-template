@@ -49,7 +49,8 @@ Every `@littleorgans/*` package is pinned at this release in the `pnpm-workspace
 | `--name <name>`                  | The root package name and the scope of the project's own packages (`@<name>/web`).                    | The directory's name     |
 
 Names are lowercase letters, digits and dashes, starting with a letter and ending with a letter or
-digit. The published scope `littleorgans` is reserved, and app names cannot be ignored output
+digit. Each complete package name, including its scope, must fit npm's 214-character limit.
+The published scope `littleorgans` is reserved, and app names cannot be ignored output
 directories (`dist`, `build`, `out`, `coverage`). With a database, each app's login role
 (`<name>_<app>`, dashes as underscores) must fit Postgres's 63-character identifier limit and not
 start with the reserved `pg_`, so `--name pg` or `pg-…` is refused. Every choice is a flag, so

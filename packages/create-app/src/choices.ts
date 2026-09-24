@@ -170,6 +170,19 @@ export function resolveChoices(request: Request, defaults: Defaults, cwd: string
   const database = service !== null || request.database === true;
   if (service === null && request.database === undefined) defaulted.push("no database (--db)");
 
+  // npm bounds the entire scoped name, independently of whether this project has a database.
+  const packageNames = [
+    project,
+    `@${project}/drizzle-schema`,
+    ...[web, service].flatMap((app) => (app === null ? [] : [`@${project}/${app.name}`])),
+  ];
+  for (const packageName of packageNames) {
+    if (packageName.length > 214)
+      errors.push(
+        `The package name ${packageName} exceeds npm's 214 characters: shorten the names`,
+      );
+  }
+
   // Postgres truncates an identifier past 63 characters and reserves the pg_ prefix for roles.
   for (const app of database ? [web, service] : []) {
     if (app === null) continue;

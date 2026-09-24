@@ -145,7 +145,9 @@ live framework, provider or database.
 Projects do not copy this repository. `pnpm create @littleorgans/app` (`packages/create-app`)
 writes a new project that installs the published packages and owns the application glue it was
 given: the workspace root, a web app, a service, or both, and optionally the database. Nothing
-updates that glue afterwards; fixes reach projects through package upgrades.
+updates that glue afterwards; fixes reach projects through package upgrades. The command validates
+complete package names against npm's 214-character limit, and checks database login roles separately
+against Postgres's 63-character limit and reserved `pg_` prefix.
 
 The command's template is generated, never written by hand. Its build
 (`packages/create-app/src/generate/`) reads `apps/web`, `services/api`, `db/`, the root
