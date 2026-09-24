@@ -409,8 +409,9 @@ erDiagram
 Schema changes follow Atlas: edit `db/schema.sql`, `moon run root:atlas-diff`, hand-write any
 policy migration, `atlas migrate hash`, and `moon run root:drizzle-generate`. The root database
 tasks run the `db-tools` command from `packages/db-tools`, which also owns the per-checkout Postgres
-container that the gates and the integration tests share. Randomly suffixed databases isolate
-overlapping helper calls. Details are in `docs/maintaining.md`,
+container that the gates and the integration tests share. Compatible legacy containers remain
+usable, while labels guard container deletion and ownership comments guard stale database cleanup.
+Randomly suffixed databases isolate overlapping helper calls. Details are in `docs/maintaining.md`,
 `docs/user-entity.md` and the [`@littleorgans/db-tools` README](../packages/db-tools/README.md).
 
 ### Themes and styling

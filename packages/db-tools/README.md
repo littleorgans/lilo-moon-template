@@ -199,17 +199,25 @@ Each checkout owns one container, named `baseline-postgres-<digest>` after the c
 path, with a host port derived from the same digest and bound to `127.0.0.1`. Separate clones and
 worktrees therefore get separate containers and ports. Each helper call creates its own database
 inside it, named after the command, process id and a random suffix, and drops it afterwards.
-Interrupted calls leave their databases behind; the next call with the same label drops those
-whose process no longer exists. The standalone
+Interrupted calls leave their databases behind; the next call with the same label drops only
+databases bearing this checkout's scratch ownership comment whose process no longer exists.
+A matching name without that comment is preserved. The standalone
 `rls-verify --disposable` lifecycle remains separate.
 
-The digest in the name is what ties a container to its checkout. New containers also carry an
-`org.littleorgans.db-tools.root` label with the checkout path, so
+The digest locates the container for a checkout path; it is not evidence that the container is
+safe to delete. New containers carry an `org.littleorgans.db-tools.root` label declaring them
+managed scratch space for that path, so
 `docker ps --all --filter label=org.littleorgans.db-tools.root --format '{{.Names}} {{.Label "org.littleorgans.db-tools.root"}}'`
 shows which checkout, possibly deleted, each container belongs to. Containers made by this
-repository's old root scripts have the same name, image and binding but no label, and are used as
-they are. Start, replacement and removal act on the inspected container ID, so a name reassigned
-in the meantime cannot redirect them.
+repository's old root scripts have the same name, image and binding but no label. They can still
+host new scratch databases, so existing database gates keep working. `clean` and image replacement
+refuse to delete an unlabelled container: inspect and remove it manually when it is disposable.
+A label naming another checkout is always refused. Start, replacement and removal act on the
+inspected container ID, so a name reassigned in the meantime cannot redirect them.
+
+Labels are safeguards against accidental deletion, not a security boundary against Docker admins.
+Ownership is scoped to the absolute path, not a Git checkout generation. Recreating a checkout at
+the same path reuses its managed scratch container; preserve any valuable data outside it.
 
 Set `LILO_PG_PORT` (or `--port`) when the derived port is taken. The container keeps the port it
 was created with, so run `db-tools clean` before you change it; a mismatch fails with that advice.
@@ -217,7 +225,7 @@ The superuser password is `postgres`, which is why the port is bound to the loop
 
 Prefer `DATABASE_URL` to `--url` to keep credentials out of shell history. Command diagnostics and
 child-tool output redact the URL, and its password wherever it is reprinted as a credential
-(`:<password>@` or `password=<password>`). Atlas still receives the URL as a process
+(`:<password>@` or quoted/unquoted `password=<password>`, including URL-encoded forms). Atlas still receives the URL as a process
 argument; use the same host access controls as when invoking Atlas directly.
 
 ### Checks, CI and exit codes
@@ -322,6 +330,7 @@ describe.skipIf(!dockerIsAvailable())("against Postgres", () => {
 named `<label>_<pid>_<nonce>` in the checkout's container, and drops it afterwards. `startPostgres` returns a
 URL to the container's `postgres` database for tools that create their own. `psqlInput` runs SQL
 through the container's `psql` with `ON_ERROR_STOP` in one transaction, with `--set` variables, so
-no host `psql` is needed. It accepts only a URL for the checkout's loopback server, rather than silently ignoring a different host or port. `applyMigrations` runs `atlas migrate apply`. `dockerStatus` says whether
+no host `psql` is needed. It checks the inspected image and binding and accepts only a URL for the
+checkout's loopback server, rather than silently ignoring a different host or port. `applyMigrations` runs `atlas migrate apply`. `dockerStatus` says whether
 Docker answers and why not, and `removePostgres` is `db-tools clean`. Each takes the `root`, `port`,
 `image` and `env` options the command line exposes.

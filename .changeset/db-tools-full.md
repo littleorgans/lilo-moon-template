@@ -22,7 +22,10 @@ tests: `withPostgres`, `startPostgres`, `psqlInput`, `applyMigrations`, `dockerS
 
 Containers are started, replaced and removed by their inspected ID, and new ones carry an
 `org.littleorgans.db-tools.root` label naming the checkout. Containers from the old root scripts
-are reused. Scratch database names include a random suffix. Tool diagnostics redact connection
-URLs and credential-position passwords, including in errors from rejected command arguments.
+are reused for scratch work, but automated deletion or image replacement requires a matching
+ownership label. Scratch database names include a random suffix, and stale cleanup requires an
+ownership comment. Tool diagnostics redact connection URLs and credential-position passwords,
+including quoted, re-encoded and overlapping values, without mangling image names.
 
-`psqlInput` rejects URLs for another host or port before executing SQL.
+`psqlInput` rejects URLs for another host or port and checks the inspected image and binding before
+executing SQL.

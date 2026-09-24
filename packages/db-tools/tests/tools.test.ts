@@ -73,3 +73,14 @@ describe("connection credentials", () => {
     expect(output).toBe("***\nowner:***@db password=***\n");
   });
 });
+
+it("redacts re-encoded, quoted and overlapping credential values completely", () => {
+  const target = new URL("postgres://owner@db/app");
+  target.password = "prefix";
+  target.searchParams.set("password", "prefix/suffix");
+  expect(
+    redactUrls("password=prefix%2Fsuffix password=prefix/suffix password='prefix/suffix'", [
+      target.href,
+    ]),
+  ).toBe("password=*** password=*** password='***'");
+});

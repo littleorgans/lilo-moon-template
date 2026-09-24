@@ -409,7 +409,8 @@ available for product theme controls and redirects to `/` when no same-origin re
 - **Postgres:** the database gates (step 6) run in a container that `db-tools` names and ports
   after the checkout's absolute path, so separate clones and worktrees get separate containers.
   Set `LILO_PG_PORT` when that port is taken. Run `just clean` before you change it for an
-  existing container.
+  existing container. Unlabelled containers from the old scripts still run the gates, but cleanup
+  refuses to delete them; inspect and remove them manually when they are disposable.
 
 ## 6. Set up the database
 

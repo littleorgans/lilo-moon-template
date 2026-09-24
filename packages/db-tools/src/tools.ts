@@ -18,12 +18,12 @@ export interface ToolOptions {
 
 /**
  * Redacts connection strings, and their passwords wherever a tool reprints them as credentials
- * (`:<password>@`, `password=<password>`). A bare password is left alone: the dev container's is
- * `postgres`, and replacing every occurrence would mangle image and container names.
+ * (`:<password>@`, and quoted or unquoted `password=<password>`). Bare words are left alone:
+ * the dev password is `postgres`, so replacing every occurrence would mangle image names.
  */
 export function redactUrls(text: string, values: readonly string[]): string {
   const whole: string[] = [];
-  const credentials: string[] = [];
+  const credentials = new Map<string, string>();
   for (const value of values.filter(Boolean)) {
     whole.push(value);
     let url: URL;
@@ -39,19 +39,30 @@ export function redactUrls(text: string, values: readonly string[]): string {
       try {
         decoded = decodeURIComponent(encoded);
       } catch {}
-      for (const password of new Set([encoded, decoded].filter(Boolean))) {
-        credentials.push(`:${password}@`, `password=${password}`);
+      for (const password of new Set(
+        [
+          encoded,
+          decoded,
+          encodeURIComponent(decoded),
+          new URLSearchParams({ password: decoded }).toString().slice("password=".length),
+        ].filter(Boolean),
+      )) {
+        credentials.set(`:${password}@`, ":***@");
+        credentials.set(`password=${password}`, "password=***");
+        credentials.set(`password='${password}'`, "password='***'");
+        credentials.set(`password="${password}"`, 'password="***"');
       }
     }
   }
   const redacted = whole
     .toSorted((a, b) => b.length - a.length)
     .reduce((output, secret) => output.replaceAll(secret, "***"), text);
-  return credentials.reduce(
-    (output, credential) =>
-      output.replaceAll(credential, credential.startsWith(":") ? ":***@" : "password=***"),
-    redacted,
-  );
+  return [...credentials]
+    .toSorted(([left], [right]) => right.length - left.length)
+    .reduce(
+      (output, [credential, replacement]) => output.replaceAll(credential, replacement),
+      redacted,
+    );
 }
 
 /** Capture output so tools cannot echo connection credentials into the caller's logs. */

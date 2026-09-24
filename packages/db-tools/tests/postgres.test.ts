@@ -87,12 +87,13 @@ describe("Docker availability", () => {
 });
 
 // Record the commands, so a test can prove which container each start, exec or removal targeted.
-function dockerFixture(image = "postgres:17-alpine") {
+function dockerFixture(image = "postgres:17-alpine", owner?: string) {
   const root = mkdtempSync(join(tmpdir(), "db-tools-owned-"));
   const log = join(root, "calls");
   const info = [
     JSON.stringify("immutable-container-id"),
     JSON.stringify(image),
+    JSON.stringify(owner === "self" ? root : (owner ?? null)),
     `${postgresIdentity(root).port} 127.0.0.1`,
   ].join("\n");
   const PATH = fakePath({
@@ -111,8 +112,8 @@ describe("the checkout's container", () => {
     expect(calls).not.toMatch(/^(rm|run) /m);
   });
 
-  it("removes the container by immutable ID, never by reusable name", () => {
-    const fixture = dockerFixture();
+  it("removes the owned container by immutable ID, never by reusable name", () => {
+    const fixture = dockerFixture("postgres:17-alpine", "self");
     expect(removePostgres(fixture)).toBe(true);
     expect(readFileSync(fixture.log, "utf8")).toContain("rm --force immutable-container-id");
   });
@@ -139,6 +140,7 @@ container)
   fi
   echo '"winner-id"'
   echo '"postgres:16-alpine"'
+  echo null
   echo '${postgresIdentity(root).port} 127.0.0.1'
   ;;
 run) echo 'container name is already in use' >&2; exit 1;;
@@ -163,4 +165,48 @@ it("psqlInput runs in the inspected container and only for its URL", () => {
   expect(() => psqlInput("postgres://remote/app", "SELECT 1", {}, fixture)).toThrow(
     "requires a URL from this checkout",
   );
+});
+
+it("never removes an unlabelled container merely because its name matches", () => {
+  const fixture = dockerFixture("unrelated-image");
+  expect(() => removePostgres(fixture)).toThrow("unlabelled");
+  expect(readFileSync(fixture.log, "utf8")).not.toMatch(/^rm /m);
+});
+
+it("refuses replacement of an unlabelled container and any use of a foreign-labelled one", () => {
+  const legacy = dockerFixture("postgres:16-alpine");
+  expect(() => startPostgres(legacy)).toThrow("unlabelled");
+  expect(readFileSync(legacy.log, "utf8")).not.toMatch(/^(rm|run|start) /m);
+  const foreign = dockerFixture("postgres:17-alpine", "/another/checkout");
+  expect(() => startPostgres(foreign)).toThrow("another checkout");
+  expect(() => removePostgres(foreign)).toThrow("another checkout");
+  expect(() =>
+    psqlInput(
+      `postgres://127.0.0.1:${postgresIdentity(foreign.root).port}/test`,
+      "SELECT 1",
+      {},
+      foreign,
+    ),
+  ).toThrow("another checkout");
+  expect(readFileSync(foreign.log, "utf8")).not.toMatch(/^(rm|run|start|exec) /m);
+});
+
+it("does not claim ownership of a compatible unlabelled legacy container after reuse", () => {
+  const legacy = dockerFixture();
+  startPostgres(legacy);
+  expect(() => removePostgres(legacy)).toThrow("unlabelled");
+  expect(readFileSync(legacy.log, "utf8")).not.toMatch(/^rm /m);
+});
+
+it("psqlInput refuses a mismatched legacy image or stale port mapping before executing SQL", () => {
+  const wrongImage = dockerFixture("unrelated-image");
+  const imageUrl = `postgres://127.0.0.1:${postgresIdentity(wrongImage.root).port}/test`;
+  expect(() => psqlInput(imageUrl, "SELECT 1", {}, wrongImage)).toThrow("does not match");
+  expect(readFileSync(wrongImage.log, "utf8")).not.toMatch(/^exec /m);
+  const legacy = dockerFixture();
+  const port = postgresIdentity(legacy.root).port + 1;
+  expect(() =>
+    psqlInput(`postgres://127.0.0.1:${port}/test`, "SELECT 1", {}, { ...legacy, port }),
+  ).toThrow("does not match");
+  expect(readFileSync(legacy.log, "utf8")).not.toMatch(/^exec /m);
 });

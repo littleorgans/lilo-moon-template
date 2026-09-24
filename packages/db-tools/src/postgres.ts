@@ -27,8 +27,9 @@ export const DEFAULT_IMAGE = "postgres:17-alpine";
 /** How long `docker info` may take before Docker counts as unavailable, rather than hanging. */
 const DOCKER_ANSWER_MS = 20_000;
 const READY_MS = 15_000;
-/** Records the owning checkout, which the hashed container name hides, for `docker ps --filter`. */
+/** New containers explicitly declare themselves disposable scratch space for this checkout. */
 const OWNER_LABEL = "org.littleorgans.db-tools.root";
+const DATABASE_OWNER = "littleorgans/db-tools:";
 
 export function findWorkspaceRoot(from = process.cwd()): string {
   for (let directory = resolve(from); ; directory = dirname(directory)) {
@@ -152,10 +153,10 @@ function waitForPostgres(target: Server): void {
 }
 
 // Inspect the named container once, then use its immutable ID for every operation, so a name
-// reassigned between inspection and use never redirects it. The name is a digest of the checkout
-// path and is the ownership proof: containers from before the label (the old root scripts used the
-// same name, image and binding) are adopted rather than refused.
+// reassigned between inspection and use never redirects it. Compatible legacy containers may
+// host new scratch databases, but a matching name alone never authorizes container deletion.
 interface Container {
+  owned: boolean;
   id: string;
   image: string;
   port: number;
@@ -166,7 +167,7 @@ function inspectContainer(target: Server): Container | null {
     "container",
     "inspect",
     "--format",
-    `{{json .Id}}\n{{json .Config.Image}}\n{{with index .HostConfig.PortBindings "5432/tcp"}}{{(index . 0).HostPort}} {{(index . 0).HostIp}}{{end}}`,
+    `{{json .Id}}\n{{json .Config.Image}}\n{{json (index .Config.Labels "${OWNER_LABEL}")}}\n{{with index .HostConfig.PortBindings "5432/tcp"}}{{(index . 0).HostPort}} {{(index . 0).HostIp}}{{end}}`,
     target.container,
   ]);
   if (errorCode(result) === "ENOENT") return null;
@@ -176,19 +177,31 @@ function inspectContainer(target: Server): Container | null {
       `Could not inspect ${target.container}: ${result.stderr.trim() || result.error?.message}`,
     );
   }
-  const [idJson = "null", imageJson = "null", binding = ""] = result.stdout.trim().split("\n");
+  const [idJson = "null", imageJson = "null", ownerJson = "null", binding = ""] = result.stdout
+    .trim()
+    .split("\n");
   const id: unknown = JSON.parse(idJson);
   const image: unknown = JSON.parse(imageJson);
+  const owner: unknown = JSON.parse(ownerJson);
+  if (owner !== null && owner !== "" && owner !== target.root) {
+    throw new Error(`Refusing ${target.container}: its ownership label names another checkout.`);
+  }
   if (typeof id !== "string" || id === "" || typeof image !== "string") {
     throw new Error(`Invalid Docker inspection for ${target.container}`);
   }
   const [port, host = ""] = binding.split(" ");
-  return { id, image, port: Number(port), host };
+  return { id, image, port: Number(port), host, owned: owner === target.root };
 }
 
-function removeContainer(target: Server, id: string): void {
-  const result = docker(target, ["rm", "--force", id]);
-  if (result.status !== 0) throw new Error(`Could not remove ${id}: ${result.stderr.trim()}`);
+function removeContainer(target: Server, container: Container): void {
+  if (!container.owned) {
+    throw new Error(
+      `Refusing to remove unlabelled container ${target.container}. It may be used for scratch work, but inspect and remove it manually if it is disposable.`,
+    );
+  }
+  const result = docker(target, ["rm", "--force", container.id]);
+  if (result.status !== 0)
+    throw new Error(`Could not remove ${container.id}: ${result.stderr.trim()}`);
 }
 
 // Concurrent tasks may race to create the container. Re-inspect even after a name conflict, and
@@ -202,7 +215,7 @@ function ensurePostgres(target: Server): Server {
     );
   }
   if (existing !== null && existing.image !== target.image) {
-    removeContainer(target, existing.id);
+    removeContainer(target, existing);
     existing = null;
   }
   if (existing === null) {
@@ -280,10 +293,13 @@ function processIsAlive(pid: number): boolean {
   }
 }
 
-// Interrupted runs leave their databases behind. In the checkout's own container, the
-// `<base>_<pid>_<nonce>` shape is withPostgres's alone; a dead pid makes such a database stale.
+// A name can also belong to a restored or user-created database, especially in a reused legacy
+// container. Only marked scratch databases with dead owning processes may be reaped.
 function dropStaleDatabases(target: Server, base: string): void {
-  const listed = psql(target, "SELECT datname FROM pg_database WHERE datistemplate = false").trim();
+  const listed = psql(
+    target,
+    `SELECT datname FROM pg_database WHERE shobj_description(oid, 'pg_database') = '${DATABASE_OWNER}${target.root.replaceAll("'", "''")}'`,
+  ).trim();
   for (const name of listed === "" ? [] : listed.split("\n")) {
     const match = new RegExp(`^${base}_([0-9]+)_[a-f0-9]{12}$`).exec(name);
     if (match === null) continue;
@@ -307,7 +323,7 @@ export function startPostgres(options: PostgresOptions = {}): string {
 /**
  * Hands the callback a superuser URL to a fresh database inside the checkout's container. The label
  * names the database (`<label>_<pid>_<nonce>`), so concurrent calls never share one. The drop
- * afterwards must succeed; the next run with the same label also drops those of dead processes.
+ * afterwards must succeed; the next run with the same label also drops marked databases of dead processes.
  */
 export async function withPostgres<T>(
   label: string,
@@ -325,6 +341,10 @@ export async function withPostgres<T>(
   const database = `${base}_${process.pid}_${randomBytes(6).toString("hex")}`;
   psql(target, `CREATE DATABASE ${database}`);
   try {
+    psql(
+      target,
+      `COMMENT ON DATABASE ${database} IS '${DATABASE_OWNER}${target.root.replaceAll("'", "''")}'`,
+    );
     return await callback(urlFor(target, database));
   } finally {
     psql(target, `DROP DATABASE IF EXISTS ${database} WITH (FORCE)`);
@@ -349,6 +369,15 @@ export function psqlInput(
   }
   const existing = inspectContainer(requested);
   if (existing === null) throw new Error("The checkout's Postgres container does not exist.");
+  if (
+    existing.image !== requested.image ||
+    existing.port !== requested.port ||
+    existing.host !== "127.0.0.1"
+  ) {
+    throw new Error(
+      "The inspected Postgres container does not match the requested image and loopback port.",
+    );
+  }
   const target = { ...requested, container: existing.id };
   execFileSync(
     "docker",
@@ -379,6 +408,6 @@ export function removePostgres(options: PostgresOptions = {}): boolean {
   const target = server(options);
   const existing = inspectContainer(target);
   if (existing === null) return false;
-  removeContainer(target, existing.id);
+  removeContainer(target, existing);
   return true;
 }

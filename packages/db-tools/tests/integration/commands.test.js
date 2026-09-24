@@ -2,6 +2,7 @@
 // in-process so coverage sees them. The fixtures are this repository's: the migrations
 // @littleorgans/db ships, and the typed schema the root drizzle-check keeps current.
 
+import { execFileSync } from "node:child_process";
 import { cpSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -14,6 +15,7 @@ import {
   dockerIsAvailable,
   exitCodes,
   removePostgres,
+  postgresIdentity,
   startPostgres,
   withPostgres,
 } from "../../src/index.js";
@@ -114,19 +116,37 @@ describe.skipIf(!dockerIsAvailable())("db-tools against Postgres", { timeout: 60
 });
 
 describe.skipIf(!dockerIsAvailable())("scratch database ownership", { timeout: 60_000 }, () => {
-  it("isolates overlapping calls with the same label and drops only stale databases of its own shape", async () => {
+  it("reuses a real legacy container without deleting unmarked databases or the container", async () => {
     const root = scratch("db-tools-ownership-");
     const options = { root };
+    const identity = postgresIdentity(root);
+    // Reproduce the old scripts exactly, without an ownership label. The test owns this ID.
+    const containerId = execFileSync(
+      "docker",
+      [
+        "run",
+        "--detach",
+        "--name",
+        identity.container,
+        "--env",
+        "POSTGRES_PASSWORD=postgres",
+        "--publish",
+        `127.0.0.1:${identity.port}:5432`,
+        "postgres:17-alpine",
+      ],
+      { encoding: "utf8" },
+    ).trim();
     const url = new URL(startPostgres(options));
     const { Client } = await import("pg");
     const client = new Client({ connectionString: url.href });
     await client.connect();
-    // The old root scripts named databases `<label>_<pid>`; only the nonce shape is ours to drop.
-    const foreign = "ownership_4194303";
+    // A user can restore a scratch-shaped database; the shape alone cannot authorize its drop.
+    const foreign = "ownership_4194303_abcdef012345";
     const stale = "ownership_4194303_abcdef012346";
     try {
       await client.query(`CREATE DATABASE ${foreign}`);
       await client.query(`CREATE DATABASE ${stale}`);
+      await client.query(`COMMENT ON DATABASE ${stale} IS 'littleorgans/db-tools:${root}'`);
       await withPostgres(
         "ownership",
         async (first) => {
@@ -146,9 +166,10 @@ describe.skipIf(!dockerIsAvailable())("scratch database ownership", { timeout: 6
         },
         options,
       );
+      expect(() => removePostgres(options)).toThrow("unlabelled");
     } finally {
       await client.end();
-      removePostgres(options);
+      execFileSync("docker", ["rm", "--force", containerId]);
     }
   });
 });
