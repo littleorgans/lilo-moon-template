@@ -106,3 +106,10 @@ export function serializeManifest(manifest: ManifestText): string {
   }
   return `${JSON.stringify(sorted, null, 2)}\n`;
 }
+
+/** Reject terminal controls and NUL in user and bundle paths. */
+export function hasControlCharacters(value: string): boolean {
+  return Array.from(value).some(
+    (character) => character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127,
+  );
+}

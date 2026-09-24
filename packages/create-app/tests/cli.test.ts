@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -32,6 +33,22 @@ async function run(argv: string[], answers?: string[]) {
 const read = (root: string, path: string) => readFileSync(join(root, path), "utf8");
 
 describe("create-app", () => {
+  it("prints a literal absolute cd command for shell metacharacters in the target", async () => {
+    const directory = "space ' $(touch injected) ; project";
+    const { stdout, cwd, code } = await run([directory, "--name", "safe", "--service"]);
+    expect(code).toBe(exitCodes.created);
+    const command = stdout.split("\n").find((line) => line.trimStart().startsWith("cd "));
+    expect(command).toBeDefined();
+    const landed = execFileSync("/bin/sh", ["-c", `${command} && pwd -P`], {
+      cwd,
+      encoding: "utf8",
+    }).trim();
+    expect(landed).toBe(
+      execFileSync("/bin/pwd", ["-P"], { cwd: join(cwd, directory), encoding: "utf8" }).trim(),
+    );
+    expect(existsSync(join(cwd, "injected"))).toBe(false);
+  });
+
   it("prints usage naming the release and the reference's defaults", async () => {
     const { code, stdout } = await run(["--help"]);
     expect(code).toBe(exitCodes.created);

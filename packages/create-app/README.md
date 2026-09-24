@@ -48,7 +48,9 @@ Every `@littleorgans/*` package is pinned at this release in the `pnpm-workspace
 | `--db`, `--no-db`                | Add Postgres.                                                                                         | None for a web app alone |
 | `--name <name>`                  | The root package name and the scope of the project's own packages (`@<name>/web`).                    | The directory's name     |
 
-Names are lowercase letters, digits and dashes, starting with a letter. Every choice is a flag, so
+Names are at most 30 lowercase letters, digits and dashes, starting with a letter. This keeps
+login roles below Postgres's identifier limit. The published scope `littleorgans` is reserved,
+and app names cannot be ignored output directories (`dist`, `build`, `out`, `coverage`); `pg` is reserved as a project name with a database. Every choice is a flag, so
 a script or an agent runs it without a terminal. At a terminal it asks only for what has no
 default: the directory, what to create, the organization policy, and whether a web app alone gets
 a database. It prints every default it took, with the flag that changes it.
@@ -60,3 +62,11 @@ grant, and the first `moon ci --force`.
 explains each step. Read it at the tag that matches the version you installed.
 
 Exit codes: 0 created, 1 failed (for example, the directory is not empty), 2 usage error.
+
+The command writes no secrets or `.env.local`. The generated `.env.example` leaves
+`WORKOS_COOKIE_PASSWORD` empty: generate a fresh value with `openssl rand -base64 32` and put it
+in the ignored `.env.local`. An unchanged copy fails configuration validation.
+
+Reference text is copied or rewritten; deleted rewrite targets, symlinks, binary assets and
+tracked environment values stop generation for an explicit decision. Binary assets need template
+encoding support before they can be shipped. Template paths cannot escape the target or enter `.git`.

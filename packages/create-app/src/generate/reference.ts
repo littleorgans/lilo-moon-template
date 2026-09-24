@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, lstatSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 /**
@@ -38,7 +38,18 @@ export class Reference {
 
   read(path: string): string {
     if (!this.#files.includes(path)) throw new Error(`The reference has no file ${path}`);
-    return readFileSync(join(this.#root, path), "utf8");
+    if (path.split("/").some((part) => part.startsWith(".env") && part !== ".env.example")) {
+      throw new Error(`${path}: environment values must never enter the template`);
+    }
+    if (lstatSync(join(this.#root, path)).isSymbolicLink()) {
+      throw new Error(`${path}: classify symbolic links before adding them to the template`);
+    }
+    const bytes = readFileSync(join(this.#root, path));
+    const text = bytes.toString("utf8");
+    if (bytes.includes(0) || !Buffer.from(text).equals(bytes)) {
+      throw new Error(`${path}: binary assets need explicit template support`);
+    }
+    return text;
   }
 
   manifest(path: string): Manifest {

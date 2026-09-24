@@ -1,6 +1,8 @@
 // What the command prints once the files are written: what it made, which defaults it took, and
 // the steps no command can take for the person. The steps follow the adoption guides.
 
+import { resolve } from "node:path";
+
 import type { Choices } from "./choices.ts";
 import type { Template } from "./template.ts";
 
@@ -8,6 +10,9 @@ import type { Template } from "./template.ts";
 export function loginRole(project: string, app: string): string {
   return `${project}_${app}`.replaceAll("-", "_");
 }
+
+/** POSIX shell literal, including whitespace, quotes and command substitutions. */
+const shellQuote = (value: string) => `'${value.replaceAll("'", "'\"'\"'")}'`;
 
 const indent = (lines: readonly string[], depth: number) =>
   lines.map((line) => (line === "" ? line : `${" ".repeat(depth)}${line}`));
@@ -60,7 +65,7 @@ export function report(choices: Choices, template: Template, target: string): st
     [
       "Commit, then install. The install turns on the Git hooks, and Moon needs a commit:",
       "",
-      `  cd ${target}`,
+      `  cd ${shellQuote(resolve(target))}`,
       '  git init -b main && git add -A && git commit -m "chore: start from @littleorgans/create-app"',
       "  pnpm install",
       '  git add pnpm-lock.yaml && git commit -m "chore: lock dependencies"',

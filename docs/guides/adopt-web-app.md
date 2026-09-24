@@ -86,6 +86,17 @@ pnpm waits a day before installing a newly published version (`minimumReleaseAge
 it ships, list it under `minimumReleaseAgeExclude` (for example `"@littleorgans/auth@0.2.0"`), and
 remove the entry afterwards.
 
+### Add an app to an existing repository
+
+Generate a scratch project with the destination's `--name` and the new app's name and flags.
+Move `apps/<name>/` and, if absent, `db/drizzle/` into the destination. Compare and merge the
+workspace globs, catalog entries, root development dependencies, `.moon/tasks/` layers,
+`tsconfig.options.json`, Vitest and lint configuration, formatter internal import scope,
+`.gitignore` environment rules, and `.env.example` variables. An existing Moon workspace already
+has many of these; preserve its policy and other projects. Add the database pieces from step 5
+only when needed. Run `pnpm install`, `moon sync` (which updates project references), then
+`moon ci --force`. Register the new callback and configure the ignored environment as below.
+
 ### What it wrote
 
 The files come from this repository at the release tag: the reference app, the typed schema
@@ -194,13 +205,18 @@ verify startup and readiness when adopting another preset. The dev server skips 
 when every auth value is absent or empty, so the UI runs without credentials; a partial or invalid
 configuration fails it in development too. Errors name the variable without printing its value,
 including a malformed redirect URI.
+The generated `WORKOS_COOKIE_PASSWORD` is empty, so copying the example unchanged fails
+validation. Generate a fresh secret with `openssl rand -base64 32` and set it only in `.env.local`.
 Leave `WORKOS_COOKIE_PASSWORD_PREVIOUS` empty until you rotate the cookie password.
 
 ## 5. Set up the database
 
 Skip this step if the app has no database. To add one to a project created without `--db`, create
 a scratch project with the same names and `--db`, and move its `db/migrations/`, `db/schema.sql`,
-`db/rls-seed.sql`, root `moon.yml`, root `package.json` and `.env.example` across.
+`db/rls-seed.sql` across. Merge the database tasks and `clean` change from root `moon.yml`, the
+root development dependencies, any missing catalog entries from `pnpm-workspace.yaml`, and the
+database paragraph of `.env.example`. Preserve your existing tasks, dependencies, secrets and
+migrations; do not replace root files wholesale. Run `pnpm install`, `moon sync` and `moon ci --force`.
 
 ### What `--db` wrote
 

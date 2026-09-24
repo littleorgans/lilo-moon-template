@@ -1,6 +1,7 @@
 import { basename, resolve } from "node:path";
 
 import type { Defaults, Parts } from "./template.ts";
+import { hasControlCharacters } from "./template.ts";
 
 export const ORGANIZATION_POLICIES = ["personal", "existing"] as const;
 
@@ -75,6 +76,12 @@ export function resolveChoices(request: Request, defaults: Defaults, cwd: string
       errors.push(
         `${flag} must be lowercase letters, digits and dashes, starting with a letter: ${value}`,
       );
+    } else if (value.length > 30) {
+      errors.push(`${flag} must be at most 30 characters: ${value}`);
+    } else if (flag !== "--name" && ["dist", "build", "out", "coverage"].includes(value)) {
+      errors.push(`${flag} ${value} is ignored as generated output by the workspace`);
+    } else if (flag === "--name" && value === "littleorgans") {
+      errors.push("--name littleorgans is the published packages' reserved scope");
     } else if (TAKEN.has(value)) {
       errors.push(`${flag} ${value} is a Moon project id the workspace already uses`);
     }
@@ -103,6 +110,8 @@ export function resolveChoices(request: Request, defaults: Defaults, cwd: string
 
   const directory = request.directory ?? "";
   if (directory === "") errors.push("Name the project directory");
+  if (hasControlCharacters(directory))
+    errors.push("The directory must not contain control characters");
   const project = checkName("--name", request.name ?? basename(resolve(cwd, directory)));
   if (request.name === undefined) defaulted.push(`--name ${project}, the directory's name`);
 
@@ -155,6 +164,9 @@ export function resolveChoices(request: Request, defaults: Defaults, cwd: string
 
   const database = service !== null || request.database === true;
   if (service === null && request.database === undefined) defaulted.push("no database (--db)");
+
+  if (database && project === "pg")
+    errors.push("--name pg would create a reserved Postgres role prefix");
 
   if (errors.length > 0) return { kind: "invalid", errors };
   return {

@@ -387,6 +387,7 @@ function environment(reference: Reference, webPort: number): TemplateFile[] {
   const file = ".env.example";
   let content = reference.read(file);
   for (const [from, to] of [
+    ["WORKOS_COOKIE_PASSWORD=generate_at_least_32_random_characters", "WORKOS_COOKIE_PASSWORD="],
     [`http://localhost:${webPort}/callback`, `http://localhost:${TOKENS.webPort}/callback`],
     ["# Nothing in packages/ reads this file.", "# No @littleorgans package reads this file."],
     // This repository's release settings.

@@ -37,7 +37,10 @@ the lockfile.
 
 To add a service to a workspace that already has a web app, create a scratch project with
 `--service`, the same `--name` and the service's own name and port, then move its
-`services/<name>/` into your workspace and run `pnpm install`. If your workspace has no database
+`services/<name>/` into your workspace. Merge the root integration described in
+[Add an app to an existing repository](adopt-web-app.md#add-an-app-to-an-existing-repository),
+including the `node-service` task layer and catalog entries. Run `pnpm install`, `moon sync`
+and `moon ci --force`. If your workspace has no database
 yet, take that too, as [the web app guide's step 5](adopt-web-app.md#5-set-up-the-database)
 describes.
 

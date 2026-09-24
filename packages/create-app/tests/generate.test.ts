@@ -1,5 +1,13 @@
 import { execFileSync } from "node:child_process";
-import { cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { dirname, join } from "node:path";
 
 import { describe, expect, it } from "vitest";
@@ -126,6 +134,34 @@ describe("the generated template", () => {
 // The template cannot drift from the reference silently: anything the generator does not know
 // what to do with stops the build, and so the release.
 describe("a reference change the generator does not know", () => {
+  it.each(["apps/web/moon.yml", "services/api/Dockerfile", "services/api/tsconfig.json"])(
+    "stops the build for a deleted rewrite target %s",
+    (path) => {
+      const root = copyReference();
+      rmSync(join(root, path));
+      expect(() => generateTemplate(root)).toThrow(`no file ${path}`);
+    },
+  );
+
+  it("refuses binary assets instead of silently replacing invalid UTF-8 bytes", () => {
+    const root = copyReference();
+    writeFileSync(join(root, "apps/web/photo.png"), Buffer.from([137, 80, 78, 71, 0]));
+    expect(() => generateTemplate(root)).toThrow("binary assets need explicit template support");
+  });
+
+  it("refuses symlinks and even forcibly tracked environment values", () => {
+    const root = copyReference();
+    const path = "apps/web/.env.local";
+    writeFileSync(join(root, path), "SECRET=do-not-copy");
+    execFileSync("git", ["add", "--force", path], { cwd: root });
+    expect(() => generateTemplate(root)).toThrow(
+      "environment values must never enter the template",
+    );
+    rmSync(join(root, path));
+    symlinkSync(join(root, ".env.example"), join(root, "apps/web/leak.txt"));
+    expect(() => generateTemplate(root)).toThrow("classify symbolic links");
+  });
+
   it("stops the build for a new root file", () => {
     const root = copyReference();
     writeFileSync(join(root, "deploy.toml"), "");

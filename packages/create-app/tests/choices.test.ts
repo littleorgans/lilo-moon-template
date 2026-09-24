@@ -28,6 +28,27 @@ const errors = (overrides: Partial<Request>) => {
 };
 
 describe("resolveChoices", () => {
+  it("bounds role identifiers and rejects directory control characters", () => {
+    expect(errors({ service: true, name: "a".repeat(31) }).join()).toContain("at most 30");
+    expect(errors({ service: true, serviceName: "b".repeat(31) }).join()).toContain("at most 30");
+    expect(errors({ service: true, name: "pg" }).join()).toContain("reserved Postgres");
+    expect(errors({ service: true, directory: "bad\npath", name: "valid" }).join()).toContain(
+      "control characters",
+    );
+    expect(resolve({ service: true, name: "a".repeat(30), serviceName: "b".repeat(30) }).kind).toBe(
+      "valid",
+    );
+    expect(errors({ service: true, name: "littleorgans" }).join()).toContain("reserved scope");
+    for (const serviceName of ["dist", "build", "out", "coverage"]) {
+      expect(errors({ service: true, serviceName }).join()).toContain(
+        "ignored as generated output",
+      );
+    }
+    for (const serviceName of ["../escape", "x;touch", "x'", "x\\escape", "$(id)"]) {
+      expect(resolve({ service: true, serviceName }).kind).toBe("invalid");
+    }
+  });
+
   it("takes the reference's names and ports, and says which it took", () => {
     const resolution = resolve({ web: true, organizationPolicy: "existing" });
     expect(resolution).toStrictEqual({

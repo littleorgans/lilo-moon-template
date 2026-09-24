@@ -1,4 +1,5 @@
-import { readdirSync, readFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 
 import { describe, expect, it } from "vitest";
@@ -36,6 +37,39 @@ function create(overrides: Partial<Choices>) {
 }
 
 describe("scaffold", () => {
+  it("keeps real environment files ignored and leaves no usable shared cookie secret", () => {
+    const { root, read, written } = create({ web });
+    expect(read(".env.example")).toMatch(/^WORKOS_COOKIE_PASSWORD=$/m);
+    expect(written).not.toContain(".env.local");
+    execFileSync("git", ["init", "--quiet"], { cwd: root });
+    const paths = [".env", ".env.local", ".env.production", "apps/portal/.env.local"];
+    const ignored = execFileSync("git", ["check-ignore", ...paths], {
+      cwd: root,
+      encoding: "utf8",
+    });
+    expect(ignored.trim().split("\n")).toStrictEqual(paths);
+  });
+
+  it.each([
+    "../outside",
+    "/absolute",
+    "a/../../outside",
+    ".git/config",
+    "a\\outside",
+    "C:/outside",
+  ])("refuses unsafe bundle path %s before writing", (path) => {
+    const root = join(scratch(), "target");
+    const malformed = {
+      ...template(),
+      files: [
+        { path: "safe", content: "", when: {} },
+        { path, content: "", when: {} },
+      ],
+    };
+    expect(() => scaffold(malformed, choices({ web }), root)).toThrow("Unsafe template path");
+    expect(existsSync(root)).toBe(false);
+  });
+
   it("writes the web app, the service and the database under the chosen names", () => {
     const { root, written, read } = create({ web, service, database: true });
     expect(files(root).toSorted()).toStrictEqual(written.toSorted());

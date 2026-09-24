@@ -49,7 +49,7 @@ Options:
                                   Default: the directory's name.
   -h, --help                      Show this help.
 
-Names are lowercase letters, digits and dashes, starting with a letter. The directory must be
+Names are at most 30 lowercase letters, digits and dashes, starting with a letter. The directory must be
 new or empty. Nothing is installed: the command prints the steps that follow.
 
 Exit codes: 0 created, 1 failed, 2 usage error.
@@ -156,7 +156,7 @@ export async function main(argv: readonly string[], io: CliIo): Promise<number> 
     io.stderr(`${error.message}\n`);
     return exitCodes.failed;
   }
-  io.stdout(report(choices, template, choices.directory));
+  io.stdout(report(choices, template, target));
   return exitCodes.created;
 }
 

@@ -160,6 +160,15 @@ export function webFiles(context: Context): ProjectFiles {
   const target = `apps/${TOKENS.web}`;
   const port = String(webPort(context.reference));
   const location = { source: WEB, target, when: { web: true } };
+  for (const required of [
+    "package.json",
+    "tsconfig.json",
+    "moon.yml",
+    "vite.config.ts",
+    "src/server/auth.ts",
+  ]) {
+    context.reference.read(`${WEB}/${required}`);
+  }
   const { files, manifests } = project(context, location, (relative, content, file) => {
     const edited = (() => {
       switch (relative) {
@@ -239,6 +248,9 @@ export function serviceFiles(context: Context): ProjectFiles {
   const target = `services/${TOKENS.service}`;
   const port = String(servicePort(context.reference));
   const location = { source: SERVICE, target, when: { service: true } };
+  for (const required of ["package.json", "tsconfig.json", "moon.yml", "Dockerfile"]) {
+    context.reference.read(`${SERVICE}/${required}`);
+  }
   const { files, manifests } = project(context, location, (relative, content, file) => {
     const edited = (() => {
       switch (relative) {
