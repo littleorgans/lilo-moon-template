@@ -37,11 +37,18 @@ describe("connection credentials", () => {
   target.password = "encoded/secret";
   target.searchParams.set("password", "query-secret");
   const url = target.href;
-  it("redacts URLs, encoded and decoded passwords, and malformed URLs", () => {
-    expect(redactUrls(`${url} encoded%2Fsecret encoded/secret query-secret`, [url])).toBe(
-      "*** *** *** ***",
-    );
+  // A tool may reprint the URL in another form; build it so secretlint sees no literal credential.
+  const reprinted = new URL("postgres://owner@db:5432/app");
+  reprinted.password = target.password;
+  const devUrl = new URL("postgres://postgres@127.0.0.1:5432/app");
+  devUrl.password = "postgres";
+  it("redacts URLs and passwords reprinted as credentials, but not bare words", () => {
+    expect(
+      redactUrls(`${url} ${reprinted.href} owner:encoded/secret@db password=query-secret`, [url]),
+    ).toBe("*** postgres://owner:***@db:5432/app owner:***@db password=***");
     expect(redactUrls("bad-url", ["bad-url"])).toBe("***");
+    // The dev container's password is `postgres`: redacting it bare would mangle every image name.
+    expect(redactUrls("postgres:17-alpine", [devUrl.href])).toBe("postgres:17-alpine");
   });
   it("redacts both output streams even when a child echoes DATABASE_URL", () => {
     let output = "";
@@ -51,7 +58,10 @@ describe("connection credentials", () => {
     expect(() =>
       runTool(
         "sh",
-        ["-c", 'echo "$DATABASE_URL"; echo "encoded/secret query-secret" >&2; exit 1'],
+        [
+          "-c",
+          'echo "$DATABASE_URL"; echo "owner:encoded/secret@db password=query-secret" >&2; exit 1',
+        ],
         {
           missing,
           env: { DATABASE_URL: url },
@@ -60,6 +70,6 @@ describe("connection credentials", () => {
         },
       ),
     ).toThrow(ToolFailedError);
-    expect(output).toBe("***\n*** ***\n");
+    expect(output).toBe("***\nowner:***@db password=***\n");
   });
 });

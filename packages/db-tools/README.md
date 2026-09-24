@@ -199,21 +199,25 @@ Each checkout owns one container, named `baseline-postgres-<digest>` after the c
 path, with a host port derived from the same digest and bound to `127.0.0.1`. Separate clones and
 worktrees therefore get separate containers and ports. Each helper call creates its own database
 inside it, named after the command, process id and a random suffix, and drops it afterwards.
-Interrupted calls leave their databases behind; the next call with the same label removes only
-databases marked as created by this checkout whose process no longer exists. The standalone
+Interrupted calls leave their databases behind; the next call with the same label drops those
+whose process no longer exists. The standalone
 `rls-verify --disposable` lifecycle remains separate.
 
-Containers carry an ownership label with the checkout path. Startup and `clean` refuse a container
-without that matching label, even when its name or image matches. Removal uses the inspected ID,
-so a reused name cannot redirect deletion. Unlabelled containers from the old repository scripts
-must be renamed manually before running the new commands; they are never adopted or deleted.
+The digest in the name is what ties a container to its checkout. New containers also carry an
+`org.littleorgans.db-tools.root` label with the checkout path, so
+`docker ps --all --filter label=org.littleorgans.db-tools.root --format '{{.Names}} {{.Label "org.littleorgans.db-tools.root"}}'`
+shows which checkout, possibly deleted, each container belongs to. Containers made by this
+repository's old root scripts have the same name, image and binding but no label, and are used as
+they are. Start, replacement and removal act on the inspected container ID, so a name reassigned
+in the meantime cannot redirect them.
 
 Set `LILO_PG_PORT` (or `--port`) when the derived port is taken. The container keeps the port it
 was created with, so run `db-tools clean` before you change it; a mismatch fails with that advice.
 The superuser password is `postgres`, which is why the port is bound to the loopback address only.
 
 Prefer `DATABASE_URL` to `--url` to keep credentials out of shell history. Command diagnostics and
-child-tool output redact the URL and its passwords. Atlas still receives the URL as a process
+child-tool output redact the URL, and its password wherever it is reprinted as a credential
+(`:<password>@` or `password=<password>`). Atlas still receives the URL as a process
 argument; use the same host access controls as when invoking Atlas directly.
 
 ### Checks, CI and exit codes
@@ -318,7 +322,6 @@ describe.skipIf(!dockerIsAvailable())("against Postgres", () => {
 named `<label>_<pid>_<nonce>` in the checkout's container, and drops it afterwards. `startPostgres` returns a
 URL to the container's `postgres` database for tools that create their own. `psqlInput` runs SQL
 through the container's `psql` with `ON_ERROR_STOP` in one transaction, with `--set` variables, so
-no host `psql` is needed. It verifies container ownership and accepts only a URL for the checkout's
-loopback server, rather than silently ignoring a different host or port. `applyMigrations` runs `atlas migrate apply`. `dockerStatus` says whether
+no host `psql` is needed. It accepts only a URL for the checkout's loopback server, rather than silently ignoring a different host or port. `applyMigrations` runs `atlas migrate apply`. `dockerStatus` says whether
 Docker answers and why not, and `removePostgres` is `db-tools clean`. Each takes the `root`, `port`,
 `image` and `env` options the command line exposes.

@@ -27,8 +27,8 @@ export const DEFAULT_IMAGE = "postgres:17-alpine";
 /** How long `docker info` may take before Docker counts as unavailable, rather than hanging. */
 const DOCKER_ANSWER_MS = 20_000;
 const READY_MS = 15_000;
+/** Records the owning checkout, which the hashed container name hides, for `docker ps --filter`. */
 const OWNER_LABEL = "org.littleorgans.db-tools.root";
-const DATABASE_OWNER = "littleorgans/db-tools:";
 
 export function findWorkspaceRoot(from = process.cwd()): string {
   for (let directory = resolve(from); ; directory = dirname(directory)) {
@@ -151,8 +151,10 @@ function waitForPostgres(target: Server): void {
   );
 }
 
-// Inspect the named container once, then use its immutable ID for every operation. A name may
-// be reassigned between inspection and deletion; ownership must never transfer with it.
+// Inspect the named container once, then use its immutable ID for every operation, so a name
+// reassigned between inspection and use never redirects it. The name is a digest of the checkout
+// path and is the ownership proof: containers from before the label (the old root scripts used the
+// same name, image and binding) are adopted rather than refused.
 interface Container {
   id: string;
   image: string;
@@ -164,7 +166,7 @@ function inspectContainer(target: Server): Container | null {
     "container",
     "inspect",
     "--format",
-    `{{json .Id}}\n{{json .Config.Image}}\n{{json (index .Config.Labels "${OWNER_LABEL}")}}\n{{with index .HostConfig.PortBindings "5432/tcp"}}{{(index . 0).HostPort}} {{(index . 0).HostIp}}{{end}}`,
+    `{{json .Id}}\n{{json .Config.Image}}\n{{with index .HostConfig.PortBindings "5432/tcp"}}{{(index . 0).HostPort}} {{(index . 0).HostIp}}{{end}}`,
     target.container,
   ]);
   if (errorCode(result) === "ENOENT") return null;
@@ -174,17 +176,9 @@ function inspectContainer(target: Server): Container | null {
       `Could not inspect ${target.container}: ${result.stderr.trim() || result.error?.message}`,
     );
   }
-  const [idJson = "null", imageJson = "null", ownerJson = "null", binding = ""] = result.stdout
-    .trim()
-    .split("\n");
+  const [idJson = "null", imageJson = "null", binding = ""] = result.stdout.trim().split("\n");
   const id: unknown = JSON.parse(idJson);
   const image: unknown = JSON.parse(imageJson);
-  const owner: unknown = JSON.parse(ownerJson);
-  if (owner !== target.root) {
-    throw new Error(
-      `Refusing to use or remove ${target.container}: it has no matching db-tools ownership label. Rename it manually if it belongs to an older checkout.`,
-    );
-  }
   if (typeof id !== "string" || id === "" || typeof image !== "string") {
     throw new Error(`Invalid Docker inspection for ${target.container}`);
   }
@@ -197,8 +191,8 @@ function removeContainer(target: Server, id: string): void {
   if (result.status !== 0) throw new Error(`Could not remove ${id}: ${result.stderr.trim()}`);
 }
 
-// Concurrent tasks may race to create the container. Re-inspect even after a name conflict;
-// never trust the error as proof that the winner was one of our tasks.
+// Concurrent tasks may race to create the container. Re-inspect even after a name conflict, and
+// start only what matches the request.
 function ensurePostgres(target: Server): Server {
   requireDocker(target.env);
   let existing = inspectContainer(target);
@@ -286,13 +280,10 @@ function processIsAlive(pid: number): boolean {
   }
 }
 
-// Interrupted runs may leave marked databases behind. Only our ownership marker and a dead
-// process permit stale cleanup; a matching name alone is never enough.
+// Interrupted runs leave their databases behind. In the checkout's own container, the
+// `<base>_<pid>_<nonce>` shape is withPostgres's alone; a dead pid makes such a database stale.
 function dropStaleDatabases(target: Server, base: string): void {
-  const listed = psql(
-    target,
-    `SELECT datname FROM pg_database WHERE shobj_description(oid, 'pg_database') = '${DATABASE_OWNER}${target.root.replaceAll("'", "''")}'`,
-  ).trim();
+  const listed = psql(target, "SELECT datname FROM pg_database WHERE datistemplate = false").trim();
   for (const name of listed === "" ? [] : listed.split("\n")) {
     const match = new RegExp(`^${base}_([0-9]+)_[a-f0-9]{12}$`).exec(name);
     if (match === null) continue;
@@ -316,7 +307,7 @@ export function startPostgres(options: PostgresOptions = {}): string {
 /**
  * Hands the callback a superuser URL to a fresh database inside the checkout's container. The label
  * names the database (`<label>_<pid>_<nonce>`), so concurrent calls never share one. The drop
- * afterwards must succeed; the next run with the same label also reaps marked databases of dead processes.
+ * afterwards must succeed; the next run with the same label also drops those of dead processes.
  */
 export async function withPostgres<T>(
   label: string,
@@ -334,10 +325,6 @@ export async function withPostgres<T>(
   const database = `${base}_${process.pid}_${randomBytes(6).toString("hex")}`;
   psql(target, `CREATE DATABASE ${database}`);
   try {
-    psql(
-      target,
-      `COMMENT ON DATABASE ${database} IS '${DATABASE_OWNER}${target.root.replaceAll("'", "''")}'`,
-    );
     return await callback(urlFor(target, database));
   } finally {
     psql(target, `DROP DATABASE IF EXISTS ${database} WITH (FORCE)`);

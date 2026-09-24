@@ -114,19 +114,19 @@ describe.skipIf(!dockerIsAvailable())("db-tools against Postgres", { timeout: 60
 });
 
 describe.skipIf(!dockerIsAvailable())("scratch database ownership", { timeout: 60_000 }, () => {
-  it("isolates overlapping calls with the same label and preserves unowned stale-looking databases", async () => {
+  it("isolates overlapping calls with the same label and drops only stale databases of its own shape", async () => {
     const root = scratch("db-tools-ownership-");
     const options = { root };
     const url = new URL(startPostgres(options));
     const { Client } = await import("pg");
     const client = new Client({ connectionString: url.href });
     await client.connect();
-    const foreign = "ownership_4194303_abcdef012345";
+    // The old root scripts named databases `<label>_<pid>`; only the nonce shape is ours to drop.
+    const foreign = "ownership_4194303";
     const stale = "ownership_4194303_abcdef012346";
     try {
       await client.query(`CREATE DATABASE ${foreign}`);
       await client.query(`CREATE DATABASE ${stale}`);
-      await client.query(`COMMENT ON DATABASE ${stale} IS 'littleorgans/db-tools:${root}'`);
       await withPostgres(
         "ownership",
         async (first) => {

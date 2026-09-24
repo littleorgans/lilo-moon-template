@@ -51,9 +51,8 @@ The database gates and integration tests run in a Postgres container that `@litt
 manages. Its name and default port are derived from the checkout's absolute path, so separate
 clones and worktrees own separate containers. Override `LILO_PG_PORT` when a port is occupied. Run
 `just clean` before changing that override on an existing container. Cleanup (`db-tools clean`, then
-`moon clean`) removes only a container with this checkout's ownership label. Containers left by the
-old root scripts have no label: rename them manually before using the new gates; db-tools refuses
-to adopt or delete them.
+`moon clean`) removes only the current checkout's container. Containers left by the old root
+scripts have the same name and are reused as they are.
 
 ## Library conventions
 

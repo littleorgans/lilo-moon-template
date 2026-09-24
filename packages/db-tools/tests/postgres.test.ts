@@ -86,14 +86,13 @@ describe("Docker availability", () => {
   });
 });
 
-// Record the commands, so refusing a foreign name proves no start or deletion occurred.
-function dockerFixture(owner: string | undefined, image = "postgres:17-alpine") {
+// Record the commands, so a test can prove which container each start, exec or removal targeted.
+function dockerFixture(image = "postgres:17-alpine") {
   const root = mkdtempSync(join(tmpdir(), "db-tools-owned-"));
   const log = join(root, "calls");
   const info = [
     JSON.stringify("immutable-container-id"),
     JSON.stringify(image),
-    JSON.stringify(owner === "self" ? root : (owner ?? null)),
     `${postgresIdentity(root).port} 127.0.0.1`,
   ].join("\n");
   const PATH = fakePath({
@@ -102,19 +101,18 @@ function dockerFixture(owner: string | undefined, image = "postgres:17-alpine") 
   return { root, env: { PATH }, log };
 }
 
-describe("container ownership", () => {
-  it.each([undefined, "/another/checkout"])(
-    "refuses clean and replacement of foreign ownership %s",
-    (owner) => {
-      const fixture = dockerFixture(owner, "some-other-image");
-      expect(() => removePostgres(fixture)).toThrow("ownership label");
-      expect(() => startPostgres(fixture)).toThrow("ownership label");
-      expect(readFileSync(fixture.log, "utf8")).not.toMatch(/^(rm|run|start) /m);
-    },
-  );
+describe("the checkout's container", () => {
+  it("adopts an unlabelled container from the old root scripts, by immutable ID", () => {
+    const fixture = dockerFixture();
+    expect(startPostgres(fixture)).toContain(`127.0.0.1:${postgresIdentity(fixture.root).port}`);
+    const calls = readFileSync(fixture.log, "utf8");
+    expect(calls).toContain("start immutable-container-id");
+    expect(calls).toContain("exec immutable-container-id pg_isready");
+    expect(calls).not.toMatch(/^(rm|run) /m);
+  });
 
-  it("removes an owned container by immutable ID, never by reusable name", () => {
-    const fixture = dockerFixture("self");
+  it("removes the container by immutable ID, never by reusable name", () => {
+    const fixture = dockerFixture();
     expect(removePostgres(fixture)).toBe(true);
     expect(readFileSync(fixture.log, "utf8")).toContain("rm --force immutable-container-id");
   });
@@ -125,7 +123,7 @@ describe("container ownership", () => {
   });
 });
 
-it("rechecks ownership after losing the container-name race", () => {
+it("rechecks the container after losing the container-name race", () => {
   const root = mkdtempSync(join(tmpdir(), "db-tools-race-"));
   const marker = join(root, "seen");
   const log = join(root, "calls");
@@ -139,15 +137,14 @@ container)
     echo 'No such container' >&2
     exit 1
   fi
-  echo '"foreign-id"'
-  echo '"postgres:17-alpine"'
-  echo 'null'
+  echo '"winner-id"'
+  echo '"postgres:16-alpine"'
   echo '${postgresIdentity(root).port} 127.0.0.1'
   ;;
 run) echo 'container name is already in use' >&2; exit 1;;
 esac`,
   });
-  expect(() => startPostgres({ root, env: { PATH } })).toThrow("ownership label");
+  expect(() => startPostgres({ root, env: { PATH } })).toThrow("does not match");
   expect(readFileSync(log, "utf8").trim().split("\n")).toStrictEqual([
     "info",
     "container",
@@ -156,18 +153,14 @@ esac`,
   ]);
 });
 
-it("psqlInput verifies ownership and uses the inspected ID", () => {
-  const foreign = dockerFixture(undefined);
-  const foreignUrl = `postgres://127.0.0.1:${postgresIdentity(foreign.root).port}/test`;
-  expect(() => psqlInput(foreignUrl, "SELECT 1", {}, foreign)).toThrow("ownership label");
-  expect(readFileSync(foreign.log, "utf8")).not.toMatch(/^exec /m);
-  const owned = dockerFixture("self");
-  const ownedUrl = `postgres://127.0.0.1:${postgresIdentity(owned.root).port}/test`;
-  psqlInput(ownedUrl, "SELECT 1", {}, owned);
-  expect(readFileSync(owned.log, "utf8")).toContain(
+it("psqlInput runs in the inspected container and only for its URL", () => {
+  const fixture = dockerFixture();
+  const url = `postgres://127.0.0.1:${postgresIdentity(fixture.root).port}/test`;
+  psqlInput(url, "SELECT 1", {}, fixture);
+  expect(readFileSync(fixture.log, "utf8")).toContain(
     "exec --interactive immutable-container-id psql",
   );
-  expect(() => psqlInput("postgres://remote/app", "SELECT 1", {}, owned)).toThrow(
+  expect(() => psqlInput("postgres://remote/app", "SELECT 1", {}, fixture)).toThrow(
     "requires a URL from this checkout",
   );
 });

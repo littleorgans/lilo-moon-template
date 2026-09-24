@@ -16,33 +16,42 @@ export interface ToolOptions {
   readonly stderr?: (text: string) => void;
 }
 
-/** Redact both a connection string and passwords a tool may print separately. */
+/**
+ * Redacts connection strings, and their passwords wherever a tool reprints them as credentials
+ * (`:<password>@`, `password=<password>`). A bare password is left alone: the dev container's is
+ * `postgres`, and replacing every occurrence would mangle image and container names.
+ */
 export function redactUrls(text: string, values: readonly string[]): string {
-  const secrets = values
-    .flatMap((value) => {
+  const whole: string[] = [];
+  const credentials: string[] = [];
+  for (const value of values.filter(Boolean)) {
+    whole.push(value);
+    let url: URL;
+    try {
+      url = new URL(value);
+    } catch {
+      continue;
+    }
+    if (!/^postgres(?:ql)?:$/.test(url.protocol)) continue;
+    whole.push(url.href);
+    for (const encoded of [url.password, ...url.searchParams.getAll("password")]) {
+      let decoded = encoded;
       try {
-        const url = new URL(value);
-        if (!/^(postgres|postgresql):$/.test(url.protocol)) return [value];
-        const encoded = [url.password, ...url.searchParams.getAll("password")];
-        return [
-          value,
-          url.href,
-          ...encoded,
-          ...encoded.map((part) => {
-            try {
-              return decodeURIComponent(part);
-            } catch {
-              return part;
-            }
-          }),
-        ];
-      } catch {
-        return [value];
+        decoded = decodeURIComponent(encoded);
+      } catch {}
+      for (const password of new Set([encoded, decoded].filter(Boolean))) {
+        credentials.push(`:${password}@`, `password=${password}`);
       }
-    })
-    .filter(Boolean)
-    .toSorted((a, b) => b.length - a.length);
-  return secrets.reduce((output, secret) => output.replaceAll(secret, "***"), text);
+    }
+  }
+  const redacted = whole
+    .toSorted((a, b) => b.length - a.length)
+    .reduce((output, secret) => output.replaceAll(secret, "***"), text);
+  return credentials.reduce(
+    (output, credential) =>
+      output.replaceAll(credential, credential.startsWith(":") ? ":***@" : "password=***"),
+    redacted,
+  );
 }
 
 /** Capture output so tools cannot echo connection credentials into the caller's logs. */
