@@ -20,8 +20,7 @@ await test("workos-contract.yml reads the staging secrets in one step and fails 
   assert.deepEqual(workflow.permissions, {});
   const { contract, report } = workflow.jobs;
   assert.deepEqual(contract.permissions, { contents: "read" });
-  // A condition on github.event.repository is false on every scheduled run, which has no such
-  // payload: the daily run would skip, green and silent.
+  // Both scheduled runs and maintainer dispatches on a reviewed branch must reach the suite.
   assert.equal(contract.if, undefined);
   assert.deepEqual(workflow.concurrency, {
     group: "workos-contract-staging",
