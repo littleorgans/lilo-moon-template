@@ -388,6 +388,8 @@ Queries are typed Drizzle over `@littleorgans/drizzle-schema` (`db/drizzle/`), t
 `root:drizzle-generate` writes from the migrations and `root:drizzle-check` keeps current.
 `createDatabase({ schema })` types every scoped transaction by it. The schema says nothing about row
 level security: `root:rls-verify` is the authority on that.
+The service also checks the account response's fields at runtime; inferred query types and
+`sql<string>` do not validate values returned by the deployed database.
 
 In the web app, the `/app` loader is the only database caller. In one scoped transaction it calls
 `ensureIdentityRows` (`src/server/identity.ts`), which inserts the caller's `accounts` and `profiles`
