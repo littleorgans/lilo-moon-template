@@ -473,8 +473,9 @@ browser or a live WorkOS environment. The `measured against the live API` commen
 history without keeping the token, installs pnpm, the exact Node version in the block-style
 `node.version` setting in `.moon/toolchains.yml` and the
 Moon toolchain from `.prototools`, then runs `pnpm install --frozen-lockfile` and `moon ci` with
-`MOON_BASE` and `MOON_HEAD` set for affected detection. Missing or all-zero base revisions run
-`moon ci --force`, so a newly created branch gets a full check. A second job named `CI` reports the
+`MOON_BASE` and `MOON_HEAD` set for affected detection. A base revision missing from the
+checkout (none, all-zero, or replaced by a force push) runs `moon ci --force`, so a newly created
+branch gets a full check. A second job named `CI` reports the
 required status check and fails unless `moon ci` succeeded. Projects call the same workflow at a
 release tag ([Use the shared configuration](guides/shared-config.md)). Tasks marked `runInCI: "always"` run on every change. These include `lint`,
 `format-check`, `secrets`, `audit`, `rls-verify` and `drizzle-check`. `published-shape` runs when

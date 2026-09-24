@@ -142,8 +142,9 @@ jobs:
 The called workflow checks out your repository, installs the Node pinned in `.moon/toolchains.yml`
 and Moon from `.prototools`, runs `pnpm install --frozen-lockfile`, then `moon ci`. Your root
 `moon.yml` decides what `moon ci` runs, including `secrets`, `audit` and `tsgolint-lockstep`.
-For a new branch's first push (an all-zero base SHA), or a caller event without a base revision,
-the workflow uses `moon ci --force` to check every task.
+When the base revision is not a commit in the checkout (a new branch's all-zero SHA, a force
+push's replaced commit, or an event without a base), the workflow uses `moon ci --force` to check
+every task.
 Put an exact three-part version in a block-style `node.version` setting; plain, single-quoted and
 double-quoted values, indentation changes, CRLF and trailing comments are supported. Ranges and
 inline YAML mappings are not supported by the bootstrap reader.

@@ -45,10 +45,13 @@ await test("moon-ci.yml is a least-privilege reusable workflow", () => {
 
 await test("moon-ci.yml checks every task without a base and propagates Moon failures", () => {
   const step = readWorkflow("moon-ci.yml").jobs["moon-ci"].steps.at(-1);
+  const head = spawnSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).stdout.trim();
   for (const [base, args] of [
     ["", "ci --force"],
     ["0000000000000000000000000000000000000000", "ci --force"],
-    ["1234567890123456789012345678901234567890", "ci"],
+    // A force push's before SHA: well formed, but not in the clone.
+    ["1234567890123456789012345678901234567890", "ci --force"],
+    [head, "ci"],
   ]) {
     for (const status of [0, 23]) {
       const result = spawnSync(
