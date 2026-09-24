@@ -1,6 +1,6 @@
 // Generates packages/theme/css/themes.css from the typed themes, or verifies it has not drifted.
-// Same shape as scripts/drizzle-schema.mjs: `generate` rewrites the committed artifact, `check`
-// fails CI when the artifact disagrees with its source. The import is the built package, which is
+// Same shape as db-tools drizzle-generate and drizzle-check: `generate` rewrites the committed
+// artifact, `check` fails CI when the artifact disagrees with its source. The import is the built package, which is
 // why the moon tasks depend on theme:build.
 import { readFileSync, writeFileSync } from "node:fs";
 

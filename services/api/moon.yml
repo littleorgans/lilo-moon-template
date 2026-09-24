@@ -24,19 +24,17 @@ tasks:
     options:
       cache: false
       runInCI: false
-  # The integration test applies the shipped migrations and grant to a real Postgres through the
-  # shared container helper. The database is not a file input, so never reuse a cached pass.
+  # The integration test applies the shipped migrations and grant to a real Postgres through
+  # db-tools's container helper. The database is not a file input, so never reuse a cached pass.
   test:
     inputs:
       - "/packages/db/migrations/**/*"
       - "/packages/db/grants/**/*"
-      - "/scripts/lib/postgres-container.mjs"
     options:
       cache: false
   test-coverage:
     inputs:
       - "/packages/db/migrations/**/*"
       - "/packages/db/grants/**/*"
-      - "/scripts/lib/postgres-container.mjs"
     options:
       cache: false

@@ -41,6 +41,7 @@ The baseline makes these choices, recorded in `docs/decisions.md`:
 │   ├── auth-tanstack/      TanStack Start adapter: cookie jar, lazy runtime, POST-only handlers
 │   ├── auth-http/          Service bearer auth on Request/Response, Hono adapter, service config
 │   ├── db/                 Pooled Postgres, the principal-scoped transaction, the shipped migrations
+│   ├── db-tools/           rls-verify, and db-tools: Atlas, typed Drizzle schema, Postgres container
 │   ├── theme/              Token contract, two themes, validation, generated CSS, preference cookie
 │   ├── ui/                 shadcn primitives plus layout and typography components
 │   ├── views/              Composed reusable screens: sign-in, code entry, session error, theme lab
@@ -50,7 +51,7 @@ The baseline makes these choices, recorded in `docs/decisions.md`:
 ├── db/
 │   ├── schema.sql          Atlas desired state: accounts and profiles
 │   └── drizzle/_generated/ Drizzle introspection artifact, checked but not imported
-├── scripts/                Database, security, consumer and gate scripts
+├── scripts/                RLS assertions, security, consumer, release and gate scripts
 ├── .moon/                  Workspace, toolchains, and inherited task layers
 ├── .changeset/             Pending changesets
 ├── .github/workflows/      moon-ci.yml (reusable: moon ci), its caller ci.yml, and release.yml
@@ -406,8 +407,12 @@ erDiagram
 ```
 
 Schema changes follow Atlas: edit `db/schema.sql`, `moon run root:atlas-diff`, hand-write any
-policy migration, `atlas migrate hash`, and `moon run root:drizzle-generate`. Details are in
-`docs/maintaining.md` and `docs/user-entity.md`.
+policy migration, `atlas migrate hash`, and `moon run root:drizzle-generate`. The root database
+tasks run the `db-tools` command from `packages/db-tools`, which also owns the per-checkout Postgres
+container that the gates and the integration tests share. Compatible legacy containers remain
+usable, while labels guard container deletion and ownership comments guard stale database cleanup.
+Randomly suffixed databases isolate overlapping helper calls. Details are in `docs/maintaining.md`,
+`docs/user-entity.md` and the [`@littleorgans/db-tools` README](../packages/db-tools/README.md).
 
 ### Themes and styling
 
@@ -459,15 +464,15 @@ TypeScript project references are written by `moon sync` (`typescript.syncProjec
 
 ## Testing strategy
 
-| Layer                       | Tooling                           | Location and examples                                                                             |
-| --------------------------- | --------------------------------- | ------------------------------------------------------------------------------------------------- |
-| Unit                        | Vitest, shared `vitest.config.ts` | `packages/*/tests/*.test.ts`, `apps/web/tests/features/**`                                        |
-| Composition and integration | Vitest under `tests/integration/` | `apps/web/tests/integration/auth-wiring.test.ts` (real SDK, no network), `routes.test.tsx`        |
-| Coverage floor              | V8, per file: 80/75/80/80         | `testDefaults` in `packages/vite-config/src/vitest.ts`                                            |
-| Database behavior           | Real Postgres 17 in Docker        | `root:rls-verify` (7 assertions), `root:drizzle-check`, `root:atlas-lint`                         |
-| Service against Postgres    | Real Postgres 17, real listener   | `services/api/tests/integration/database.test.js`: shipped migrations and grant, tenant isolation |
-| Repository scripts          | `node --test`                     | `scripts/tests/**` (Moon task shape, hooks, pins, fixed version group, licenses)                  |
-| Published shape             | Snapshot build, HTTP probes, npm  | `root:published-shape`: gate negative proofs, route status codes, CSS utilities, packed tarballs  |
+| Layer                       | Tooling                           | Location and examples                                                                                             |
+| --------------------------- | --------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| Unit                        | Vitest, shared `vitest.config.ts` | `packages/*/tests/*.test.ts`, `apps/web/tests/features/**`                                                        |
+| Composition and integration | Vitest under `tests/integration/` | `apps/web/tests/integration/auth-wiring.test.ts` (real SDK, no network), `routes.test.tsx`                        |
+| Coverage floor              | V8, per file: 80/75/80/80         | `testDefaults` in `packages/vite-config/src/vitest.ts`                                                            |
+| Database behavior           | Real Postgres 17 in Docker        | `root:rls-verify` (7 assertions), `root:drizzle-check`, `root:atlas-lint`, `packages/db-tools/tests/integration/` |
+| Service against Postgres    | Real Postgres 17, real listener   | `services/api/tests/integration/database.test.js`: shipped migrations and grant, tenant isolation                 |
+| Repository scripts          | `node --test`                     | `scripts/tests/**` (Moon task shape, hooks, pins, fixed version group, licenses)                                  |
+| Published shape             | Snapshot build, HTTP probes, npm  | `root:published-shape`: gate negative proofs, route status codes, CSS utilities, packed tarballs                  |
 
 Tests reach the security logic through the seams listed above, not through mocks of framework
 internals. `published-shape` also proves that the gates fail. It plants a type error, a failing

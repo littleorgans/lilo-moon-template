@@ -69,9 +69,8 @@ of `src/`, so copy all of it:
 | `tests/`                                                    | Route, config, logging and shutdown tests, and the Postgres integration test.                                   |
 | `tsconfig.build.json`, `Dockerfile`                         | The `dist` build and the runtime image. Both are used as copied.                                                |
 
-`tests/integration/database.test.js` imports `scripts/lib/postgres-container.mjs` from the
-workspace root by a relative path. That import is why the service sits two levels down, at
-`services/<name>/`.
+`tests/integration/database.test.js` starts Postgres with `withPostgres` from
+`@littleorgans/db-tools`, which the install below adds as a development dependency.
 
 Three files carry this repository's workspace wiring. Replace them. `services/api/package.json`:
 
@@ -115,16 +114,12 @@ tasks:
     options:
       cache: false
       runInCI: false
-  # The integration test starts Postgres through the root container helper, so a cached pass
-  # proves nothing about the database.
+  # The integration test starts Postgres through db-tools, and the database is not a file input,
+  # so a cached pass proves nothing about it.
   test:
-    inputs:
-      - "/scripts/lib/postgres-container.mjs"
     options:
       cache: false
   test-coverage:
-    inputs:
-      - "/scripts/lib/postgres-container.mjs"
     options:
       cache: false
 ```
@@ -149,11 +144,12 @@ Install. `@littleorgans/db` takes `drizzle-orm`, `pg` and `@types/pg` as peers, 
 ```sh
 pnpm install
 pnpm add --filter @acme/api @littleorgans/auth@catalog: @littleorgans/auth-http@catalog: @littleorgans/db@catalog: @hono/node-server@catalog: hono@catalog: drizzle-orm@catalog: pg@catalog:
-pnpm add --filter @acme/api -D @types/node@catalog: @types/pg@catalog: jose@catalog:
+pnpm add --filter @acme/api -D @littleorgans/db-tools@catalog: @types/node@catalog: @types/pg@catalog: jose@catalog:
 pnpm peers check
 ```
 
-`jose` signs test tokens in `tests/support.ts`. `pnpm peers check` must print
+`jose` signs test tokens in `tests/support.ts`, and `@littleorgans/db-tools` runs the integration
+test's Postgres. `pnpm peers check` must print
 `No peer dependency issues found`.
 
 ## 3. Configuration
@@ -179,7 +175,7 @@ The service needs the identity migrations applied and a login role holding the s
 
 - **Standalone:** do [In the project](adopt-web-app.md#in-the-project) from the web app guide's
   database step. Read `services/api/node_modules/` wherever it says `apps/web/node_modules/`.
-- **Beside a web app:** `db/migrations/` and the `rls-verify` gate already exist.
+- **Beside a web app:** `db/migrations/` and the database gates already exist.
 
 For a real database, apply the migrations as
 [In a real database](adopt-web-app.md#in-a-real-database) describes. Then give the service its own

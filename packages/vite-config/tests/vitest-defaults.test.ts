@@ -1,3 +1,5 @@
+import { matchesGlob } from "node:path";
+
 import { describe, expect, it } from "vitest";
 
 import { testDefaults } from "../src/vitest.js";
@@ -10,6 +12,10 @@ function inlined(path: string): boolean {
   return patterns.some((pattern) =>
     typeof pattern === "string" ? path.includes(pattern) : pattern.test(path),
   );
+}
+
+function excluded(path: string): boolean {
+  return (testDefaults.coverage?.exclude ?? []).some((glob) => matchesGlob(path, glob));
 }
 
 describe("testDefaults", () => {
@@ -31,5 +37,10 @@ describe("testDefaults", () => {
     ]) {
       expect(inlined(path), path).toBe(false);
     }
+  });
+
+  it("keeps a sibling whose name extends the project's out of its coverage", () => {
+    expect(excluded(`${process.cwd()}-tools/src/postgres.ts`)).toBe(true);
+    expect(excluded(`${process.cwd()}/src/vitest.ts`)).toBe(false);
   });
 });

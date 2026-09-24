@@ -14,7 +14,14 @@ export const testDefaults: TestUserConfig = {
   coverage: {
     provider: "v8",
     include: ["src/**/*.{js,jsx,mjs,cjs,ts,tsx,mts,cts}"],
-    exclude: ["**/*.gen.*", "**/*.{test,spec}.*"],
+    exclude: [
+      "**/*.gen.*",
+      "**/*.{test,spec}.*",
+      // Vitest counts a file as inside the project when its path merely starts with the root, so a
+      // run in packages/db that imports packages/db-tools/src would measure it too. This excludes
+      // such siblings; Moon runs each project's tests from its own directory.
+      `${process.cwd()}?*/**`,
+    ],
     reporter: ["text", "json-summary", "html"],
     thresholds: {
       perFile: true,

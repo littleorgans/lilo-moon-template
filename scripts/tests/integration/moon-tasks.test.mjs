@@ -196,3 +196,34 @@ await test("format checking accepts grouped paths and rejects malformed selected
   projectCommand(root, resolve("node_modules/.bin/oxfmt"), [file], true);
   projectCommand(root, "moon", ["run", "root:format-check", "--", file], true);
 });
+
+await test("database tasks preserve schema applicability and CI classification", (t) => {
+  for (const [name, runInCI] of Object.entries({
+    "atlas-diff": false,
+    "atlas-lint": "always",
+    "atlas-apply": false,
+    "drizzle-generate": false,
+    "drizzle-check": "always",
+    "rls-verify": "always",
+  })) {
+    const root = moonFixture(t, {
+      "moon.yml": rootTaskFixture(name, (task) =>
+        task.replace(
+          /^    command:.*$/m,
+          '    command: "/bin/sh"\n    args: ["-c", "echo database-command-ran >&2; exit 7"]',
+        ),
+      ),
+    });
+    const task = JSON.parse(projectCommand(root, "moon", ["task", `root:${name}`, "--json"], true));
+    assert.equal(task.options.runInCI, runInCI);
+    assert.equal(task.options.cache, false);
+    // No schema skips even a failing command. With the schema, the failure must propagate.
+    projectCommand(root, "moon", ["run", `root:${name}`], true);
+    mkdirSync(join(root, "db"));
+    writeFileSync(join(root, "db/schema.sql"), "-- present\n");
+    assert.throws(
+      () => projectCommand(root, "moon", ["run", `root:${name}`], true),
+      /database-command-ran/,
+    );
+  }
+});

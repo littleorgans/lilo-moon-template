@@ -9,10 +9,15 @@
 //
 // Every assertion below has been proven to fail when the protection it names is removed.
 
-import { asRole, rlsChecks, runChecks } from "@littleorgans/db-tools";
+import {
+  applyMigrations,
+  asRole,
+  dockerIsAvailable,
+  rlsChecks,
+  runChecks,
+  withPostgres,
+} from "@littleorgans/db-tools";
 import { Client } from "pg";
-
-import { applyMigrations, dockerIsAvailable, withPostgres } from "./lib/postgres-container.mjs";
 
 const column = (result, name) => result.rows.map((row) => row[name]);
 const principalA = { sub: "user_AAA", org_id: "org_AAA" };
@@ -35,7 +40,7 @@ if (!process.env.CI && !dockerIsAvailable()) {
 }
 
 const failures = await withPostgres("rls-verify", async (databaseUrl) => {
-  applyMigrations(databaseUrl);
+  applyMigrations(databaseUrl, "packages/db/migrations");
   const client = new Client({ connectionString: databaseUrl });
   await client.connect();
   try {

@@ -47,10 +47,15 @@ just --version
 The reference app runs on port 5199 (`apps/web/vite.config.ts` and the preview `PORT` in
 `apps/web/moon.yml`) and the reference service on 8787 (`services/api/moon.yml`).
 
-The Postgres container name and default port are derived from the checkout's absolute path.
-Separate clones and worktrees therefore own separate containers. Override `LILO_PG_PORT` when a
-port is occupied. Run `just clean` before changing that override on an existing container.
-Cleanup removes only the current checkout's container.
+The database gates and integration tests run in a Postgres container that `@littleorgans/db-tools`
+manages. Its name and default port are derived from the checkout's absolute path, so separate
+clones and worktrees own separate containers. Override `LILO_PG_PORT` when a port is occupied. Run
+`just clean` before changing that override on an existing container. Cleanup (`db-tools clean`, then
+`moon clean`) removes only a container labelled as this checkout path's managed scratch space.
+Compatible unlabelled containers left by the old root scripts still run the gates, but automated
+cleanup and image replacement refuse to delete them, and print the `docker rm --force <name>` command
+to run when nothing in the container is needed; a reused path or matching name alone does not
+establish that.
 
 ## Library conventions
 
@@ -88,6 +93,8 @@ moon run root:atlas-diff
 moon run root:drizzle-generate
 ```
 
+Both run `db-tools` from `@littleorgans/db-tools` with `--migrations packages/db/migrations`, because
+this repository ships its migrations inside `@littleorgans/db` rather than in `db/migrations/`.
 `packages/db/migrations/` gains a versioned file and `db/drizzle/_generated/schema.ts` is
 rewritten. Never edit the generated Drizzle schema by hand. Security policies require hand-authored
 SQL migrations. Never move `db/schema.sql` into `packages/db/migrations/`. Atlas checksums that

@@ -21,8 +21,7 @@ everywhere it appears.
   sign-in. `existing` leaves membership to you. It is set in `src/server/auth.ts`.
 - **Ports.** Pick the web app's development port and preview port now, because the OAuth callback
   you register depends on them (step 5).
-- **Database.** The web app signs people in without one. Without a database, skip step 6 and
-  delete the `rls-verify` task from the root `moon.yml`.
+- **Database.** The web app signs people in without one. Without a database, skip step 6.
 - **Web app, service, or both.** A service lives in the same workspace under `services/<name>/`
   ([Adopt the packages in a service](adopt-service.md)).
 
@@ -69,13 +68,12 @@ mkdir acme && cd acme
 git init -b main
 cp "$REF"/{.editorconfig,.gitignore,.npmrc,.prototools,.env.example,.oxlintrc.json,.oxfmtrc.json,.secretlintrc.json,.secretlintignore} .
 cp "$REF"/{commitlint.config.js,lefthook.yml,justfile,renovate.json,tsconfig.options.json,vitest.config.ts,package.json,pnpm-workspace.yaml} .
-mkdir -p .moon/tasks .vscode .github/workflows scripts/lib
+mkdir -p .moon/tasks .vscode .github/workflows scripts
 cp "$REF"/.moon/{workspace,toolchains}.yml .moon/
 cp "$REF"/.moon/tasks/{node,node-application,node-service}.yml .moon/tasks/
 cp "$REF"/.vscode/{extensions,settings}.json .vscode/
 cp "$REF"/.github/workflows/ci.yml .github/workflows/
-cp "$REF"/scripts/{check-security,assert-tsgolint-lockstep,install-hooks,clean}.mjs scripts/
-cp "$REF"/scripts/lib/postgres-container.mjs scripts/lib/
+cp "$REF"/scripts/{check-security,assert-tsgolint-lockstep,install-hooks}.mjs scripts/
 ```
 
 Remove this repository's publishing tools from the root manifest, and keep the gate tools:
@@ -84,7 +82,7 @@ Remove this repository's publishing tools from the root manifest, and keep the g
 npm pkg set name=acme
 npm pkg delete license scripts.changeset scripts.changeset:version
 npm pkg delete devDependencies.@arethetypeswrong/cli devDependencies.@changesets/changelog-github devDependencies.@changesets/cli
-npm pkg delete devDependencies.publint devDependencies.drizzle-kit devDependencies.drizzle-orm devDependencies.pg devDependencies.@littleorgans/db-tools
+npm pkg delete devDependencies.publint devDependencies.drizzle-orm devDependencies.pg devDependencies.@littleorgans/db-tools
 ```
 
 In `pnpm-workspace.yaml`, add the packages to the top of `catalog:`. They move together, because
@@ -164,7 +162,7 @@ fileGroups:
 tasks:
   clean:
     type: "run"
-    script: "node scripts/clean.mjs && moon clean"
+    script: "moon clean"
     options:
       cache: false
       runInCI: false
@@ -258,23 +256,6 @@ tasks:
       shell: false
       cache: false
       runInCI: "always"
-
-  # Applies db/migrations to a scratch database and runs rls-verify from @littleorgans/db-tools
-  # against it. Skipped locally without Docker; CI always runs it. Delete it if there is no db/.
-  rls-verify:
-    type: "test"
-    command: "node scripts/rls-verify.mjs"
-    inputs:
-      - "db/migrations/**/*"
-      - "db/rls-seed.sql"
-      - "scripts/rls-verify.mjs"
-      - "scripts/lib/postgres-container.mjs"
-      - "package.json"
-      - "pnpm-lock.yaml"
-    options:
-      shell: false
-      cache: false
-      runInCI: "always"
 ```
 
 Write a short `AGENTS.md` that points agents at the skills and the reference:
@@ -304,7 +285,7 @@ What each part is for:
 | ------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------- |
 | `.prototools`, `.moon/workspace.yml`, `.moon/toolchains.yml`                         | The Moon, Node and pnpm pins. `.prototools` also pins Atlas, for `atlas migrate hash`.       |
 | `.moon/tasks/node.yml`, `node-application.yml`, `node-service.yml`                   | Tasks every project inherits: typecheck and tests, plus build, dev, preview or start by tag. |
-| `moon.yml`, `scripts/`                                                               | The workspace-wide gates, and the Postgres container they run against.                       |
+| `moon.yml`, `scripts/`                                                               | The workspace-wide gates, and the scripts two of them run.                                   |
 | `package.json`, `pnpm-workspace.yaml`, `.npmrc`                                      | Tool versions, the catalog, and the supply-chain policy.                                     |
 | `tsconfig.options.json`, `vitest.config.ts`, `.oxlintrc.json`, `.oxfmtrc.json`       | Compiler, test and coverage floor, lint and format settings shared by every project.         |
 | `.secretlintrc.json`, `.secretlintignore`, `lefthook.yml`, `commitlint.config.js`    | Secret scanning, the pre-commit subset of the gates, and Conventional Commits.               |
@@ -425,9 +406,11 @@ available for product theme controls and redirects to `/` when no same-origin re
 - **Several apps:** give each one its own port and callback. Auth cookies are namespaced by client
   id and redirect URI, and the theme cookie by origin, so apps on one host do not overwrite each
   other's cookies.
-- **Postgres:** the gates' container name and port are derived from the checkout's absolute path,
-  so separate clones and worktrees get separate containers. Set `LILO_PG_PORT` when that port is
-  taken. Run `just clean` before you change it for an existing container.
+- **Postgres:** the database gates (step 6) run in a container that `db-tools` names and ports
+  after the checkout's absolute path, so separate clones and worktrees get separate containers.
+  Set `LILO_PG_PORT` when that port is taken. Run `just clean` before you change it for an
+  existing container. Unlabelled containers from the old scripts still run the gates, but cleanup
+  refuses to delete them; inspect and remove them manually when they are disposable.
 
 ## 6. Set up the database
 
@@ -437,18 +420,23 @@ Skip this step if the app has no database.
 
 Take the identity migrations from the installed `@littleorgans/db` into the project's own
 `db/migrations/`, where the project's own migrations will join them. Take the Atlas desired-state
-schema from the reference. Then add `rls-verify`:
+schema from the reference. Then install the database gates:
 
 ```sh
 mkdir -p db/migrations
 cp apps/web/node_modules/@littleorgans/db/migrations/* db/migrations/
 cp "$REF"/db/schema.sql db/
-pnpm add -Dw @littleorgans/db-tools@catalog: pg@catalog:
+pnpm add -Dw @littleorgans/db-tools@catalog: pg@catalog: drizzle-kit@catalog:
 ```
 
 `db/migrations/` now holds the two identity migrations and their `atlas.sum`. `db/schema.sql`
 holds `accounts` and `profiles`, the user entity described in
 [The user entity](../user-entity.md).
+
+The gates need Docker, Atlas and drizzle-kit. `.prototools` from step 3 pins Atlas, so
+`proto install` puts it on `PATH`, and `drizzle-kit` is the package just installed.
+[The db-tools README](../../packages/db-tools/README.md#install) says why each one is installed the
+way it is.
 
 Write `db/rls-seed.sql`, so that the claim checks have rows to hide:
 
@@ -459,38 +447,103 @@ INSERT INTO accounts (workos_org_id) VALUES ('org_seed');
 INSERT INTO profiles (workos_user_id) VALUES ('user_seed');
 ```
 
-Write `scripts/rls-verify.mjs`, the script the root `rls-verify` task runs:
+Add the database tasks to the root `moon.yml`, under `tasks:`. Every one runs `db-tools` from the
+package just installed, with the defaults `db/migrations`, `db/schema.sql` and
+`db/drizzle/_generated`. `db/schema.sql` is the applicability boundary: without it every task
+skips before Docker or Atlas starts. The three checks skip locally without Docker and say so. In
+CI, which sets `CI`, they fail instead.
 
-```js
-// Runs @littleorgans/db-tools' rls-verify against a scratch copy of db/migrations, in the Postgres
-// container scripts/lib/postgres-container.mjs manages for this checkout. Skipped locally without
-// Docker; CI, which sets CI, fails instead.
-import { spawnSync } from "node:child_process";
+```yaml
+atlas-diff:
+  type: "run"
+  command: "db-tools atlas-diff"
+  checks:
+    - check: "condition"
+      script: "test ! -f db/schema.sql"
+  options:
+    shell: false
+    cache: false
+    runInCI: false
 
-import { dockerIsAvailable, withPostgres } from "./lib/postgres-container.mjs";
+atlas-lint:
+  type: "test"
+  command: "db-tools atlas-lint"
+  checks:
+    - check: "condition"
+      script: "test ! -f db/schema.sql"
+  options:
+    shell: false
+    cache: false
+    runInCI: "always"
 
-if (!process.env.CI && !dockerIsAvailable()) {
-  process.stdout.write("rls-verify skipped locally: Docker is unavailable; CI will run it.\n");
-  process.exit(0);
-}
+atlas-apply:
+  type: "run"
+  command: "db-tools atlas-apply"
+  checks:
+    - check: "condition"
+      script: "test ! -f db/schema.sql"
+  options:
+    shell: false
+    cache: false
+    runInCI: false
 
-await withPostgres("rls-verify", (databaseUrl) => {
-  const result = spawnSync(
-    "pnpm",
-    [
-      "exec",
-      "rls-verify",
-      "--disposable",
-      "--migrations",
-      "db/migrations",
-      "--seed",
-      "db/rls-seed.sql",
-    ],
-    { env: { ...process.env, DATABASE_URL: databaseUrl }, stdio: "inherit" },
-  );
-  process.exitCode = result.status ?? 1;
-});
+drizzle-generate:
+  type: "run"
+  command: "db-tools drizzle-generate"
+  checks:
+    - check: "condition"
+      script: "test ! -f db/schema.sql"
+  options:
+    shell: false
+    cache: false
+    runInCI: false
+
+drizzle-check:
+  type: "test"
+  command: "db-tools drizzle-check"
+  checks:
+    - check: "condition"
+      script: "test ! -f db/schema.sql"
+  options:
+    shell: false
+    cache: false
+    runInCI: "always"
+
+# Applies db/migrations and the seed to a scratch database and runs rls-verify against it.
+rls-verify:
+  type: "test"
+  command: "db-tools rls-verify --seed db/rls-seed.sql"
+  checks:
+    - check: "condition"
+      script: "test ! -f db/schema.sql"
+  options:
+    shell: false
+    cache: false
+    runInCI: "always"
 ```
+
+The checks are `cache: false` because the database is not a file input: a cached pass would stand
+in for a run that never happened. `atlas-lint` lints the migrations added since `MOON_BASE`, which
+`.github/workflows/ci.yml` sets to the pull request's base, or the latest migration without it.
+
+Change the `clean` task, so that it also removes the checkout's Postgres container:
+
+```yaml
+clean:
+  type: "run"
+  script: "db-tools clean && moon clean"
+  options:
+    cache: false
+    runInCI: false
+```
+
+Generate the typed Drizzle schema, which `drizzle-check` keeps honest from now on:
+
+```sh
+moon run root:drizzle-generate
+```
+
+It writes `db/drizzle/_generated/schema.ts`. Commit it, and never edit it by hand.
 
 ### In a real database
 
@@ -522,11 +575,12 @@ database, connected as `acme_web`:
 DATABASE_URL="postgres://acme_web:…@host:5432/app" pnpm exec rls-verify
 ```
 
-When you add a table, add a migration file to `db/migrations/` that enables and forces row level
-security and creates the table's policies. Then run `atlas migrate hash --dir file://db/migrations`.
-The `rls-verify` gate fails on any `public` table that is not forced. Atlas and Drizzle wrappers
-arrive with `db-tools` in phase 2. The workflow this repository uses in the meantime is in
-[Maintain this repository](../maintaining.md#the-database-is-baseline-not-an-exemplar).
+To add a table, add it to `db/schema.sql` and run `moon run root:atlas-diff`, which writes the
+versioned migration. Atlas does not model row level security, so add a hand-written migration that
+enables and forces it and creates the table's policies, then run
+`atlas migrate hash --dir file://db/migrations`. Finish with `moon run root:drizzle-generate`. The
+`rls-verify` gate fails on any `public` table that is not forced. `moon run root:atlas-apply`
+applies pending migrations to the database in `DATABASE_URL`.
 
 ## 7. Reach the first green `moon ci`
 
@@ -542,7 +596,8 @@ moon ci
 
 `moon sync` adds `apps/web` to the root `tsconfig.json` references. `root:format` rewrites the
 files that the edits above left unformatted. `moon ci` then runs typecheck, build, coverage, lint,
-format, secrets, audit, the lockstep and reference checks, and `rls-verify`. Nothing may fail.
+format, secrets, audit, the lockstep and reference checks, and, with a database, `atlas-lint`,
+`drizzle-check` and `rls-verify`. Nothing may fail.
 CI runs the same command from `.github/workflows/ci.yml`.
 
 Set the environment:

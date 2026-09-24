@@ -19,7 +19,8 @@ import { tmpdir } from "node:os";
 import { basename, join, resolve } from "node:path";
 import { setTimeout } from "node:timers/promises";
 
-import { dockerIsAvailable } from "./lib/postgres-container.mjs";
+import { dockerIsAvailable } from "@littleorgans/db-tools";
+
 import { integrityOf, publishOrder, readReleaseTarballs } from "./lib/release-tarballs.mjs";
 
 // verdaccio/verdaccio 6.10.4, pinned by the digest of its multi-platform index.

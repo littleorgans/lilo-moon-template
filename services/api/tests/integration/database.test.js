@@ -1,6 +1,3 @@
-// Plain JavaScript for the reason packages/db/tests/integration/database.test.js gives: it reuses
-// the repository's one Postgres container helper, which lives outside this project.
-//
 // The whole path a deployment takes: the migrations and grant shipped in @littleorgans/db, applied
 // with psql as the README says; a fresh login role holding only that grant; the service composed
 // by startService and listening on a socket; tokens signed by a test key and verified through a
@@ -14,13 +11,9 @@ import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 
 import { createVerifier } from "@littleorgans/auth";
+import { dockerIsAvailable, psqlInput, withPostgres } from "@littleorgans/db-tools";
 import { describe, expect, it } from "vitest";
 
-import {
-  dockerIsAvailable,
-  psqlInput,
-  withPostgres,
-} from "../../../../scripts/lib/postgres-container.mjs";
 import { openDatabase } from "../../src/server/database.ts";
 import { startService } from "../../src/server/service.ts";
 import { createSigner, issuer, recordingLog } from "../support.ts";
