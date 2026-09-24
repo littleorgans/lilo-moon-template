@@ -79,6 +79,8 @@ const GITHUB: Record<string, "generate" | "reference"> = {
   // Called from this repository at the release tag, never copied.
   ".github/workflows/moon-ci.yml": "reference",
   ".github/workflows/release.yml": "reference",
+  // Tests this repository's auth packages against its own WorkOS staging environment.
+  ".github/workflows/workos-contract.yml": "reference",
 };
 
 /** Root tasks a project keeps, the database tasks, and this repository's own. */

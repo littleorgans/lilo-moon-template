@@ -13,6 +13,7 @@ await test("Moon installer and workspace constraint agree, and workflows install
     ".github/workflows/ci.yml",
     ".github/workflows/moon-ci.yml",
     ".github/workflows/release.yml",
+    ".github/workflows/workos-contract.yml",
   ]) {
     assert.doesNotMatch(readFileSync(workflow, "utf8"), /moon-version:/, workflow);
   }
