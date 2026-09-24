@@ -245,6 +245,14 @@ function ensurePostgres(target: Server): Server {
       );
     }
     existing = inspectContainer(target);
+    // Docker reserves the name before the winning task's container can be inspected, so the task
+    // that lost the conflict can find nothing there for a moment. Several tasks of one `moon ci`
+    // start the checkout's container at once, so wait for the winner's rather than failing.
+    const deadline = Date.now() + READY_MS;
+    while (existing === null && started.status !== 0 && Date.now() < deadline) {
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 100);
+      existing = inspectContainer(target);
+    }
   }
   if (
     existing === null ||
