@@ -1,6 +1,6 @@
 {
   "name": "@littleorgans/create-app",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Start a Moon workspace on the published @littleorgans packages: a TanStack Start web app, a TypeScript service, or both. Run it as `pnpm create @littleorgans/app`.",
   "license": "MIT",
   "repository": {

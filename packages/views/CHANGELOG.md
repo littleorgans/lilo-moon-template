@@ -1,5 +1,13 @@
 # @littleorgans/views
 
+## 0.2.0
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @littleorgans/theme@0.2.0
+  - @littleorgans/ui@0.2.0
+
 ## 0.1.0
 
 ### Minor Changes

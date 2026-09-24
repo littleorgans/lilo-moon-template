@@ -1,6 +1,6 @@
 {
   "name": "@littleorgans/oxlint-config",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "The oxlint rules the littleorgans packages and applications lint with, including the feature and route layout rule.",
   "license": "MIT",
   "repository": {

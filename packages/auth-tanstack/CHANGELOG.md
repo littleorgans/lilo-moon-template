@@ -1,5 +1,55 @@
 # @littleorgans/auth-tanstack
 
+## 0.2.0
+
+### Minor Changes
+
+- [#117](https://github.com/littleorgans/lilo-moon-template/pull/117) [`d9df2d3`](https://github.com/littleorgans/lilo-moon-template/commit/d9df2d366bc0eee83f0f02f7b08a1927e22dfeee) Thanks [@srobinson](https://github.com/srobinson)! - Rotate the session cookie password without signing anyone out. `WORKOS_COOKIE_PASSWORD_PREVIOUS`
+  takes retired passwords, comma-separated, or as a JSON array of exact strings for a password
+  containing a comma or surrounding whitespace. Every cookie is still sealed with
+  `WORKOS_COOKIE_PASSWORD` only. A cookie is opened with that key first, then with each previous key
+  in order, and it moves to the current key at its next token refresh. Each previous password must be
+  at least 32 characters, must not be empty, repeated or equal to the current one, and errors name it
+  by position, never by value. The sealed format and the key derivation are unchanged, so 0.1.0
+  cookies and environments work as they are, and a 0.1.0 instance can still open a cookie written by
+  this version.
+
+  `AuthConfig` gains a required `previousCookieKeys`, which breaks code that builds an `AuthConfig` by
+  hand rather than with `loadAuthConfig`. `SessionCookieDeps` and the sign-out deps take an optional
+  `previousCookieKeys`, and the new `CookieKeys` type names the pair. `createAuthRuntime` passes the
+  previous keys to `access`, `asUser` and `endSession`, the paths that read a session. The rotation
+  procedure, including when a previous password can be removed, is in the auth-session README.
+
+- [#120](https://github.com/littleorgans/lilo-moon-template/pull/120) [`6adb29b`](https://github.com/littleorgans/lilo-moon-template/commit/6adb29bc3df289b4fb58748d3f4c094e3c782708) Thanks [@srobinson](https://github.com/srobinson)! - A sign-in the provider refuses because it rate-limited the request or is unavailable, the `retry`
+  disposition, is now served as 503 instead of 400, so monitoring can tell a provider outage from a
+  person's mistake. Known `configuration` and unexpected `provider` failures now return 500.
+  Ambiguous provider 4xx refusals and unsupported flows stay 400, as do refusals before calling the
+  provider. Rejected email codes still redirect to code entry. Update status-based dashboards and
+  response assertions that assumed every failure page was 400.
+
+  Email-code sign-in failures get their own report, `EmailFailure` (`kind: "email"`, with `step:
+"start"` or `"verify"`), instead of reusing `kind: "callback"`. `AuthFailureReport` gains it, and
+  `EmailStartDeps.log` and `EmailVerifyDeps.log` take it. The default sink, `reportAuthFailure`,
+  writes `auth.email.failed` with a `step` field for them, where it wrote `auth.callback.failed`.
+  Action required if an alert or a query matches `auth.callback.failed` to catch email failures, or if
+  a custom `log` switches exhaustively on `kind`. A logger explicitly typed to accept only
+  `CallbackFailure` must also accept `EmailFailure` when used by the email handlers; prefer the
+  `AuthFailureReport` union for a shared sink. Cookie formats and required environment names do not
+  change in this release.
+
+  `@littleorgans/auth-tanstack` re-exports `loadAuthConfig`, so an application can validate its auth
+  environment before the server listens rather than on the first request.
+
+  Malformed `WORKOS_REDIRECT_URI` errors now name the variable without retaining Node's raw `input`
+  property, so logging the whole startup exception cannot disclose the supplied value.
+
+### Patch Changes
+
+- Updated dependencies [[`d9df2d3`](https://github.com/littleorgans/lilo-moon-template/commit/d9df2d366bc0eee83f0f02f7b08a1927e22dfeee), [`6adb29b`](https://github.com/littleorgans/lilo-moon-template/commit/6adb29bc3df289b4fb58748d3f4c094e3c782708)]:
+  - @littleorgans/auth-session@0.2.0
+  - @littleorgans/auth@0.2.0
+  - @littleorgans/auth-workos@0.2.0
+
 ## 0.1.0
 
 ### Minor Changes

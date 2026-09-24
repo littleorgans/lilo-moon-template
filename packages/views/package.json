@@ -1,6 +1,6 @@
 {
   "name": "@littleorgans/views",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Reusable screens composed from UI building blocks, with application-supplied labels and paths.",
   "license": "MIT",
   "repository": {

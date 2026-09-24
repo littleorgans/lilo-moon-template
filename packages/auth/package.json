@@ -1,6 +1,6 @@
 {
   "name": "@littleorgans/auth",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Verifies an identity provider access token and maps it to a Principal.",
   "license": "MIT",
   "repository": {
