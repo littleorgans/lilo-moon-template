@@ -34,8 +34,8 @@ ones without a default.
   `personal` creates an organization for every new user at first sign-in. That suits a product
   where each person works alone until they invite others. `existing` leaves membership to an
   invitation or admin flow the project already has. A signed-in user with no organization then
-  sees no tenant rows, and the reference service refuses them with 403. [auth](../auth/SKILL.md) covers the
-  rest of the auth choices.
+  sees no tenant rows, and the reference service refuses them with 403. [auth](../auth/SKILL.md)
+  covers the rest of the auth choices.
 - **Ports** (`--web-port`, `--service-port`). Take them from the person, or choose ones nothing
   else on their machine uses. The defaults are the reference's, `5199` and `8787`, and the command
   says when it took one. One callback URL covers development and preview. Each callback URL must be
@@ -58,7 +58,8 @@ Run it without a terminal, every choice as a flag, for example:
 pnpm create @littleorgans/app acme --web --organization-policy personal --web-port 5199 --db
 ```
 
-`create-app:test-coverage` checks exit 2 for invalid choices and exit 1 for a nonempty directory; it never overwrites a file. On success it prints the defaults it took and the remaining
+It fails with exit 2 and names every missing or invalid flag, and exit 1 when the directory is not
+empty; it never overwrites a file. On success it prints the defaults it took and the remaining
 steps. Relay both to the person, then do the steps you can: the commit, `pnpm install`, the
 lockfile commit and `moon ci --force`. If `pnpm install` stops with
 `ERR_PNPM_NO_MATURE_MATCHING_VERSION`, a dependency has no matching version old enough to install.

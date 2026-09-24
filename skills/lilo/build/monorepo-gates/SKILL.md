@@ -12,10 +12,10 @@ at the tag that matches the installed `@littleorgans/*` version.
 
 `AGENTS.md` is that repository's working contract. Its sections "Add a workspace member",
 "Configure Moon tasks", "Prove every gate", "Write tests" and "Follow JavaScript and TypeScript
-rules" describe the reference workspace. For a generated project, use
-`docs/guides/shared-config.md` for installed configuration and its generated `AGENTS.md` for local
-gates; repository source paths and publishing tasks do not carry over. `docs/decisions.md`,
-"What a green gate actually proves", is why the discipline exists.
+rules" hold for a project built from it too, since create-app copies its `.moon/tasks/`: follow
+them rather than a summary here. The parts about publishing and the create-app template are that
+repository's own. `docs/decisions.md`, "What a green gate actually proves", is why the discipline
+exists.
 
 ## Two commands
 

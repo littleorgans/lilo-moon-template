@@ -41,8 +41,8 @@ components are [ui-and-themes](../ui-and-themes/SKILL.md).
 `unavailable` to `/session-error` with `retry: true`, and `broken` to `/session-error` with no
 retry and no sign-in button. [auth](../auth/SKILL.md) says why each lands where it does.
 
-- Keep the `default` branch that assigns the state to `never`. Typecheck then fails when a package
-  adds a state, even where fallthrough would otherwise satisfy the return type.
+- Keep the `default` branch that assigns the state to `never`. Typecheck then fails in every
+  `switch` when a package adds a state, not only in one whose return type happens to catch it.
 - Take dependencies as a parameter with a live default (`liveDeps()` there), so a test passes an
   access state and a scoped runner with no Start context and no database.
 - A write, such as provisioning identity rows, is called by name where a person lands. Never hide
@@ -54,10 +54,10 @@ retry and no sign-in button. [auth](../auth/SKILL.md) says why each lands where 
 
 Services are called only behind a Start server function (`createServerFn`) or a server route
 handler, which Start compiles out of the browser bundle. `workspaceSourceConfig` in
-`packages/vite-config/src/index.ts` adds a build plugin that fails `web:build` when a rendered
-browser-external module reaches a chunk. When it names a module, move the import behind a server
-function; do not silence the plugin. Browser-compatible server code can pass this check, so review
-the boundary even when the build passes.
+`packages/vite-config/src/index.ts` adds a build plugin that fails `web:build` when a browser chunk
+ships a module Vite stubs out of browser builds, such as a Node built-in. When it names a module,
+move the import behind a server function; do not silence the plugin. Server code that needs no such
+module passes it, so the plugin is a backstop: the boundary is where you call services.
 
 Every POST route you add yourself refuses other origins first, as
 `apps/web/src/server/theme.ts` does with `refuseCrossOrigin`. The package's own sign-in routes
@@ -79,7 +79,8 @@ the behavior it names: break the behavior and watch the test fail, as
 
 - A feature importing a route or the route tree fails `root:lint` (`no-restricted-imports` in
   `packages/oxlint-config/oxlintrc.json`).
-- Rendered browser-external modules in a chunk fail `web:build`.
+- A Node built-in, or another module Vite stubs for the browser, in a browser chunk fails
+  `web:build`.
 - An untested file fails `web:test-coverage` (`testDefaults` in
   `packages/vite-config/src/vitest.ts`).
 - An unhandled access state fails `web:typecheck`, if the `never` default is there.

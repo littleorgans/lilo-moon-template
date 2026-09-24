@@ -197,11 +197,12 @@ packed command writes passes its own `moon ci --force`.
 
 `skills/lilo/` holds the skills agents read to build on these packages. A change that moves,
 renames or deletes a file a skill cites, or changes behavior a skill describes, updates that skill
-in the same pull request. `root:skills-check` fails a cited path the tree lacks and invalid skill layout, names, bundles or local links. It cannot tell that a sentence became false. Cite a repository
-path as inline code from the root, write a path in a reader's project with a placeholder segment
-such as `apps/<name>/`, and link between skills with relative links. Name the gate that enforces a
-rule rather than restating the rule. [Sync the skills](docs/releasing.md#sync-the-skills) after a
-release.
+in the same pull request. `root:skills-check` fails a cited path the tree lacks, and a skill layout,
+name, bundle or link the agent-runtimes catalog would refuse. It cannot tell that a sentence became
+false. Cite a repository path as inline code from the root, write a path in a reader's project
+with a placeholder segment such as `apps/<name>/`, and link between skills with relative links.
+Name the gate that enforces a rule rather than restating the rule.
+[Sync the skills](docs/releasing.md#sync-the-skills) after a release.
 
 ## Follow repository conventions
 

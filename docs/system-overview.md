@@ -176,10 +176,11 @@ Agents building a project read the `lilo/build` skills under `skills/lilo/build/
 drives the command, and `web-app`, `auth`, `persistence`, `service`, `ui-and-themes` and
 `monorepo-gates` cover the work after it. `publish-package` is for this repository's maintainers.
 Each teaches judgment and points at the reference code and docs by path. `root:skills-check` fails
-a skill that cites a path the tree does not have, or has invalid layout, names, bundles or local links,
-and `root:skills-sync` copies the committed skills into a catalog checkout after a release
-([Releasing the packages](releasing.md#sync-the-skills)). The catalog renders them for agent
-runtimes, and `skills/lilo/settings.toml` names the `lilo/build-core` bundle a runtime selects.
+a skill that cites a path the tree does not have, or a layout, name, bundle or link the
+agent-runtimes catalog would refuse, and `root:skills-sync` copies the committed skills into a
+catalog checkout after a release ([Releasing the packages](releasing.md#sync-the-skills)). The
+catalog renders them for agent runtimes, and `skills/lilo/settings.toml` names the
+`lilo/build-core` bundle a runtime selects.
 
 ## Runtime architecture
 

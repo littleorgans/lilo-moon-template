@@ -36,8 +36,8 @@ Where the query code goes is [web-app](../web-app/SKILL.md) or [service](../serv
 ## Adding one
 
 The desired state goes in `db/schema.sql`; `atlas-diff` writes the table migration from it. Atlas
-Community silently drops functions, row level security, policies, roles and grants, so those go in a
-hand-written migration beside it, modeled on
+Community silently drops functions, row level security, policies, roles and grants, so those go in
+a hand-written migration beside it, modeled on
 `packages/db/migrations/20260822081700_identity.sql`:
 
 - `ENABLE` and `FORCE ROW LEVEL SECURITY`. Without `FORCE` the table owner reads every tenant.
@@ -66,13 +66,12 @@ Drizzle schema. Never hand-edit the generated schema, and never trust it for pol
 
 ## Roles and connections
 
-- Every deployed process logs in as its own role holding the shipped grant, never as the migration
-  owner, a superuser or a `BYPASSRLS` role. Superusers and `BYPASSRLS` bypass policies even when
-  forced; a table owner is subject to forced RLS but can disable it. One role per process
-  lets you revoke one without the others.
-- The shipped grant disables inheritance. With no other table privileges or inherited grants,
-  a query outside `withPrincipal` fails with permission denied. Audit existing privileges using
-  `packages/db/README.md`, "Least privilege": the grant does not remove them.
+- Every deployed process logs in as its own role holding the shipped grant. Never a superuser or
+  a `BYPASSRLS` role, which skip the policies even where they are forced, and never the migration
+  owner, which can turn them off. One role per process lets you revoke one without the others.
+- The grant gives membership without `INHERIT`, so a role with no privileges of its own fails a
+  query outside `withPrincipal` with permission denied. The grant revokes nothing: use a fresh
+  login role, or audit a reused one as `packages/db/README.md` describes.
 - A transaction-mode pooler is fine: the role and claims are transaction-local, and `pg` prepares
   only named statements. Do not call Drizzle's `.prepare()` against a pooler port
   (`packages/db/src/database.ts`).

@@ -31,12 +31,10 @@ Runtime options sit in `apps/<name>/src/server/auth.ts`, the `createAuthRuntime`
   rows, and the reference service refuses them with 403. Switching later changes nothing for
   people who already have one.
 - **Roles.** A new organization's creator gets the environment's default role. Whether a creator
-  should hold more is a product decision the packages do not take: define the role in WorkOS, then
-  review the provisioning seam in `packages/auth-session/src/callback.ts` and
-  `packages/auth-workos/src/types.ts`. `provisionOrganization` accepts `roleSlugs`, but
-  `ensureOrganization` does not pass them and `createAuthRuntime` exposes no such option. A custom
-  creator role needs package work before a project can select it. The rationale is in
-  `docs/auth-screens.md`; WorkOS's `admin` is not a product role.
+  should hold more is a product decision the packages do not take, and no option selects it yet:
+  `ensureOrganization` in `packages/auth-session/src/callback.ts` passes no `roleSlugs`, so a
+  creator role is a package change, as `docs/auth-screens.md` describes. Define the role in WorkOS
+  first. Do not grant WorkOS's `admin`; it governs WorkOS's own widgets, not the product.
 - **Entitlements** arrive as names in the token (`entitlements` on the `Principal`), never as
   quantities. Gate on "does this organization have the feature", prefix names per product, and read
   seat counts off the request path. `docs/user-entity.md` explains why.
@@ -53,8 +51,9 @@ Runtime options sit in `apps/<name>/src/server/auth.ts`, the `createAuthRuntime`
 ## What each state shows
 
 `auth.access()` and `auth.asUser()` return `signed-in`, `anonymous`, `ended`, `broken` or
-`unavailable` for auth outcomes. Configuration and integration errors can still throw;
-`asUser()` validates service origins before reading the session. Keep the reference's destinations.
+`unavailable` for every auth outcome. Configuration is different: missing variables throw from
+both, and an invalid `serviceOrigins` entry throws from `asUser()`, on every call until fixed. Keep
+the reference's destinations; each encodes a decision.
 
 - `ended` clears the cookie and says only that the session ended. It never names the failed check,
   because that tells an attacker which one to change.

@@ -443,13 +443,12 @@ that release has them. The tag it checks moves with each release, with nothing t
 an older release can still meet a path their tag lacks; skills tell them to read at their own tag.
 
 The sync copies files rather than generating them, because the catalog's generator already renders
-`skills/<owner>/<domain>/<skill>/` trees and resolves links between skills. The check validates
-this repository's deliberately narrow authoring format: matching directory
-and frontmatter names, one-line descriptions, unique generated names, no symlinks, and explicit
-bundles without duplicate or unknown members. The catalog rewrites frontmatter names; matching
-the source directory is our additional convention. This is not a replacement for loading the
-complete catalog, which can also expose conflicts with other owners or future catalog rules.
-A skill that links
-outside `skills/lilo/` is refused too: the catalog would leave the link pointing at nothing.
+`skills/<owner>/<domain>/<skill>/` trees and resolves links between skills. The check rejects what
+that generator refuses at load, such as an invalid or colliding generated name, a symlink, or a
+duplicate or unknown bundle member, so a failed catalog load is caught here. It also requires a
+frontmatter name equal to the directory, which the generator would silently rewrite. A conflict
+with another owner's skills shows only when the whole catalog loads, the sync's last step. A skill
+that links outside `skills/lilo/` is refused too: the catalog would leave the link pointing at
+nothing.
 `skills/lilo/settings.toml` defines `lilo/build-core`, every skill except `publish-package`, which
 is for maintainers of this repository.
