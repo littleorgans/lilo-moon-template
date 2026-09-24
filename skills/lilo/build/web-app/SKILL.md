@@ -54,9 +54,10 @@ retry and no sign-in button. [auth](../auth/SKILL.md) says why each lands where 
 
 Services are called only behind a Start server function (`createServerFn`) or a server route
 handler, which Start compiles out of the browser bundle. `workspaceSourceConfig` in
-`packages/vite-config/src/index.ts` adds a build plugin that fails `web:build` when a server
-dependency reaches a browser chunk. When it names a module, move the import behind a server
-function; do not silence the plugin.
+`packages/vite-config/src/index.ts` adds a build plugin that fails `web:build` when a rendered
+browser-external module reaches a chunk. When it names a module, move the import behind a server
+function; do not silence the plugin. Browser-compatible server code can pass this check, so review
+the boundary even when the build passes.
 
 Every POST route you add yourself refuses other origins first, as
 `apps/web/src/server/theme.ts` does with `refuseCrossOrigin`. The package's own sign-in routes
@@ -78,7 +79,7 @@ the behavior it names: break the behavior and watch the test fail, as
 
 - A feature importing a route or the route tree fails `root:lint` (`no-restricted-imports` in
   `packages/oxlint-config/oxlintrc.json`).
-- Server code in a browser chunk fails `web:build`.
+- Rendered browser-external modules in a chunk fail `web:build`.
 - An untested file fails `web:test-coverage` (`testDefaults` in
   `packages/vite-config/src/vitest.ts`).
 - An unhandled access state fails `web:typecheck`, if the `never` default is there.
