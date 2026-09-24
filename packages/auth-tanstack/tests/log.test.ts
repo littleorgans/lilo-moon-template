@@ -69,6 +69,27 @@ describe("reportAuthFailure", () => {
     });
   });
 
+  // The email sign-in reused the callback's kind, so a code that could not be sent was logged as a
+  // failed redirect. Its own event, and the step, say which flow and which half of it failed.
+  it("names an email sign-in failure as its own event, with its step", () => {
+    const { lines, restore } = captured();
+    reportAuthFailure({
+      kind: "email",
+      step: "start",
+      reason: "rate-limited",
+      disposition: "retry",
+      error: new Error("slow down"),
+    });
+    restore();
+    expect(JSON.parse(lines[0] ?? "{}")).toStrictEqual({
+      event: "auth.email.failed",
+      step: "start",
+      reason: "rate-limited",
+      outcome: "retry",
+      error: "slow down",
+    });
+  });
+
   it("reports something for a throw that was never an Error", () => {
     const { lines, restore } = captured();
     reportAuthFailure({

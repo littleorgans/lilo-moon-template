@@ -5,6 +5,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { getCookie, getRequest } from "@tanstack/react-start/server";
 import type { ReactNode } from "react";
 
+import { PRODUCT } from "../server/product.js";
 import { themeCookieName } from "../server/theme.js";
 
 import stylesUrl from "../styles.css?url";
@@ -36,7 +37,7 @@ export const Route = createRootRoute({
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Workspace" },
+      { title: PRODUCT.name },
     ],
     links: [{ rel: "stylesheet", href: stylesUrl }],
   }),

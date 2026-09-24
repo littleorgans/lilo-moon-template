@@ -279,11 +279,12 @@ rendered `{"status":400,"message":"HTTPError"}`, which tells the person nothing 
 less. The same rule as above applies, and the same discipline: collapse them, and write down which
 ones collapse.
 
-| Disposition     | Reasons                                                                                                                         | What the person sees                  |
-| --------------- | ------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
-| `retry`         | `rate-limited`, `unavailable`                                                                                                   | Temporarily unavailable, try again    |
-| `unsupported`   | `email-verification-required`, `organization-selection-required`, the three `mfa-*`, `radar-challenge-required`, `sso-required` | A step this application has not built |
-| `misconfigured` | `invalid-request`, `unauthorized`, `not-found`, `conflict`, `configuration`, `provider`                                         | Not set up correctly, recorded        |
+| Disposition     | Reasons                                                                                                                         | What the person sees                  | Status |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- | ------ |
+| `retry`         | `rate-limited`, `unavailable`                                                                                                   | Temporarily unavailable, try again    | 503    |
+| `unsupported`   | `email-verification-required`, `organization-selection-required`, the three `mfa-*`, `radar-challenge-required`, `sso-required` | A step this application has not built | 400    |
+| `misconfigured` | `invalid-request`, `unauthorized`, `not-found`, `conflict`                                                                      | Not set up correctly, recorded        | 400    |
+| `misconfigured` | `configuration`, `provider`                                                                                                     | Not set up correctly, recorded        | 500    |
 
 **`retry` is the only one that tells someone to try again**, because waiting is the entire remedy
 for exactly those two and advice that cannot work is worse than none.
@@ -296,6 +297,22 @@ failure is reported rather than only rendered. Catching an error to draw a page 
 trace the framework would have printed, and a callback that renders without reporting trades a bad
 page for a silent outage. The default destination is one JSON line per failure on stderr,
 overridable by the application.
+
+**HTTP status uses the reason, not only the display disposition.** Provider rate limits and
+outages return 503. Known configuration errors and unexpected failures (`configuration`, `provider`)
+return 500, so a swallowed exception still reaches monitoring. Malformed requests and ambiguous
+provider 4xx refusals (`invalid-request`, `unauthorized`, `not-found`, `conflict`) stay 400:
+for example, `unauthorized` includes both OAuth refusals and a wrong API key. The log reason remains
+necessary to distinguish those cases. Unsupported account flows also stay 400, and so do the
+refusals made before the provider is asked (a forged or stale `state`, no code, no address, an
+expired email cookie). A rejected email code keeps its existing redirect to code entry; its `retry`
+log disposition does not turn a typo into a 503.
+
+**The email-code path collapses its failures the same way and logs them under their own kind.**
+They reused the callback's until 2026-09-24, so a code that could not be sent was logged as
+`auth.callback.failed`. The default sink now writes `auth.callback.failed` for the redirect,
+`auth.email.failed` with a `step` of `start` or `verify` for the email path, and
+`auth.token.failed` for a token that fails verification.
 
 **No message names the reason.** Several of these failures are indistinguishable from someone
 probing the callback, and a message naming the failed check tells them which one to change.

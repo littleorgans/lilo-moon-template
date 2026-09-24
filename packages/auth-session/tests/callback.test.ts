@@ -329,14 +329,42 @@ describe("handleCallback", () => {
     expect(body).toContain("Sign-in is not set up correctly here.");
   });
 
-  it("tells someone to try again only when the failure is transient", async () => {
+  // Served as 503, so an alert on 5xx sees a provider outage and a person's mistake stays a 400.
+  it.each(["rate-limited", "unavailable"] as const)(
+    "tells someone to try again only when the failure is transient: %s, as a 503",
+    async (reason) => {
+      const { jar } = jarWith({ [STATE_COOKIE]: issued });
+      const response = await handleCallback(
+        request(`?code=the-code&state=${issued}`),
+        jar,
+        callbackDeps(refusingAuth(reason)),
+      );
+      expect(response.status).toBe(503);
+      expect(await response.text()).toContain("Try again in a moment.");
+    },
+  );
+
+  it.each(["configuration", "provider"] as const)(
+    "reports %s as a server failure",
+    async (reason) => {
+      const { jar } = jarWith({ [STATE_COOKIE]: issued });
+      const response = await handleCallback(
+        request(`?code=the-code&state=${issued}`),
+        jar,
+        callbackDeps(refusingAuth(reason)),
+      );
+      expect(response.status).toBe(500);
+    },
+  );
+
+  it("keeps a step this application has not built at 400", async () => {
     const { jar } = jarWith({ [STATE_COOKIE]: issued });
     const response = await handleCallback(
       request(`?code=the-code&state=${issued}`),
       jar,
-      callbackDeps(refusingAuth("rate-limited")),
+      callbackDeps(refusingAuth("mfa-challenge-required")),
     );
-    expect(await response.text()).toContain("Try again in a moment.");
+    expect(response.status).toBe(400);
   });
 
   // Catching an error to render a page swallows the stack trace the framework would have printed.
@@ -350,7 +378,11 @@ describe("handleCallback", () => {
       callbackDeps(refusingAuth("configuration")),
     );
     expect(logged).toHaveLength(1);
-    expect(logged[0]).toMatchObject({ reason: "configuration", disposition: "misconfigured" });
+    expect(logged[0]).toMatchObject({
+      kind: "callback",
+      reason: "configuration",
+      disposition: "misconfigured",
+    });
     expect(logged[0]?.error).toBeInstanceOf(WorkOSAuthError);
   });
 
@@ -404,7 +436,7 @@ describe("handleCallback", () => {
       jar,
       callbackDeps(auth),
     );
-    expect(response.status).toBe(400);
+    expect(response.status).toBe(500);
     expect(logged[0]).toMatchObject({ reason: "provider" });
   });
 });

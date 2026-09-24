@@ -2,7 +2,14 @@ import { WorkOSAuthError } from "@littleorgans/auth-workos";
 import type { WorkOSAuthFailure } from "@littleorgans/auth-workos";
 import { describe, expect, it } from "vitest";
 
-import { dispositionFor, failurePage, messageFor, reasonFor } from "../src/failure.js";
+import {
+  dispositionFor,
+  failurePage,
+  messageFor,
+  providerFailurePage,
+  reasonFor,
+  statusFor,
+} from "../src/failure.js";
 import type { CallbackDisposition } from "../src/failure.js";
 
 /**
@@ -112,11 +119,35 @@ describe("failurePage", () => {
     expect(body).toContain('href="/"');
   });
 
+  it("serves the status it is given", () => {
+    expect(failurePage("Something went wrong.", 503).status).toBe(503);
+  });
+
   // This page has to render when the rest of the request is broken, so it may not depend on a
   // stylesheet, a bundle, or anything else that has to load first.
   it("depends on nothing that has to load", async () => {
     const body = await failurePage("Something went wrong.").text();
     expect(body).not.toContain("<script");
     expect(body).not.toContain("stylesheet");
+  });
+});
+
+describe("providerFailurePage", () => {
+  it.each([
+    ["rate-limited", 503],
+    ["unavailable", 503],
+    ["configuration", 500],
+    ["provider", 500],
+    ["invalid-request", 400],
+    ["unauthorized", 400],
+    ["not-found", 400],
+    ["conflict", 400],
+    ["code-rejected", 400],
+    ["sso-required", 400],
+  ] satisfies [WorkOSAuthFailure, number][])("serves %s as %i", async (reason, status) => {
+    const response = providerFailurePage(reason);
+    expect(statusFor(reason)).toBe(status);
+    expect(response.status).toBe(status);
+    expect(await response.text()).toContain(messageFor(dispositionFor(reason)));
   });
 });

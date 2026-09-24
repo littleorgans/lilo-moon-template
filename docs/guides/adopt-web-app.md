@@ -330,19 +330,21 @@ cp -R "$REF"/apps/web apps/web
 The whole directory is [the scaffold copy list](../direction.md#e-scaffolding) plus the files
 that list imports. All of it is glue that the project now owns:
 
-| Path under `apps/web/`                                     | What it is                                                                                            |
-| ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| `vite.config.ts`                                           | Plugins, the development port, and `workspaceSourceConfig` from `@littleorgans/vite-config`.          |
-| `src/server/auth.ts`                                       | The composition root: `createAuthRuntime` with `organizationPolicy`, `throttle` and `serviceOrigins`. |
-| `src/server/throttle.ts`                                   | The in-memory email sign-in throttle (see [Operate it](#8-operate-it)).                               |
-| `src/server/database.ts`                                   | The pool, built lazily from `DATABASE_URL`, and `null` without one.                                   |
-| `src/server/theme.ts`                                      | The theme cookie, and the Origin-checked `/api/theme` handler.                                        |
-| `src/routes/(auth)/`, `src/routes/api/auth/`               | The OAuth callback, the email code page and the session error page, plus sign-in, email and sign-out. |
-| `src/routes/__root.tsx`, `index.tsx`, `app.tsx`            | The document shell, the sign-in page and the signed-in page.                                          |
-| `src/features/workspace/`                                  | The signed-in page's loader and view. Replace it with your own first feature.                         |
-| `src/routes/theme.tsx`, `src/routes/api/theme.ts`          | Optional: the `/theme` reference page and its POST route.                                             |
-| `src/router.tsx`, `src/routeTree.gen.ts`, `src/styles.css` | The router, its generated route tree (rewritten by every build), and the stylesheet registrations.    |
-| `tests/`                                                   | The route, wiring and feature tests. The coverage floor is per file, so copy them all.                |
+| Path under `apps/web/`                                     | What it is                                                                                               |
+| ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `vite.config.ts`                                           | Plugins, the development port, and `workspaceSourceConfig` from `@littleorgans/vite-config`.             |
+| `src/server/auth.ts`                                       | The composition root: `createAuthRuntime` with `organizationPolicy`, `throttle` and `serviceOrigins`.    |
+| `src/server/throttle.ts`                                   | The in-memory email sign-in throttle (see [Operate it](#8-operate-it)).                                  |
+| `src/server/database.ts`                                   | The pool, built lazily from `DATABASE_URL`, and `null` without one.                                      |
+| `src/server/theme.ts`                                      | The theme cookie, and the Origin-checked `/api/theme` handler.                                           |
+| `src/server/product.ts`                                    | The product's name and sign-in copy, and `SHOW_THEME_LAB`, which serves `/theme` on the dev server only. |
+| `src/server/startup.ts`                                    | A Nitro plugin that validates the auth environment before the standalone Node server listens.            |
+| `src/routes/(auth)/`, `src/routes/api/auth/`               | The OAuth callback, the email code page and the session error page, plus sign-in, email and sign-out.    |
+| `src/routes/__root.tsx`, `index.tsx`, `app.tsx`            | The document shell, the sign-in page and the signed-in page.                                             |
+| `src/features/workspace/`                                  | The signed-in page's loader and view. Replace it with your own first feature.                            |
+| `src/routes/theme.tsx`, `src/routes/api/theme.ts`          | Optional: the `/theme` reference page, 404 in a production build, and its POST route.                    |
+| `src/router.tsx`, `src/routeTree.gen.ts`, `src/styles.css` | The router, its generated route tree (rewritten by every build), and the stylesheet registrations.       |
+| `tests/`                                                   | The route, wiring and feature tests. The coverage floor is per file, so copy them all.                   |
 
 Keep `/theme` for the first green run. Removing it later means deleting its two routes, running
 `moon run web:build` to regenerate `routeTree.gen.ts`, and updating the tests that name those
@@ -403,8 +405,12 @@ pnpm peers check
 The first `pnpm add` warns about peers, and the second one supplies them. `pnpm peers check` must
 print `No peer dependency issues found`.
 
-Now set `organizationPolicy` in `apps/web/src/server/auth.ts`. Replace the page title and copy in
-`src/routes/__root.tsx` and `src/routes/index.tsx`.
+Now set `organizationPolicy` in `apps/web/src/server/auth.ts`. Replace the product's name and
+sign-in copy in `apps/web/src/server/product.ts`; the routes and tests read them from there.
+This module is public data bundled for the browser as well as SSR: never put secrets or service
+imports in it. To serve the theme lab in production, set `SHOW_THEME_LAB` to `true` there; it is
+then public, so add your product's access checks if it should not be. `/api/theme` remains
+available for product theme controls and redirects to `/` when no same-origin referer is supplied.
 
 ## 5. Claim the ports and register the callback
 
@@ -557,8 +563,15 @@ moon run web:dev
 Moon loads `.env.local` for `dev` and `preview`. Vite does not, so running `vite`
 directly starts without it. `loadAuthConfig`
 ([`packages/auth-session/src/config.ts`](../../packages/auth-session/src/config.ts)) validates the
-values on the first request that needs them. It names every missing variable at once, refuses a
-cookie password under 32 characters, and refuses a non-HTTPS redirect URI except on localhost.
+values. It names every missing variable at once, refuses a cookie password under 32 characters,
+and refuses a non-HTTPS redirect URI except on localhost. The standalone Node server that
+`moon run web:preview` runs checks it before it listens (`src/server/startup.ts`) and exits on a
+bad value, so a deploy fails instead of its first request. Other Nitro presets may initialize
+plugins on a cold request; this repository does not claim a pre-listen guarantee for them, so
+verify startup and readiness when adopting another preset. The dev server skips the check only
+when every auth value is absent or empty, so the UI runs without credentials; a partial or invalid
+configuration fails it in development too. Errors name the variable without printing its value,
+including a malformed redirect URI.
 Leave `WORKOS_COOKIE_PASSWORD_PREVIOUS` empty until you rotate the cookie password. The
 comments in `.env.example` describe the reference repository, and the variable names are the same.
 

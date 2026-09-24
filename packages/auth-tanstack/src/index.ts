@@ -16,6 +16,9 @@ export type {
 export { refuseCrossOrigin } from "@littleorgans/auth-session";
 export { requestCookies } from "./cookies.js";
 export { reportAuthFailure } from "./log.js";
+// Re-exported so an application can validate its configuration before the server listens; the
+// runtime itself reads it on first use. See apps/web/src/server/startup.ts.
+export { loadAuthConfig } from "@littleorgans/auth-session";
 export { postHandlers } from "./routes.js";
 export { createAuthRuntime } from "./runtime.js";
 export type { AuthRuntime, AuthRuntimeOptions } from "./runtime.js";

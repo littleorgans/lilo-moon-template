@@ -35,7 +35,10 @@ apps/web/src/
 ├── server/
 │   ├── auth.ts
 │   ├── database.ts
-│   └── theme.ts
+│   ├── product.ts
+│   ├── startup.ts
+│   ├── theme.ts
+│   └── throttle.ts
 ├── router.tsx
 └── styles.css
 ```
@@ -59,6 +62,12 @@ tree (`no-restricted-imports` in `@littleorgans/oxlint-config`).
 `server/` contains application-wide adapters and service construction. Name each module for its
 service or behavior. Put a feature's query alongside that feature. The database package owns pooling
 and scoped transactions; the workspace feature owns the accounts/profiles queries it executes.
+
+`server/product.ts` is the explicit public-data exception: the composition root owns the product
+name, screen copy and theme-lab policy, and routes import that plain data in both browser and SSR
+bundles. Keep it free of secrets, environment credentials and service imports. The `server/`
+directory names ownership; it does not create a compiler boundary. Service calls still belong
+behind Start server functions or server route handlers, as the examples above show.
 
 ## Shared packages
 

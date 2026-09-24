@@ -24,6 +24,21 @@ export interface CallbackFailure {
 }
 
 /**
+ * The same, raised by the email-code sign-in rather than the redirect callback.
+ *
+ * Its own kind so a collector can tell the flows apart: a spike in codes that could not be sent is
+ * a different incident from a spike in redirects that could not be exchanged, and one event name
+ * for both hides which. `step` says which half failed, sending the code or checking it.
+ */
+export interface EmailFailure {
+  readonly kind: "email";
+  readonly step: "start" | "verify";
+  readonly reason: WorkOSAuthFailure;
+  readonly disposition: CallbackDisposition;
+  readonly error: unknown;
+}
+
+/**
  * A token that failed verification, for the same reader.
  *
  * Every reason is reported, not only the one that earns a screen. A signature that does not check
@@ -44,7 +59,7 @@ export interface TokenFailure {
 }
 
 /** Everything an application's log sink is handed. One sink, so one place to point at a collector. */
-export type AuthFailureReport = CallbackFailure | TokenFailure;
+export type AuthFailureReport = CallbackFailure | EmailFailure | TokenFailure;
 
 const MESSAGES: Readonly<Record<CallbackDisposition, string>> = {
   // Nothing is wrong with the account or the configuration. Waiting is the whole remedy.
@@ -102,20 +117,56 @@ export function reasonFor(error: unknown): WorkOSAuthFailure {
 }
 
 /**
+ * Status needs the reason, not only the display disposition: `misconfigured` includes both
+ * malformed requests and server faults, while `retry` also describes a rejected email code.
+ * Keep ambiguous provider 4xx refusals at 400; configuration and unexpected failures are 500.
+ */
+const STATUSES: Readonly<Record<WorkOSAuthFailure, number>> = {
+  "rate-limited": 503,
+  unavailable: 503,
+  "code-rejected": 400,
+  "email-verification-required": 400,
+  "organization-selection-required": 400,
+  "mfa-enrollment-required": 400,
+  "mfa-challenge-required": 400,
+  "mfa-verification-required": 400,
+  "radar-challenge-required": 400,
+  "sso-required": 400,
+  "invalid-request": 400,
+  unauthorized: 400,
+  "not-found": 400,
+  conflict: 400,
+  configuration: 500,
+  provider: 500,
+};
+
+/**
  * The page a failed sign-in renders.
  *
  * Deliberately plain, with no stylesheet and no client script. Sign-in failing is not the moment to
  * discover a styling dependency, and this page has to render when everything else in the request is
  * broken.
+ *
+ * 400 by default, for the failures the request itself caused: a forged or stale state, a missing
+ * code, an empty address. A provider refusal goes through `providerFailurePage`, which picks the status.
  */
-export function failurePage(message: string): Response {
+export function failurePage(message: string, status = 400): Response {
   return new Response(
     `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Sign-in failed</title></head>` +
       `<body><h1>Sign-in failed</h1><p>${message}</p><p><a href="/">Back to sign in</a></p></body></html>`,
-    { status: 400, headers: { "content-type": "text/html; charset=utf-8" } },
+    { status, headers: { "content-type": "text/html; charset=utf-8" } },
   );
 }
 
 export function messageFor(disposition: CallbackDisposition): string {
   return MESSAGES[disposition];
+}
+
+export function statusFor(reason: WorkOSAuthFailure): number {
+  return STATUSES[reason];
+}
+
+/** Public copy stays coarse; HTTP status retains the distinction needed by monitoring. */
+export function providerFailurePage(reason: WorkOSAuthFailure): Response {
+  return failurePage(messageFor(dispositionFor(reason)), statusFor(reason));
 }

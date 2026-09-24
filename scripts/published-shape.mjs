@@ -184,11 +184,70 @@ async function freePort() {
 async function readyResponse(origin, app, attempts) {
   if (app.exitCode !== null) throw new Error(`Consumer server exited ${app.exitCode}`);
   try {
-    return await fetch(`${origin}/theme`, { signal: AbortSignal.timeout(5000) });
+    return await fetch(`${origin}/`, { signal: AbortSignal.timeout(5000) });
   } catch (error) {
     if (attempts === 0) throw error;
     await setTimeout(100);
     return await readyResponse(origin, app, attempts - 1);
+  }
+}
+
+function authEnvironment(origin) {
+  return {
+    WORKOS_CLIENT_ID: "client_consumer",
+    WORKOS_API_KEY: "test-key",
+    WORKOS_REDIRECT_URI: `${origin}/callback`,
+    WORKOS_COOKIE_PASSWORD: "consumer-test-password-with-at-least-32-characters",
+    // Parsed from the installed tarball before the server listens, so a packed loadAuthConfig that
+    // refused a well-formed rotation list would fail every assertion below.
+    WORKOS_COOKIE_PASSWORD_PREVIOUS: "consumer-previous-password-with-at-least-32-chars",
+  };
+}
+
+/**
+ * A built server whose cookie password would refuse every sign-in must fail the deploy, not the
+ * first request: it exits before it listens, naming the variable and not the value.
+ */
+async function refusesBadConfiguration(root) {
+  const port = await freePort();
+  const origin = `http://127.0.0.1:${port}`;
+  const cases = [
+    [
+      "WORKOS_COOKIE_PASSWORD",
+      "far-too-short",
+      /WORKOS_COOKIE_PASSWORD must be at least 32 characters/,
+    ],
+    [
+      "WORKOS_REDIRECT_URI",
+      "accidentally-pasted-secret",
+      /WORKOS_REDIRECT_URI must be an absolute URL/,
+    ],
+  ];
+  for (const [name, value, message] of cases) {
+    const app = spawnSync(process.execPath, ["apps/web/.output/server/index.mjs"], {
+      cwd: root,
+      env: {
+        ...env,
+        NITRO_HOST: "127.0.0.1",
+        NITRO_PORT: String(port),
+        ...authEnvironment(origin),
+        [name]: value,
+      },
+      encoding: "utf8",
+      timeout: 30_000,
+    });
+    const output = `${app.stdout}${app.stderr}`;
+    assert.equal(app.error, undefined, "the invalid server must exit, not time out");
+    assert.ok(
+      Number.isInteger(app.status) && app.status !== 0,
+      "the invalid server must exit nonzero",
+    );
+    assert.match(output, message);
+    assert.doesNotMatch(output, /Listening on/, "the server must refuse before it listens");
+    assert.ok(!output.includes(value), "the refusal must not print the invalid value");
+    process.stdout.write(
+      `published-shape: negative proof, invalid ${name} stopped the built server, exit ${app.status}.\n`,
+    );
   }
 }
 
@@ -201,20 +260,17 @@ async function exercise(root) {
       ...env,
       NITRO_HOST: "127.0.0.1",
       NITRO_PORT: String(port),
-      WORKOS_CLIENT_ID: "client_consumer",
-      WORKOS_API_KEY: "test-key",
-      WORKOS_REDIRECT_URI: `${origin}/callback`,
-      WORKOS_COOKIE_PASSWORD: "consumer-test-password-with-at-least-32-characters",
-      // Parsed from the installed tarball on the first request, so a packed loadAuthConfig that
-      // refused a well-formed rotation list would fail every assertion below.
-      WORKOS_COOKIE_PASSWORD_PREVIOUS: "consumer-previous-password-with-at-least-32-chars",
+      ...authEnvironment(origin),
     },
     stdio: "inherit",
   });
   const stopped = new Promise((resolve) => app.once("exit", resolve));
   try {
     const response = await readyResponse(origin, app, 100);
-    assert.ok(response?.ok, "built consumer must serve the theme page");
+    assert.ok(response?.ok, "built consumer must serve the sign-in page");
+    // The theme lab is a reference page for the dev server; a production build must not serve it.
+    const lab = await fetch(`${origin}/theme`, { signal: AbortSignal.timeout(5000) });
+    assert.equal(lab.status, 404, "a production build must not serve the theme lab");
     const anonymous = await fetch(`${origin}/app`, {
       redirect: "manual",
       signal: AbortSignal.timeout(5000),
@@ -272,7 +328,7 @@ async function exercise(root) {
         }),
     );
     const html = await response.text();
-    assert.match(html, /Theme lab/);
+    assert.match(html, /action="\/api\/auth\/email\/start"/);
     const cssPath = html.match(/href="([^"]+\.css)"/)?.[1];
     assert.ok(cssPath, "built page must link a stylesheet");
     const css = await (
@@ -293,7 +349,7 @@ async function exercise(root) {
     const cookie = changed.headers.get("set-cookie")?.split(";")[0];
     assert.ok(cookie);
     const themed = await (
-      await fetch(`${origin}/theme`, { headers: { cookie }, signal: AbortSignal.timeout(5000) })
+      await fetch(`${origin}/`, { headers: { cookie }, signal: AbortSignal.timeout(5000) })
     ).text();
     assert.match(themed, /data-mode="dark"/);
     assert.match(themed, /data-theme="canvas"/);
@@ -960,6 +1016,7 @@ async function checkSnapshot() {
     writeFileSync(viewsSources, registeredSources);
   }
   run(snapshot, "moon", ["run", "web:build"]);
+  await refusesBadConfiguration(snapshot);
   await exercise(snapshot);
 
   mkdirSync(tarballs);
@@ -1010,6 +1067,7 @@ async function checkSnapshot() {
     "root:lint",
     /no-restricted-imports/,
   );
+  await refusesBadConfiguration(packed);
   await exercise(packed);
   checkDbPeerFloors(manifestPath, manifest);
   await exerciseConsumer(packages);
