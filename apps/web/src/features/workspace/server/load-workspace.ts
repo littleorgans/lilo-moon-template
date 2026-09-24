@@ -4,13 +4,14 @@ import { redirect } from "@tanstack/react-router";
 
 import { auth } from "../../../server/auth.js";
 import { getDatabase } from "../../../server/database.js";
+import type { ScopedRunner } from "../../../server/database.js";
+import { ensureIdentityRows } from "../../../server/identity.js";
 import type { WorkspaceView } from "../model.js";
 import { countVisibleRows } from "./rows.js";
-import type { ScopedRunner } from "./rows.js";
 
 export interface WorkspaceDeps {
   readonly access: () => Promise<Access>;
-  /** Null when DATABASE_URL is unset. Narrower than a Database on purpose: this page counts rows. */
+  /** Null when DATABASE_URL is unset. Narrower than a Database on purpose: a test supplies it. */
   readonly runScoped: ScopedRunner | null;
 }
 
@@ -24,7 +25,12 @@ function liveDeps(): WorkspaceDeps {
   };
 }
 
-/** Builds the view for a caller who is already known. Exported so a test reaches it directly. */
+/**
+ * Builds the view for a caller who is already known. Exported so a test reaches it directly.
+ *
+ * `/app` is where every sign-in lands, so this is where the caller's identity rows are provisioned,
+ * in the same scoped transaction that then reads them back.
+ */
 export async function buildWorkspaceView(
   principal: Principal,
   runScoped: ScopedRunner | null,
@@ -32,7 +38,11 @@ export async function buildWorkspaceView(
   if (runScoped === null) return { principal, rows: null, databaseError: null };
 
   try {
-    return { principal, rows: await countVisibleRows(runScoped, principal), databaseError: null };
+    const rows = await runScoped(principal, async (tx) => {
+      await ensureIdentityRows(tx, principal);
+      return await countVisibleRows(tx);
+    });
+    return { principal, rows, databaseError: null };
   } catch (error) {
     console.error("database.query_failed", error);
     return {
