@@ -146,9 +146,9 @@ It has two parts. The provider suite checks each behaviour the packages depend o
 JWKS, the token claims, the one-time code errors, organization provisioning, refresh, and logout.
 The browser test signs in by email code through the reference app's built server, then signs out.
 The browser types a code it got from the API: `createMagicAuth` returns the code it mints, so no
-inbox is involved. The suite attempts to delete every user and organization it creates, even when a test fails,
-and reports cleanup failures.
-It also removes contract users more than an hour old that an interrupted run left behind.
+inbox is involved. The suite attempts to delete every user and organization it creates, even when
+a test fails, and reports cleanup failures. It also removes contract users more than an hour old
+that an interrupted run left behind.
 
 Run it locally with the staging credentials in the environment. The first command installs the one
 browser the suite launches:
@@ -188,17 +188,18 @@ The contract workflow reads two organization secrets, limited to selected reposi
 | `WORKOS_CLIENT_ID` | The client id of the AuthKit application in that environment |
 
 No additional stored secrets are needed. The browser test generates the cookie password and sets
-the redirect URI for each run. Projects built from this repository need no WorkOS secrets in CI: `create-app` does not
-copy this workflow, and the shared `moon-ci.yml` declares no secrets. `published-shape` runs each
+the redirect URI for each run. Projects built from this repository need no WorkOS secrets in CI:
+`create-app` does not copy this workflow, and the shared `moon-ci.yml` declares no secrets. `published-shape` runs each
 generated project's `moon ci` with every `WORKOS_` variable removed.
 
 To let another repository read an organization secret, add it to the secret's selected
 repositories. For an OAuth token or classic PAT this needs `admin:org`, plus `repo` for a private
-repository; a fine-grained token needs organization Secrets write permission. See the
+repository; a fine-grained token needs organization Secrets write and repository Metadata read
+permissions. See the
 [GitHub endpoint permissions](https://docs.github.com/en/rest/actions/secrets#add-selected-repository-to-an-organization-secret).
 
 ```sh
-repo_id="$(gh api repos/<owner>/<repo> --jq .id)"
+repo_id="$(gh api "repos/<owner>/<repo>" --jq .id)"
 gh api -X PUT "orgs/littleorgans/actions/secrets/WORKOS_API_KEY/repositories/$repo_id"
 gh api -X PUT "orgs/littleorgans/actions/secrets/WORKOS_CLIENT_ID/repositories/$repo_id"
 ```
@@ -210,8 +211,8 @@ A repository outside the organization, or one that should hold its own values, s
 repository level instead:
 
 ```sh
-gh secret set WORKOS_API_KEY --repo <owner>/<repo>
-gh secret set WORKOS_CLIENT_ID --repo <owner>/<repo>
+gh secret set WORKOS_API_KEY --repo "<owner>/<repo>"
+gh secret set WORKOS_CLIENT_ID --repo "<owner>/<repo>"
 ```
 
 Each command prompts for the value, so it never reaches the shell history.
