@@ -16,7 +16,10 @@ will install, not on `main`:
 - `docs/guides/adopt-service.md`: a service, standalone or beside a web app.
 
 This skill does not repeat their steps. It covers the decisions the command leaves to you, and
-what to check along the way.
+what to check along the way. After day one, the other `lilo/build` skills take over:
+[web-app](../web-app/SKILL.md), [auth](../auth/SKILL.md), [persistence](../persistence/SKILL.md),
+[service](../service/SKILL.md), [ui-and-themes](../ui-and-themes/SKILL.md) and
+[monorepo-gates](../monorepo-gates/SKILL.md).
 
 ## Settle these with the person first
 
@@ -31,7 +34,8 @@ ones without a default.
   `personal` creates an organization for every new user at first sign-in. That suits a product
   where each person works alone until they invite others. `existing` leaves membership to an
   invitation or admin flow the project already has. A signed-in user with no organization then
-  sees no tenant rows, and a service refuses them with 403.
+  sees no tenant rows, and a service refuses them with 403. [auth](../auth/SKILL.md) covers the
+  rest of the auth choices.
 - **Ports** (`--web-port`, `--service-port`). Take them from the person, or choose ones nothing
   else on their machine uses. The defaults are the reference's, `5199` and `8787`, and the command
   says when it took one. One callback URL covers development and preview. Each callback URL must be
@@ -40,7 +44,8 @@ ones without a default.
 - **Whether a database is needed** (`--db`). A web app without a database still signs people in.
   A service always has one, because `loadServiceConfig` requires `DATABASE_URL`, so `--service`
   implies it. With a database, every deployed process connects as its own login role holding the
-  shipped grant. It never connects as the migration owner or a superuser.
+  shipped grant. It never connects as the migration owner or a superuser
+  ([persistence](../persistence/SKILL.md) says why).
 - **Names** (`--name`, `--web-name`, `--service-name`). `--name` is the root package and the scope
   of the project's own packages; it defaults to the directory's name. The directory under `apps/`
   or `services/` is the Moon project id, so it appears in every task (`web:build`, `api:test`).
@@ -70,16 +75,12 @@ The generated `src/server/` directory is the composition root, and it is where t
 choices live. Read it before changing it:
 
 - `apps/<name>/src/server/auth.ts`: `createAuthRuntime` with `organizationPolicy`, `throttle`
-  and `serviceOrigins`.
-- `apps/<name>/src/server/throttle.ts`: the in-memory email throttle. It is right for one
-  instance only. Tell the person before they deploy a second one.
-- `apps/<name>/src/server/database.ts`, `theme.ts`: the lazy pool, and an Origin-checked POST
-  route to copy for their own.
+  and `serviceOrigins`. `throttle.ts` beside it counts in one process's memory: tell the person
+  before they deploy a second instance.
 - `apps/<name>/src/server/product.ts`: the product's name and sign-in copy, which the person
   replaces.
-- `services/<name>/src/server/`: `config.ts` (`loadServiceConfig`), `auth.ts` (bearer auth that
-  refuses a token without an organization), `database.ts`, and the error mapping, logging and
-  shutdown next to them.
+- `services/<name>/src/server/`: configuration, bearer auth, the database, error mapping, logging
+  and shutdown ([service](../service/SKILL.md)).
 
 Change application choices in those files. Anything that looks like package behavior, such as
 token checks, the Origin comparison or the SQL the grant runs, belongs to the packages. Report it
