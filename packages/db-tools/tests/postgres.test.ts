@@ -87,9 +87,11 @@ describe("Docker availability", () => {
 });
 
 // Record the commands, so a test can prove which container each start, exec or removal targeted.
-function dockerFixture(image = "postgres:17-alpine", owner?: string) {
+// An exec reads all of its stdin, as psql does, unless a test replaces it.
+function dockerFixture(image = "postgres:17-alpine", owner?: string, exec?: string) {
   const root = mkdtempSync(join(tmpdir(), "db-tools-owned-"));
   const log = join(root, "calls");
+  const stdin = join(root, "stdin");
   const info = [
     JSON.stringify("immutable-container-id"),
     JSON.stringify(image),
@@ -97,9 +99,9 @@ function dockerFixture(image = "postgres:17-alpine", owner?: string) {
     `${postgresIdentity(root).port} 127.0.0.1`,
   ].join("\n");
   const PATH = fakePath({
-    docker: `echo "$*" >> '${log}'\ncase "$1" in\ninfo) exit 0;;\ncontainer) echo '${info}';;\nesac`,
+    docker: `echo "$*" >> '${log}'\ncase "$1" in\ninfo) exit 0;;\ncontainer) echo '${info}';;\nexec) ${exec ?? `/bin/cat > '${stdin}'`};;\nesac`,
   });
-  return { root, env: { PATH }, log };
+  return { root, env: { PATH }, log, stdin };
 }
 
 describe("the checkout's container", () => {
@@ -162,9 +164,25 @@ it("psqlInput runs in the inspected container and only for its URL", () => {
   expect(readFileSync(fixture.log, "utf8")).toContain(
     "exec --interactive immutable-container-id psql",
   );
+  expect(readFileSync(fixture.stdin, "utf8")).toBe("SELECT 1");
   expect(() => psqlInput("postgres://remote/app", "SELECT 1", {}, fixture)).toThrow(
     "requires a URL from this checkout",
   );
+});
+
+// More SQL than a pipe buffers, so a psql that exits without reading it always makes the write fail
+// with EPIPE, never only sometimes.
+it.each([
+  [
+    "reports its exit status and stderr",
+    "echo 'psql: connection refused' >&2; exit 2",
+    /exited with 2:\npsql: connection refused/,
+  ],
+  ["still fails when it exits 0", "exit 0", /exited before reading all of its SQL input/],
+])("psqlInput that exits without reading its SQL %s", (_name, exec, message) => {
+  const fixture = dockerFixture("postgres:17-alpine", undefined, exec);
+  const url = `postgres://127.0.0.1:${postgresIdentity(fixture.root).port}/test`;
+  expect(() => psqlInput(url, "SELECT 1;\n".repeat(200_000), {}, fixture)).toThrow(message);
 });
 
 it("never removes an unlabelled container merely because its name matches", () => {

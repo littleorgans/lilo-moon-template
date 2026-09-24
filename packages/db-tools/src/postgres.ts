@@ -2,7 +2,7 @@
 // inspect an artifact. One container per checkout, on a pinned host port, shared by every task and
 // test in that checkout; each caller gets its own database inside it.
 
-import { execFileSync, spawnSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import type { SpawnSyncReturns } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
 import { existsSync } from "node:fs";
@@ -386,7 +386,7 @@ export function psqlInput(
     );
   }
   const target = { ...requested, container: existing.id };
-  execFileSync(
+  const result = spawnSync(
     "docker",
     [
       "exec",
@@ -405,8 +405,27 @@ export function psqlInput(
       "--file",
       "-",
     ],
-    { input: sql, env: { ...target.env }, stdio: ["pipe", "inherit", "inherit"] },
+    {
+      input: sql,
+      encoding: "utf8",
+      env: { ...target.env },
+      maxBuffer: 16 * 1024 * 1024,
+      stdio: ["pipe", "inherit", "pipe"],
+    },
   );
+  // A psql that exits early closes its stdin, so writing the SQL fails with EPIPE. The exit status
+  // and stderr say why; EPIPE alone is the failure only when psql exited 0 without reading it all.
+  const code = errorCode(result);
+  if (result.error !== undefined && code !== "EPIPE") throw result.error;
+  if (result.status !== 0) {
+    throw new Error(
+      `psql in ${target.container} exited with ${result.status ?? result.signal}:\n${result.stderr}`,
+    );
+  }
+  if (code === "EPIPE") {
+    throw new Error(`psql in ${target.container} exited before reading all of its SQL input.`);
+  }
+  process.stderr.write(result.stderr);
 }
 
 /** Removes the checkout's container. Returns whether there was one. Without Docker installed there

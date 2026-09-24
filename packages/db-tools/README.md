@@ -331,7 +331,8 @@ describe.skipIf(!dockerIsAvailable())("against Postgres", () => {
 named `<label>_<pid>_<nonce>` in the checkout's container, and drops it afterwards. `startPostgres` returns a
 URL to the container's `postgres` database for tools that create their own. `psqlInput` runs SQL
 through the container's `psql` with `ON_ERROR_STOP` in one transaction, with `--set` variables, so
-no host `psql` is needed. It checks the inspected image and binding and accepts only a URL for the
+no host `psql` is needed; a failure, including psql exiting before it reads the SQL, reports psql's
+exit status and stderr. It checks the inspected image and binding and accepts only a URL for the
 checkout's loopback server, rather than silently ignoring a different host or port. `applyMigrations` runs `atlas migrate apply`. `dockerStatus` says whether
 Docker answers and why not, and `removePostgres` is `db-tools clean`. Each takes the `root`, `port`,
 `image` and `env` options the command line exposes.
