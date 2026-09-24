@@ -177,7 +177,7 @@ it("never removes an unlabelled container merely because its name matches", () =
 it("refuses replacement of an unlabelled container and any use of a foreign-labelled one", () => {
   const legacy = dockerFixture("postgres:16-alpine");
   expect(() => startPostgres(legacy)).toThrow(
-    "to replace its image postgres:16-alpine with postgres:17-alpine: it is unlabelled",
+    "to replace its image postgres:16-alpine with postgres:17-alpine: it has no ownership label",
   );
   expect(readFileSync(legacy.log, "utf8")).not.toMatch(/^(rm|run|start) /m);
   const foreign = dockerFixture("postgres:17-alpine", "/another/checkout");
@@ -197,7 +197,10 @@ it("refuses replacement of an unlabelled container and any use of a foreign-labe
 it("does not claim ownership of a compatible unlabelled legacy container after reuse", () => {
   const legacy = dockerFixture();
   startPostgres(legacy);
-  expect(() => removePostgres(legacy)).toThrow("unlabelled");
+  expect(() => removePostgres(legacy)).toThrow("no ownership label");
+  expect(() => removePostgres(dockerFixture("postgres:17-alpine", ""))).toThrow(
+    "no ownership label",
+  );
   expect(readFileSync(legacy.log, "utf8")).not.toMatch(/^rm /m);
 });
 

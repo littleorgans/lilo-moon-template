@@ -194,11 +194,12 @@ function inspectContainer(target: Server): Container | null {
 }
 
 // The old root scripts made unlabelled containers. Removing one stays a person's decision, so the
-// refusal names the one command that makes it.
+// refusal names the one command that makes it. A label naming another checkout never gets here:
+// inspectContainer refuses it outright.
 function removeContainer(target: Server, container: Container, why = ""): void {
   if (!container.owned) {
     throw new Error(
-      `Refusing to remove ${target.container}${why}: it is unlabelled, as containers from the old root scripts are, so db-tools cannot tell it holds only scratch data. If nothing in it is needed, run \`docker rm --force ${target.container}\`; the next command creates a labelled container.`,
+      `Refusing to remove ${target.container}${why}: it has no ownership label (the old root scripts made containers without one), so db-tools cannot tell it holds only scratch data. If nothing in it is needed, run \`docker rm --force ${target.container}\`; the next command creates a labelled container.`,
     );
   }
   const result = docker(target, ["rm", "--force", container.id]);

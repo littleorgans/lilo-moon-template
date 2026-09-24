@@ -166,7 +166,7 @@ describe.skipIf(!dockerIsAvailable())("scratch database ownership", { timeout: 6
         },
         options,
       );
-      expect(() => removePostgres(options)).toThrow("unlabelled");
+      expect(() => removePostgres(options)).toThrow("no ownership label");
     } finally {
       await client.end();
       execFileSync("docker", ["rm", "--force", containerId]);
