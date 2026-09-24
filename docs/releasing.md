@@ -202,6 +202,40 @@ earlier commit, because a released tag never moves: re-run the original run inst
   job. It waits up to about five minutes. If the packages are broken, fix forward with a patch
   release rather than unpublishing.
 
+## Sync the skills
+
+The skills under `skills/lilo/` are written and reviewed here (decision D4), and reach agents
+through the agent-runtimes catalog, `littleorgans/.agent-runtimes`. Its generator renders each
+`skills/<owner>/<domain>/<skill>/SKILL.md` into the runtime homes that select it and never reads
+this repository, so a reviewed copy has to be committed there. Sync after each release, and after a
+change to skill text between releases:
+
+1. From an up-to-date `main` with its tags fetched (`git fetch --tags`), with a clean catalog
+   checkout on a new branch:
+
+   ```sh
+   moon run root:skills-sync -- <catalog>
+   ```
+
+   It replaces `<catalog>/skills/lilo/` with `skills/lilo/` as committed at `HEAD`: the skills,
+   and `settings.toml` with the `lilo/build-core` bundle. A skill deleted here disappears there.
+   Other owners are untouched. `--ref <commit>` syncs another commit.
+
+2. It writes nothing when `skills/lilo/` has uncommitted changes and no `--ref` was given, when a
+   skill breaks a rule the catalog enforces at load, or when a skill cites a path that the newest
+   `v<major>.<minor>.<patch>` tag does not have. Skills send readers to the reference at the tag
+   matching the version they install, so a path added after that release would send them to
+   nothing. Sync once the release that adds it is out. `--tag <tag>` checks against another
+   release tag.
+
+3. In the catalog, review the diff, run `python3 bin/generate.py --catalog` to confirm the catalog
+   loads, regenerate the runtimes that select the skills, and open the catalog's pull request. The
+   script never commits.
+
+CI runs `root:skills-check`, the same checks against the working tree, so a change that moves or
+deletes a file updates the skills that cite it in the same pull request. To ask the release
+question without syncing, run `node scripts/check-skills.mjs --at v<version>`.
+
 ## Run it locally
 
 - `moon run root:release-rehearsal` runs the publish half against a local Verdaccio in Docker

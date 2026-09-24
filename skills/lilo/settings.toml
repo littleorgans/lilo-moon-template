@@ -1,0 +1,15 @@
+schema_version = 1
+
+# Building a project on the @littleorgans packages. publish-package is left out: it is for the
+# maintainers of littleorgans/lilo-moon-template, and a runtime that maintains it selects it by ID.
+[bundles.build-core]
+description = "Build a project on the @littleorgans packages: start it, then the web app, auth, persistence, services, UI and themes, and the gates"
+members = [
+  "build/start-project",
+  "build/web-app",
+  "build/auth",
+  "build/persistence",
+  "build/service",
+  "build/ui-and-themes",
+  "build/monorepo-gates",
+]

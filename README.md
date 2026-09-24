@@ -78,6 +78,27 @@ and the first green `moon ci`. The `lilo/build/start-project` skill
 ([`skills/lilo/build/start-project`](skills/lilo/build/start-project/SKILL.md)) drives the command
 and the judgment calls. Read the guides at the tag that matches the version you install.
 
+## Skills
+
+The skills under [`skills/lilo/build/`](skills/lilo/build/) teach an agent how a project on these
+packages is built. Each one covers the decisions left to a project, and points at the reference
+code, the guides and the gates that enforce the rest:
+
+| Skill                                                           | Covers                                                                                  |
+| --------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| [`start-project`](skills/lilo/build/start-project/SKILL.md)     | Day one: the create-app choices, the callback, the database role, the first `moon ci`.  |
+| [`web-app`](skills/lilo/build/web-app/SKILL.md)                 | Routes, features, the `src/server/` composition root, loaders on `Access`, tests.       |
+| [`auth`](skills/lilo/build/auth/SKILL.md)                       | Organization policy, access states and failures, throttle, web to service, bearer auth. |
+| [`persistence`](skills/lilo/build/persistence/SKILL.md)         | Tables and policy migrations, `withPrincipal`, provisioning, roles, poolers, hosts.     |
+| [`service`](skills/lilo/build/service/SKILL.md)                 | The service layout, configuration, errors, logging, shutdown, tests and container.      |
+| [`ui-and-themes`](skills/lilo/build/ui-and-themes/SKILL.md)     | Tailwind sources, when a component moves to a package, tokens and themes.               |
+| [`monorepo-gates`](skills/lilo/build/monorepo-gates/SKILL.md)   | Task layers, workspace members, proving gates, the pins that move together.             |
+| [`publish-package`](skills/lilo/build/publish-package/SKILL.md) | For maintainers: changesets, the bump, peers, adding a package, releasing.              |
+
+They reach agents through the agent-runtimes catalog, where the `lilo/build-core` bundle selects
+every one but `publish-package`. `root:skills-check` fails a skill that cites a path the repository
+does not have. [Releasing the packages](docs/releasing.md#sync-the-skills) covers the sync.
+
 ## Work in this repository
 
 Follow [AGENTS.md](AGENTS.md). [Maintain this repository](docs/maintaining.md) covers the

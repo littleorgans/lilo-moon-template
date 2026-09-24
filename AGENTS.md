@@ -193,6 +193,17 @@ and names. A new root file, a new root task, a new `.env.example` paragraph or a
 there, and never commit a generated template. `root:published-shape` proves each kind of project the
 packed command writes passes its own `moon ci --force`.
 
+## Keep the skills true
+
+`skills/lilo/` holds the skills agents read to build on these packages. A change that moves,
+renames or deletes a file a skill cites, or changes behavior a skill describes, updates that skill
+in the same pull request. `root:skills-check` fails a cited path the tree lacks, and a skill layout,
+name, bundle or link the agent-runtimes catalog would refuse. It cannot tell that a sentence became
+false. Cite a repository path as inline code from the root, write a path in a reader's project
+with a placeholder segment such as `apps/<name>/`, and link between skills with relative links.
+Name the gate that enforces a rule rather than restating the rule.
+[Sync the skills](docs/releasing.md#sync-the-skills) after a release.
+
 ## Follow repository conventions
 
 - Use Conventional Commits. The Git history and pull request titles depend on the type, optional
