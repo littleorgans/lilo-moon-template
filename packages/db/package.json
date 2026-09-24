@@ -1,6 +1,6 @@
 {
   "name": "@littleorgans/db",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Postgres access scoped to a verified Principal by row level security.",
   "license": "MIT",
   "repository": {

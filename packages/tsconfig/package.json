@@ -1,6 +1,6 @@
 {
   "name": "@littleorgans/tsconfig",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "The strict TypeScript compiler options the littleorgans packages and applications build with.",
   "license": "MIT",
   "repository": {
