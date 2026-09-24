@@ -388,6 +388,9 @@ Queries are typed Drizzle over `@littleorgans/drizzle-schema` (`db/drizzle/`), t
 `root:drizzle-generate` writes from the migrations and `root:drizzle-check` keeps current.
 `createDatabase({ schema })` types every scoped transaction by it. The schema says nothing about row
 level security: `root:rls-verify` is the authority on that.
+The service's timestamp expression is typed `string | null`: PostgreSQL `to_char` returns NULL for
+infinite timestamps even on a NOT NULL column. The service rejects that result with 500 rather than
+returning an account whose required `createdAt` is null.
 
 In the web app, the `/app` loader is the only database caller. In one scoped transaction it calls
 `ensureIdentityRows` (`src/server/identity.ts`), which inserts the caller's `accounts` and `profiles`

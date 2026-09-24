@@ -29,8 +29,19 @@ export type ScopedRunner = <T>(
 const columns = {
   id: accounts.id,
   orgId: accounts.workosOrgId,
-  createdAt: sql<string>`to_char(${accounts.createdAt} AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')`,
+  createdAt: sql<
+    string | null
+  >`to_char(${accounts.createdAt} AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')`,
 };
+
+// PostgreSQL permits +/-infinity in a NOT NULL timestamptz, but to_char returns NULL for those
+// values. Narrow the expression's nullable result to the HTTP contract's required timestamp.
+function toAccount(
+  row: Omit<Account, "createdAt"> & { readonly createdAt: string | null },
+): Account {
+  if (row.createdAt === null) throw new TypeError("account creation timestamp is not finite");
+  return { id: row.id, orgId: row.orgId, createdAt: row.createdAt };
+}
 
 /**
  * The caller's account, or null when their organization has none yet.
@@ -42,7 +53,7 @@ const columns = {
  */
 export async function findAccount(tx: AccountTransaction): Promise<Account | null> {
   const [account] = await tx.select(columns).from(accounts);
-  return account ?? null;
+  return account === undefined ? null : toAccount(account);
 }
 
 /**
@@ -59,7 +70,7 @@ export async function provisionAccount(
     .values({ workosOrgId: sql`app.current_org_id()` })
     .onConflictDoNothing({ target: accounts.workosOrgId })
     .returning(columns);
-  if (inserted !== undefined) return { account: inserted, created: true };
+  if (inserted !== undefined) return { account: toAccount(inserted), created: true };
   const existing = await findAccount(tx);
   if (existing === null) throw new Error("account conflicted on insert but is not visible");
   return { account: existing, created: false };

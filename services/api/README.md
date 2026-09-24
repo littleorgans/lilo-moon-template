@@ -14,6 +14,9 @@ over `@hono/node-server`. It is private and never published. A new service start
 
 An account is `{ "id", "orgId", "createdAt" }`, with `createdAt` in ISO 8601 UTC. Every `/v1`
 response carries `Cache-Control: no-store`, and every response carries an `x-request-id`.
+PostgreSQL permits `infinity` and `-infinity` in the non-null creation timestamp; `to_char` returns
+NULL for those values. An account imported with either value returns 500 `internal`, because it
+cannot satisfy the response's required timestamp.
 
 ## Layout
 
