@@ -4,12 +4,8 @@
 import { resolve } from "node:path";
 
 import type { Choices } from "./choices.ts";
+import { loginRole } from "./choices.ts";
 import type { Template } from "./template.ts";
-
-/** A Postgres role name for one process: the project and the app, with dashes as underscores. */
-export function loginRole(project: string, app: string): string {
-  return `${project}_${app}`.replaceAll("-", "_");
-}
 
 /** POSIX shell literal, including whitespace, quotes and command substitutions. */
 const shellQuote = (value: string) => `'${value.replaceAll("'", "'\"'\"'")}'`;

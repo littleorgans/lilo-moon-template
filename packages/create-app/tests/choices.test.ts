@@ -29,13 +29,18 @@ const errors = (overrides: Partial<Request>) => {
 
 describe("resolveChoices", () => {
   it("bounds role identifiers and rejects directory control characters", () => {
-    expect(errors({ service: true, name: "a".repeat(31) }).join()).toContain("at most 30");
-    expect(errors({ service: true, serviceName: "b".repeat(31) }).join()).toContain("at most 30");
-    expect(errors({ service: true, name: "pg" }).join()).toContain("reserved Postgres");
+    expect(errors({ service: true, name: "a".repeat(32), serviceName: "b".repeat(31) })).toEqual([
+      expect.stringContaining("longer than Postgres's 63 characters"),
+    ]);
+    expect(errors({ web: true, organizationPolicy: "personal", name: "a".repeat(80) })).toEqual([]);
+    for (const name of ["pg", "pg-tools"]) {
+      expect(errors({ service: true, name }).join()).toContain("which Postgres reserves");
+    }
+    expect(resolve({ service: true, name: "pgtools" }).kind).toBe("valid");
     expect(errors({ service: true, directory: "bad\npath", name: "valid" }).join()).toContain(
       "control characters",
     );
-    expect(resolve({ service: true, name: "a".repeat(30), serviceName: "b".repeat(30) }).kind).toBe(
+    expect(resolve({ service: true, name: "a".repeat(31), serviceName: "b".repeat(31) }).kind).toBe(
       "valid",
     );
     expect(errors({ service: true, serviceName: "api-" }).join()).toContain(

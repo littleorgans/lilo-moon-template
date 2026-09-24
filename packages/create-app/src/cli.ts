@@ -49,8 +49,9 @@ Options:
                                   Default: the directory's name.
   -h, --help                      Show this help.
 
-Names are at most 30 lowercase letters, digits and dashes, starting with a letter and ending with a letter or digit. The directory must be
-new or empty. Nothing is installed: the command prints the steps that follow.
+Names are lowercase letters, digits and dashes, starting with a letter and ending with a letter or
+digit. The directory must be new or empty. Nothing is installed: the command prints the steps
+that follow.
 
 Exit codes: 0 created, 1 failed, 2 usage error.
 `;

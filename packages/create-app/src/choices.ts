@@ -55,6 +55,11 @@ const NAME = /^[a-z][a-z0-9-]*$/;
 /** Moon ids the workspace already uses: the root project and the typed schema package. */
 const TAKEN = new Set(["root", "drizzle-schema"]);
 
+/** A Postgres role name for one process: the project and the app, with dashes as underscores. */
+export function loginRole(project: string, app: string): string {
+  return `${project}_${app}`.replaceAll("-", "_");
+}
+
 export function partsOf(choices: Choices): Parts {
   return {
     web: choices.web !== null,
@@ -78,8 +83,6 @@ export function resolveChoices(request: Request, defaults: Defaults, cwd: string
       );
     } else if (value.endsWith("-")) {
       errors.push(`${flag} must end with a letter or digit: ${value}`);
-    } else if (value.length > 30) {
-      errors.push(`${flag} must be at most 30 characters: ${value}`);
     } else if (flag !== "--name" && ["dist", "build", "out", "coverage"].includes(value)) {
       errors.push(`${flag} ${value} is ignored as generated output by the workspace`);
     } else if (flag === "--name" && value === "littleorgans") {
@@ -167,8 +170,19 @@ export function resolveChoices(request: Request, defaults: Defaults, cwd: string
   const database = service !== null || request.database === true;
   if (service === null && request.database === undefined) defaulted.push("no database (--db)");
 
-  if (database && project === "pg")
-    errors.push("--name pg would create a reserved Postgres role prefix");
+  // Postgres truncates an identifier past 63 characters and reserves the pg_ prefix for roles.
+  for (const app of database ? [web, service] : []) {
+    if (app === null) continue;
+    const role = loginRole(project, app.name);
+    if (role.length > 63) {
+      errors.push(
+        `The login role ${role} is longer than Postgres's 63 characters: shorten the names`,
+      );
+    }
+    if (role.startsWith("pg_")) {
+      errors.push(`The login role ${role} starts with pg_, which Postgres reserves: change --name`);
+    }
+  }
 
   if (errors.length > 0) return { kind: "invalid", errors };
   return {
