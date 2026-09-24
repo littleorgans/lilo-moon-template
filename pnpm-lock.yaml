@@ -66,6 +66,9 @@ catalogs:
     pg:
       specifier: 8.23.0
       version: 8.23.0
+    playwright-core:
+      specifier: 1.63.0
+      version: 1.63.0
     radix-ui:
       specifier: 1.6.7
       version: 1.6.7
@@ -452,6 +455,36 @@ importers:
       vitest:
         specifier: 'catalog:'
         version: 4.1.11(@types/node@24.13.3)(@vitest/coverage-v8@4.1.11)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.12)(yaml@2.9.0)
+
+  packages/workos-contract:
+    devDependencies:
+      '@littleorgans/auth':
+        specifier: workspace:*
+        version: link:../auth
+      '@littleorgans/auth-http':
+        specifier: workspace:*
+        version: link:../auth-http
+      '@littleorgans/auth-session':
+        specifier: workspace:*
+        version: link:../auth-session
+      '@littleorgans/auth-workos':
+        specifier: workspace:*
+        version: link:../auth-workos
+      '@littleorgans/web':
+        specifier: workspace:*
+        version: link:../../apps/web
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.13.3
+      '@workos-inc/node':
+        specifier: 'catalog:'
+        version: 10.10.0
+      jose:
+        specifier: 'catalog:'
+        version: 6.2.9
+      playwright-core:
+        specifier: 'catalog:'
+        version: 1.63.0
 
   services/api:
     dependencies:
@@ -3762,6 +3795,11 @@ packages:
   picomatch@4.0.5:
     resolution: {integrity: sha512-RvwwcruNjI1ncT5xRakeyS9Lf8lcItv34KD+aif+VH9kduAyfYBipGh12274xtenIPZ119/R9BdTBa8gAwSh0A==}
     engines: {node: '>=12'}
+
+  playwright-core@1.63.0:
+    resolution: {integrity: sha512-rYCsBF/M5HjUch52bbtVONEFjv6Xu8sm8h72dNlR5bzIE1fvC/bxgspzkjSfU+MweEMmPM8KJebG6nnyxo5mCg==}
+    engines: {node: '>=20'}
+    hasBin: true
 
   pluralize@2.0.0:
     resolution: {integrity: sha512-TqNZzQCD4S42De9IfnnBvILN7HAW7riLqsCyp8lgjXeysyPlX5HhqKAcJHHHb9XskE4/a+7VGC9zzx8Ls0jOAw==}
@@ -7373,6 +7411,8 @@ snapshots:
   picocolors@1.1.1: {}
 
   picomatch@4.0.5: {}
+
+  playwright-core@1.63.0: {}
 
   pluralize@2.0.0: {}
 

@@ -36,6 +36,9 @@ catalog:
   nitro: "3.0.260610-beta"
   oxlint: "1.79.0"
   pg: "8.23.0"
+  # Drives the browser in packages/workos-contract. The core alone: no test runner, no browser
+  # download at install. The workflow installs the one browser it launches.
+  playwright-core: "1.63.0"
   # shadcn new-york-v4 imports the unified package, not per-component @radix-ui/* entries.
   radix-ui: "1.6.7"
   react: "^19.2.8"

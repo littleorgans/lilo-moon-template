@@ -1,0 +1,26 @@
+# Contract tests against a live WorkOS staging environment. Private: nothing here is published or
+# generated into a project. The inherited typecheck, lint and unit tests run in `moon ci` like any
+# project's; the contract suite itself does not, because it needs the staging credentials and the
+# network. .github/workflows/workos-contract.yml runs it on a schedule and on auth pull requests.
+language: "typescript"
+layer: "automation"
+
+fileGroups:
+  tests:
+    - "tests/**/*"
+    - "contract/**/*"
+
+tasks:
+  contract:
+    description: "Run the WorkOS contract tests against staging; they skip without WORKOS_API_KEY and WORKOS_CLIENT_ID"
+    type: "test"
+    command: "vitest run --config vitest.contract.config.ts"
+    # The browser test starts the reference app's built server, so package.json lists
+    # @littleorgans/web and this builds it.
+    deps:
+      - "^:build"
+    options:
+      shell: false
+      # Every run asks the provider again; a cached pass would prove nothing about today.
+      cache: false
+      runInCI: false

@@ -45,6 +45,9 @@
       "path": "./packages/vite-config"
     },
     {
+      "path": "./packages/workos-contract"
+    },
+    {
       "path": "./services/api"
     }
   ],

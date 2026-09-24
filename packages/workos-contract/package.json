@@ -1,0 +1,18 @@
+{
+  "name": "@littleorgans/workos-contract",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Contract tests against a WorkOS staging environment: the provider behaviours the auth packages depend on, and one browser sign-in by email code.",
+  "type": "module",
+  "devDependencies": {
+    "@littleorgans/auth": "workspace:*",
+    "@littleorgans/auth-http": "workspace:*",
+    "@littleorgans/auth-session": "workspace:*",
+    "@littleorgans/auth-workos": "workspace:*",
+    "@littleorgans/web": "workspace:*",
+    "@types/node": "catalog:",
+    "@workos-inc/node": "catalog:",
+    "jose": "catalog:",
+    "playwright-core": "catalog:"
+  }
+}
