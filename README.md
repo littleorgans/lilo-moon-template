@@ -152,9 +152,9 @@ repeats the app check with the tarballs installed, including on `db`'s lowest pe
 separate npm consumer outside any workspace imports every entry point and typechecks it with
 TypeScript 5 and `skipLibCheck: false`. It runs a service on the packed `auth-http` and `db`
 against a real Postgres with the shipped migrations and grant, then runs the packed `rls-verify`. A
-`drizzle-orm` below `db`'s peer range must fail the install. CI runs the task when code, manifests,
-the lockfile or Moon configuration change, and the release gate runs it on the tarballs it
-publishes.
+`drizzle-orm` below `db`'s peer range must fail the install. It takes minutes, so pull request CI
+skips it: a nightly workflow runs it on `main`, and the release gate runs it before publishing and
+again on the tarballs it publishes.
 
 Postgres containers and their default ports are derived from the checkout path. `just clean`
 removes only that checkout's container and Moon cache. Set `LILO_PG_PORT` if a port is occupied.

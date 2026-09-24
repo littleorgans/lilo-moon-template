@@ -57,7 +57,7 @@ The baseline makes these choices, recorded in `docs/decisions.md`:
 ├── skills/lilo/build/      The lilo/build skills agents read, synced to the agent-runtimes catalog
 ├── .moon/                  Workspace, toolchains, and inherited task layers
 ├── .changeset/             Pending changesets
-├── .github/workflows/      moon-ci.yml (reusable: moon ci), its caller ci.yml, release.yml, workos-contract.yml
+├── .github/workflows/      moon-ci.yml (reusable: moon ci), its caller ci.yml, release.yml, published-shape.yml, workos-contract.yml
 ├── renovate/base.json      Renovate preset projects extend; renovate.json extends it here too
 └── docs/                   Decisions, guides, specifications and this overview
 ```
@@ -574,9 +574,15 @@ checkout (none, all-zero, or replaced by a force push) runs `moon ci --force`, s
 branch gets a full check. A second job named `CI` reports the
 required status check and fails unless `moon ci` succeeded. Projects call the same workflow at a
 release tag ([Use the shared configuration](guides/shared-config.md)). Tasks marked `runInCI: "always"` run on every change. These include `lint`,
-`format-check`, `secrets`, `audit`, `skills-check`, `rls-verify` and `drizzle-check`. `published-shape` runs when
-its inputs change: apps, packages, services, scripts, `.moon`, the root manifests, the lockfile or
-`moon.yml`. A documentation-only change skips it.
+`format-check`, `secrets`, `audit`, `skills-check`, `rls-verify` and `drizzle-check`.
+`published-shape` takes minutes, so it is `runInCI: false`: pull request CI skips it.
+`.github/workflows/published-shape.yml` runs it nightly on the default branch, and on any branch a
+maintainer dispatches it on, and the release gate runs it before publishing. Both call
+`moon exec root:published-shape --ignore-ci-checks`, because with `CI` set moon leaves a
+`runInCI: false` task out of `moon run` too.
+The nightly result appears in Actions; [GitHub's scheduled-run notifications](https://docs.github.com/en/actions/concepts/workflows-and-actions/notifications-for-workflow-runs)
+go to the schedule's author (or last cron editor / re-enabler), subject to that user's notification
+settings, so they are not a team alert.
 
 `.github/workflows/workos-contract.yml` runs the WorkOS contract suite daily on the default
 branch, and on any branch a maintainer dispatches it on; pull requests do not trigger it. Runs are
@@ -587,7 +593,8 @@ release gate, and a failed run on the default branch opens an issue.
 `.github/workflows/release.yml` runs on pushes to `main`. While changesets are pending, Changesets
 opens or updates the Version Packages pull request. On the commit that merges it, and only when
 `vars.NPM_PUBLISH_ENABLED == 'true'`, a gate job runs `moon ci --force` (every CI task, not only the
-affected ones), packs each published package once, and scans and shape-checks those tarballs. A
+affected ones) and `published-shape`, packs each published package once, and scans and
+shape-checks those tarballs. A
 publish job then uploads the same files in dependency order, tags the commit, and creates one GitHub
 release for `v<version>`. A smoke job installs the published versions from npm. [Releasing the
 packages](releasing.md) describes the flow and the npm authentication.

@@ -321,8 +321,8 @@ replaced. CI on a push to `main` also runs only the affected tasks, and the owne
 force-push bypasses. So `release.yml` gates the publish itself (decision D9).
 
 The Release gate job runs `moon ci --force` on the commit it will publish: every task `moon ci`
-runs, with no affected filter and no cache. The publish job `needs` it, so a failed task skips the
-publish. The gate runs in the release workflow rather than waiting on the CI run for the same SHA,
+runs, with no affected filter and no cache. It then runs `root:published-shape`, which pull request
+CI leaves out for its length. The publish job `needs` it, so a failed task skips the publish. The gate runs in the release workflow rather than waiting on the CI run for the same SHA,
 because that run is affected-only on `main` and a `workflow_run` or checks-API wait would add a
 second workflow to reason about for no stronger guarantee. The cost is a full run on each release
 commit, which happens once per release.

@@ -40,6 +40,7 @@ await test("release.yml publishes only after the full gate passes on the same ru
   const runs = gate.steps.map((step) => step.run).filter(Boolean);
   assert.deepEqual(runs.slice(1), [
     "moon ci --force",
+    "moon exec root:published-shape --ignore-ci-checks",
     'node scripts/release.mjs pack "$RUNNER_TEMP/release"',
     'node scripts/check-packed-secrets.mjs "$RUNNER_TEMP/release"',
     'node scripts/published-shape.mjs "$RUNNER_TEMP/release"',
