@@ -460,7 +460,7 @@ packages around day 7, services around day 9 or 10.
 | Shared config packages (`tsconfig`, `oxlint-config`, Vitest), Renovate preset, reusable `moon-ci.yml`  | 3    | 1.6        | —            |
 | `db-tools` full: Atlas and Drizzle wrappers (typed schema generation, D7), Postgres container, `clean` | 2    | 1.13       | D7 (decided) |
 | Assessment carry-overs: B1 (adopt the typed Drizzle schema, D7), B2, B4, B6, B10 (items 9–12, 19)      | 3    | —          | D7 (decided) |
-| Switch the reference app from workspace source to the published packages (D9)                          | 1    | 1.15       | D9 (decided) |
+| Closed: the reference app stays on workspace source, and `published-shape` proves the packages (D9)    | —    | —          | D9 (amended) |
 | WorkOS contract tests and one browser sign-in test (item 14)                                           | 2    | —          | —            |
 | Multiple cookie keys (item 15)                                                                         | 2    | —          | —            |
 
@@ -496,9 +496,11 @@ What gets worse:
    (`SECURITY.md`) should exist before `0.1.0`.
 7. **Day one gets thinner.** A template produced a running, gated system. Phase 1 relies on a
    copy-list guide, which is the least reliable onboarding until the CLI lands.
-8. **The reference app is less representative.** It consumes workspace source, not published
-   tarballs until phase 2, when it switches to the published packages (D9). Until then
-   `published-shape` carries that weight.
+8. **The reference app is less representative.** It consumes workspace source, by decision (D9,
+   amended 2026-09-24), so a package change and the app change that uses it land in one pull
+   request. `published-shape` proves the published packages instead: the packed create-app
+   generates a project from the reference app, installs it against the packed tarballs and runs
+   its full `moon ci`, on every change to an app or package and in the release gate.
 9. **More release lines to maintain:** packages, scaffold templates, skills and the reusable
    workflow each need a version and a compatibility story. That is a lot for a small team.
 10. **Unproven pieces:**
@@ -525,8 +527,14 @@ The user approved all ten on 2026-09-23.
 | D6  | Examples                            | Delete `collections`, `services/ping` and the task board. `/theme` stays as a reference page.                  |
 | D7  | Drizzle                             | Adopt the typed schema. Queries move to typed Drizzle, and `drizzle-check` keeps the artifact honest.          |
 | D8  | Node engine floor                   | Node 24 (`>=24.19.0`).                                                                                         |
-| D9  | Publish gate and reference app      | Publish only after the full `moon ci` passes. The reference app switches to the published packages in phase 2. |
+| D9  | Publish gate and reference app      | Publish only after the full `moon ci` passes. Amended 2026-09-24: the reference app stays on workspace source. |
 | D10 | Machine-to-machine service identity | Deferred.                                                                                                      |
+
+D9 was amended on 2026-09-24 by the user's decision. It first said the reference app would switch to
+the published packages in phase 2. Registry versions would split every change to a package and its
+app across a release, and a workspace install hides dependency bugs whatever the app resolves. So
+the reference app keeps workspace source, `web:dev` keeps its source condition, and
+`published-shape`'s packed create-app scaffold is what proves the published packages.
 
 ## Still open
 
