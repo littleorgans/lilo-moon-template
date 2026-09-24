@@ -50,8 +50,6 @@ process.env.GIT_AUTHOR_NAME = "Baseline verification";
 process.env.GIT_AUTHOR_EMAIL = "baseline@example.invalid";
 process.env.GIT_COMMITTER_NAME = process.env.GIT_AUTHOR_NAME;
 process.env.GIT_COMMITTER_EMAIL = process.env.GIT_AUTHOR_EMAIL;
-// Exercise the reference default even when the caller opted their own build into the lab.
-delete process.env.VITE_ENABLE_THEME_LAB;
 const env = projectEnvironment();
 
 function run(cwd, command, args) {
@@ -253,7 +251,7 @@ async function refusesBadConfiguration(root) {
   }
 }
 
-async function exercise(root, themeLab = false) {
+async function exercise(root) {
   const port = await freePort();
   const origin = `http://127.0.0.1:${port}`;
   const app = spawn(process.execPath, ["apps/web/.output/server/index.mjs"], {
@@ -272,7 +270,7 @@ async function exercise(root, themeLab = false) {
     assert.ok(response?.ok, "built consumer must serve the sign-in page");
     // The theme lab is a reference page for the dev server; a production build must not serve it.
     const lab = await fetch(`${origin}/theme`, { signal: AbortSignal.timeout(5000) });
-    assert.equal(lab.status, themeLab ? 200 : 404, "the build must honor the theme lab opt-in");
+    assert.equal(lab.status, 404, "a production build must not serve the theme lab");
     const anonymous = await fetch(`${origin}/app`, {
       redirect: "manual",
       signal: AbortSignal.timeout(5000),
@@ -1020,16 +1018,6 @@ async function checkSnapshot() {
   run(snapshot, "moon", ["run", "web:build"]);
   await refusesBadConfiguration(snapshot);
   await exercise(snapshot);
-  // The flag is a Moon build input: changing it must invalidate the default build above.
-  const previousLabFlag = process.env.VITE_ENABLE_THEME_LAB;
-  try {
-    process.env.VITE_ENABLE_THEME_LAB = "true";
-    run(snapshot, "moon", ["run", "web:build"]);
-    await exercise(snapshot, true);
-  } finally {
-    if (previousLabFlag === undefined) delete process.env.VITE_ENABLE_THEME_LAB;
-    else process.env.VITE_ENABLE_THEME_LAB = previousLabFlag;
-  }
 
   mkdirSync(tarballs);
   const artifacts = new Map();

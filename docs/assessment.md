@@ -139,7 +139,7 @@ hard-coded to "Task board" (`apps/web/src/routes/__root.tsx` line 39). The publi
 `/theme` lab ships as a production route. The signed-in page prints the whole `Principal` JSON. All
 of this is documented as replaceable. It is also what a hurried product ships. Addressed for the
 title, the sign-in copy and `/theme` (roadmap item 19): the copy is in
-`apps/web/src/server/product.ts`, and production defaults `/theme` to 404 (a build flag can opt in). The signed-in
+`apps/web/src/server/product.ts`, and a production build answers `/theme` with 404. The signed-in
 page still prints the `Principal`.
 
 ## The Ugly

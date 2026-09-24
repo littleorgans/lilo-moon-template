@@ -3,9 +3,6 @@ layer: "application"
 tags: ["web-app"]
 
 tasks:
-  build:
-    inputs:
-      - "$VITE_ENABLE_THEME_LAB"
   preview:
     # Match vite.config.ts so dev and preview use the same OAuth callback origin.
     env:

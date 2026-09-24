@@ -4,9 +4,9 @@ import { describe, expect, it } from "vitest";
 
 import {
   dispositionFor,
-  providerFailurePage,
   failurePage,
   messageFor,
+  providerFailurePage,
   reasonFor,
   statusFor,
 } from "../src/failure.js";

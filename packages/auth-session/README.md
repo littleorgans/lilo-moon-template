@@ -56,7 +56,8 @@ monitoring whose problem it is: 503 for provider rate limits and outages, 500 fo
 and unexpected `provider` failures, and 400 for unsupported flows and ambiguous provider 4xx
 refusals. Refusals before the provider is asked stay 400; a rejected email code still redirects to
 code entry. Display dispositions remain coarse, while HTTP status uses the underlying reason. The
-dispositions, and why only one is a 5xx, are in `docs/auth-screens.md` in the repository.
+dispositions, and the status each reason is served with, are in `docs/auth-screens.md` in the
+repository.
 
 Every refusal is handed to the `log` dependency as an `AuthFailureReport`: `kind: "callback"` for the
 redirect sign-in, `kind: "email"` with `step: "start"` or `"verify"` for the email-code sign-in, and

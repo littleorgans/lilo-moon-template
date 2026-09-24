@@ -8,7 +8,7 @@ import { SHOW_THEME_LAB } from "../server/product.js";
 const rootApi = getRouteApi("__root__");
 
 export const Route = createFileRoute("/theme")({
-  // A reference page, not a product one: production defaults to 404. See SHOW_THEME_LAB for the opt-in.
+  // A reference page, not a product one: a production build answers 404. See SHOW_THEME_LAB.
   beforeLoad: () => {
     if (!SHOW_THEME_LAB) throw notFound();
   },

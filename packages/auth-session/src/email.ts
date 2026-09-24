@@ -3,7 +3,7 @@ import type { WorkOSAuth } from "@littleorgans/auth-workos";
 import { ensureOrganization, establishSession } from "./callback.js";
 import type { SessionDeps } from "./callback.js";
 import type { CookieJar } from "./cookies.js";
-import { dispositionFor, providerFailurePage, failurePage, reasonFor } from "./failure.js";
+import { dispositionFor, failurePage, providerFailurePage, reasonFor } from "./failure.js";
 import type { EmailFailure } from "./failure.js";
 import { refuseCrossOrigin } from "./origin.js";
 import { EMAIL_COOKIE } from "./session.js";

@@ -303,9 +303,10 @@ outages return 503. Known configuration errors and unexpected failures (`configu
 return 500, so a swallowed exception still reaches monitoring. Malformed requests and ambiguous
 provider 4xx refusals (`invalid-request`, `unauthorized`, `not-found`, `conflict`) stay 400:
 for example, `unauthorized` includes both OAuth refusals and a wrong API key. The log reason remains
-necessary to distinguish those cases. Unsupported account flows also stay 400. The refusals before
-the provider is asked (a forged or stale `state`, no code, no address, an expired email cookie) are 400. A rejected email code keeps its existing redirect to code entry; its `retry` log disposition
-does not turn a typo into a 503.
+necessary to distinguish those cases. Unsupported account flows also stay 400, and so do the
+refusals made before the provider is asked (a forged or stale `state`, no code, no address, an
+expired email cookie). A rejected email code keeps its existing redirect to code entry; its `retry`
+log disposition does not turn a typo into a 503.
 
 **The email-code path collapses its failures the same way and logs them under their own kind.**
 They reused the callback's until 2026-09-24, so a code that could not be sent was logged as

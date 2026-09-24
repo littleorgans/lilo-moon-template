@@ -166,21 +166,9 @@ describe("the theme lab route", () => {
       vi.resetModules();
     });
 
-    it("lets a product explicitly enable the lab in production", async () => {
-      vi.resetModules();
-      vi.stubEnv("DEV", false);
-      vi.stubEnv("VITE_ENABLE_THEME_LAB", "true");
-      const { getRouter: productionRouter } = await import("../../src/router.js");
-      const router = productionRouter();
-      router.update({ history: createMemoryHistory({ initialEntries: ["/theme"] }) });
-      await router.load();
-      expect(renderToStaticMarkup(<RouterProvider router={router} />)).toContain("Theme lab");
-    });
-
     it("answers /theme as not found and renders no lab", async () => {
       vi.resetModules();
       vi.stubEnv("DEV", false);
-      vi.stubEnv("VITE_ENABLE_THEME_LAB", "false");
       const { getRouter: productionRouter } = await import("../../src/router.js");
       const router = productionRouter();
       router.update({ history: createMemoryHistory({ initialEntries: ["/theme"] }) });

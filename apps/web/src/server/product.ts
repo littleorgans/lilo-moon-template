@@ -19,8 +19,12 @@ export const PRODUCT = {
 } as const;
 
 /**
- * The reference lab is development-only by default. A product can opt in at build time with
- * VITE_ENABLE_THEME_LAB=true; this public flag is identical in the SSR and browser bundles.
+ * Whether `/theme`, the theme lab, is served. It is a reference page for working on the theme, not
+ * a product page, so a production build answers it with 404 and only the dev server renders it.
+ * A product that wants it in production changes this line; like the copy above, it is code the
+ * product owns, not an environment variable.
+ *
+ * Fixed when the bundle is built rather than read from the environment: the route is matched in the
+ * browser too, where there is no environment to read.
  */
-export const SHOW_THEME_LAB: boolean =
-  import.meta.env.DEV || import.meta.env["VITE_ENABLE_THEME_LAB"] === "true";
+export const SHOW_THEME_LAB: boolean = import.meta.env.DEV;
