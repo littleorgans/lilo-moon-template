@@ -83,6 +83,7 @@ describe("create-app", () => {
       "-v login_role=acme_portal -f apps/portal/node_modules/@littleorgans/db/grants/login-role.sql",
     );
     expect(stdout).toContain("moon ci --force");
+    expect(stdout).toContain("ERR_PNPM_NO_MATURE_MATCHING_VERSION, wait, or list those exact");
     expect(stdout).toContain("moon run portal:dev");
     expect(stdout).toContain("--name acme, the directory's name");
     expect(stdout).toContain(

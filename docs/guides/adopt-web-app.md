@@ -84,9 +84,11 @@ git add pnpm-lock.yaml && git commit -m "chore: lock dependencies"
 Moon needs a commit before it can run. The first install sets up the hooks, which call Moon.
 
 pnpm waits a day before installing a newly published version (`minimumReleaseAge` in
-`pnpm-workspace.yaml`), and that applies to `@littleorgans/*` too. To install a release on the day
-it ships, list it under `minimumReleaseAgeExclude` (for example `"@littleorgans/auth@0.2.0"`), and
-remove the entry afterwards.
+`pnpm-workspace.yaml`), and that applies to `@littleorgans/*` too: the install stops with
+`ERR_PNPM_NO_MATURE_MATCHING_VERSION`. The project does not exempt the scope, because the wait is
+what stands between a compromised publish and your install. To install a release on the day it
+ships, list its exact versions under `minimumReleaseAgeExclude` (for example
+`"@littleorgans/auth@0.2.0"`), and remove the entries afterwards.
 
 ### Add an app to an existing repository
 

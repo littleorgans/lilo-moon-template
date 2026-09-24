@@ -65,6 +65,10 @@ export function report(choices: Choices, template: Template, target: string): st
       '  git init -b main && git add -A && git commit -m "chore: start from @littleorgans/create-app"',
       "  pnpm install",
       '  git add pnpm-lock.yaml && git commit -m "chore: lock dependencies"',
+      "",
+      "pnpm installs a version only once it is a day old, @littleorgans/* included. If the install",
+      "stops with ERR_PNPM_NO_MATURE_MATCHING_VERSION, wait, or list those exact versions under",
+      "minimumReleaseAgeExclude in pnpm-workspace.yaml and remove them once they are a day old.",
     ],
   ];
   if (choices.web !== null) {
