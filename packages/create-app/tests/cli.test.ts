@@ -90,13 +90,31 @@ describe("create-app", () => {
     );
   });
 
+  it("quotes role identifiers even when valid names combine into a SQL keyword", async () => {
+    const { code, stdout } = await run(["current", "--service", "--service-name", "user"]);
+    expect(code).toBe(exitCodes.created);
+    expect(stdout).toContain(`-c 'CREATE ROLE "current_user" LOGIN`);
+    expect(stdout).toContain(`-c '\\password "current_user"'`);
+    expect(stdout).toContain("-v login_role=current_user -f services/user/");
+  });
+
   it("points a standalone service at the service guide and its own role", async () => {
     const { code, stdout } = await run(["billing-co", "--service", "--service-name", "billing"]);
     expect(code).toBe(exitCodes.created);
-    expect(stdout).toContain("CREATE ROLE billing_co_billing LOGIN");
+    expect(stdout).toContain('CREATE ROLE "billing_co_billing" LOGIN');
     expect(stdout).toContain("the client of the web app that");
     expect(stdout).not.toContain("Register http");
     expect(stdout).toContain("docs/guides/adopt-service.md");
+  });
+
+  it.each([
+    ["acme", "typo"],
+    ["acme", "web", "personal", "maybe"],
+  ])("refuses invalid terminal answers without creating a project: %s", async (...answers) => {
+    const { code, stderr, cwd } = await run([], answers);
+    expect(code).toBe(exitCodes.usage);
+    expect(stderr).toMatch(/Choose web, service or both|Answer yes or no/);
+    expect(existsSync(join(cwd, "acme"))).toBe(false);
   });
 
   it("asks a person at a terminal only for what has no default", async () => {

@@ -133,13 +133,13 @@ const json = (value: unknown) => `${JSON.stringify(value, null, 2)}\n`;
 
 /** Fails unless every root entry of the reference is classified. */
 export function checkRootEntries(reference: Reference) {
-  const unknown = [...reference.entries()].filter((entry) => !(entry in ROOT));
+  const unknown = [...reference.entries()].filter((entry) => !Object.hasOwn(ROOT, entry));
   if (unknown.length > 0) {
     throw new Error(
       `create-app does not know what a project does with ${unknown.join(", ")} at the reference root. Classify it in src/generate/root.ts.`,
     );
   }
-  const workflows = reference.files(".github").filter((file) => !(file in GITHUB));
+  const workflows = reference.files(".github").filter((file) => !Object.hasOwn(GITHUB, file));
   if (workflows.length > 0) {
     throw new Error(`Classify ${workflows.join(", ")} in src/generate/root.ts.`);
   }
@@ -404,9 +404,15 @@ function environment(reference: Reference, webPort: number): TemplateFile[] {
     .split("\n\n")
     .map((text) => {
       const rules = ENV_PARAGRAPHS.filter(({ marker }) => text.includes(marker));
-      // WORKOS_COOKIE_PASSWORD= is also the start of its _PREVIOUS sibling's marker.
-      const rule = rules.at(-1);
-      if (rule === undefined) {
+      const rule = rules[0];
+      const assignments = [...text.matchAll(/^([A-Z][A-Z0-9_]*=)/gm)].map(
+        ([assignment]) => assignment,
+      );
+      if (
+        rule === undefined ||
+        rules.length !== 1 ||
+        assignments.some((assignment) => assignment !== rule.marker)
+      ) {
         throw new Error(`${file}: classify this paragraph in src/generate/root.ts:\n${text}`);
       }
       return { text, when: rule.when };

@@ -168,11 +168,29 @@ describe("a reference change the generator does not know", () => {
     expect(() => generateTemplate(root)).toThrow(/deploy\.toml at the reference root/);
   });
 
+  it("does not mistake Object prototype keys for classified root entries", () => {
+    const root = copyReference();
+    writeFileSync(join(root, "constructor"), "");
+    expect(() => generateTemplate(root)).toThrow(/constructor at the reference root/);
+  });
+
   it("stops the build for a new root task", () => {
     const root = copyReference();
     edit(root, "moon.yml", (text) => `${text}\n  deploy:\n    command: "true"\n`);
     expect(() => generateTemplate(root)).toThrow("new: deploy; gone: none");
   });
+
+  it.each([
+    (text: string) => text.replace("WORKOS_API_KEY=", "NEW_SECRET=\nWORKOS_API_KEY="),
+    (text: string) => text.replace(/WORKOS_CLIENT_ID=([^\n]+)\n\n/, "WORKOS_CLIENT_ID=$1\n"),
+  ])(
+    "refuses new variables or merged classifications inside an existing environment paragraph",
+    (change) => {
+      const root = copyReference();
+      edit(root, ".env.example", change);
+      expect(() => generateTemplate(root)).toThrow("classify this paragraph");
+    },
+  );
 
   it("stops the build for a new .env.example paragraph", () => {
     const root = copyReference();

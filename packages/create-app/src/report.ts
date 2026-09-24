@@ -49,8 +49,8 @@ function databaseSteps(choices: Choices): string[] {
     "",
     '  (export LC_ALL=C; for file in db/migrations/*.sql; do psql -X "$MIGRATION_DATABASE_URL" -v ON_ERROR_STOP=1 --single-transaction -f "$file" || exit; done)',
     ...roles.flatMap(({ app, role }) => [
-      `  psql -X "$MIGRATION_DATABASE_URL" -v ON_ERROR_STOP=1 -c "CREATE ROLE ${role} LOGIN NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE NOREPLICATION;"`,
-      `  psql -X "$MIGRATION_DATABASE_URL" -v ON_ERROR_STOP=1 -c "\\\\password ${role}"`,
+      `  psql -X "$MIGRATION_DATABASE_URL" -v ON_ERROR_STOP=1 -c ${shellQuote(`CREATE ROLE "${role}" LOGIN NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE NOREPLICATION;`)}`,
+      `  psql -X "$MIGRATION_DATABASE_URL" -v ON_ERROR_STOP=1 -c ${shellQuote(`\\password "${role}"`)}`,
       `  psql -X "$MIGRATION_DATABASE_URL" -v ON_ERROR_STOP=1 -v login_role=${role} -f ${app}/node_modules/@littleorgans/db/grants/login-role.sql`,
     ]),
     "",

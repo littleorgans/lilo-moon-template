@@ -48,7 +48,7 @@ Every `@littleorgans/*` package is pinned at this release in the `pnpm-workspace
 | `--db`, `--no-db`                | Add Postgres.                                                                                         | None for a web app alone |
 | `--name <name>`                  | The root package name and the scope of the project's own packages (`@<name>/web`).                    | The directory's name     |
 
-Names are at most 30 lowercase letters, digits and dashes, starting with a letter. This keeps
+Names are at most 30 lowercase letters, digits and dashes, starting with a letter and ending with a letter or digit. This keeps
 login roles below Postgres's identifier limit. The published scope `littleorgans` is reserved,
 and app names cannot be ignored output directories (`dist`, `build`, `out`, `coverage`); `pg` is reserved as a project name with a database. Every choice is a flag, so
 a script or an agent runs it without a terminal. At a terminal it asks only for what has no

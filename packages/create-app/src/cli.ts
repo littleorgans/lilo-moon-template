@@ -49,7 +49,7 @@ Options:
                                   Default: the directory's name.
   -h, --help                      Show this help.
 
-Names are at most 30 lowercase letters, digits and dashes, starting with a letter. The directory must be
+Names are at most 30 lowercase letters, digits and dashes, starting with a letter and ending with a letter or digit. The directory must be
 new or empty. Nothing is installed: the command prints the steps that follow.
 
 Exit codes: 0 created, 1 failed, 2 usage error.
@@ -69,6 +69,8 @@ const options = {
   help: { type: "boolean", short: "h" },
 } satisfies ParseArgsConfig["options"];
 
+class AnswerError extends Error {}
+
 /** Fills in, from a person at a terminal, the choices that have no default. */
 async function complete(
   request: Request,
@@ -81,6 +83,9 @@ async function complete(
   }
   if (!completed.web && !completed.service) {
     const kind = await answer("Create a web app, a service, or both? (web/service/both) ");
+    if (!["web", "service", "both"].includes(kind)) {
+      throw new AnswerError("Choose web, service or both.");
+    }
     completed = { ...completed, web: kind !== "service", service: kind !== "web" };
   }
   if (completed.web && completed.organizationPolicy === undefined) {
@@ -91,6 +96,9 @@ async function complete(
   }
   if (!completed.service && completed.database === undefined) {
     const database = await answer("Add a Postgres database? (y/N) ");
+    if (!["", "y", "yes", "n", "no"].includes(database)) {
+      throw new AnswerError("Answer yes or no to adding a database.");
+    }
     completed = { ...completed, database: database === "y" || database === "yes" };
   }
   return completed;
@@ -137,11 +145,15 @@ export async function main(argv: readonly string[], io: CliIo): Promise<number> 
     servicePort: values["service-port"],
     database: values.db,
   };
-  const resolution = resolveChoices(
-    io.ask === undefined ? request : await complete(request, io.ask),
-    template.defaults,
-    io.cwd,
-  );
+  let completed = request;
+  try {
+    if (io.ask !== undefined) completed = await complete(request, io.ask);
+  } catch (error) {
+    if (!(error instanceof AnswerError)) throw error;
+    io.stderr(`${error.message}\nRun create-app --help for the options.\n`);
+    return exitCodes.usage;
+  }
+  const resolution = resolveChoices(completed, template.defaults, io.cwd);
   if (resolution.kind === "invalid") {
     io.stderr(`${resolution.errors.join("\n")}\nRun create-app --help for the options.\n`);
     return exitCodes.usage;

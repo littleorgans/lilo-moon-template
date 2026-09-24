@@ -152,7 +152,8 @@ The command's template is generated, never written by hand. Its build
 configuration and `@littleorgans/db`'s migrations from the same commit and rewrites what ties them
 to this repository: `workspace:` dependencies become catalog pins at the release, names, ports and
 the organization policy become tokens, and the CI caller names `moon-ci.yml` at `v<version>`. Every
-root entry, root task and `.env.example` paragraph is classified there, and a reference change the
+root entry, root task and `.env.example` paragraph is classified there (a new variable or merged
+paragraph needs an explicit rule), and a reference change the
 generator does not recognize, or an anchor it rewrites that moved, fails the build. The build
 also rejects deleted rewrite targets, symbolic links, binary assets without encoding support and
 tracked environment values. The generated cookie password is empty and must be filled with a

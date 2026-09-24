@@ -49,7 +49,7 @@ export type Resolution =
   | { readonly kind: "invalid"; readonly errors: readonly string[] };
 
 // Lowercase, starting with a letter: a valid npm scope, Docker image name and Moon project id,
-// and, with dashes as underscores, an unquoted Postgres role name.
+// and, with dashes as underscores, a Postgres role name (quoted when printed as SQL).
 const NAME = /^[a-z][a-z0-9-]*$/;
 
 /** Moon ids the workspace already uses: the root project and the typed schema package. */
@@ -76,6 +76,8 @@ export function resolveChoices(request: Request, defaults: Defaults, cwd: string
       errors.push(
         `${flag} must be lowercase letters, digits and dashes, starting with a letter: ${value}`,
       );
+    } else if (value.endsWith("-")) {
+      errors.push(`${flag} must end with a letter or digit: ${value}`);
     } else if (value.length > 30) {
       errors.push(`${flag} must be at most 30 characters: ${value}`);
     } else if (flag !== "--name" && ["dist", "build", "out", "coverage"].includes(value)) {

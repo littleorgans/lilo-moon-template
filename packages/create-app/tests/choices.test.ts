@@ -38,6 +38,9 @@ describe("resolveChoices", () => {
     expect(resolve({ service: true, name: "a".repeat(30), serviceName: "b".repeat(30) }).kind).toBe(
       "valid",
     );
+    expect(errors({ service: true, serviceName: "api-" }).join()).toContain(
+      "end with a letter or digit",
+    );
     expect(errors({ service: true, name: "littleorgans" }).join()).toContain("reserved scope");
     for (const serviceName of ["dist", "build", "out", "coverage"]) {
       expect(errors({ service: true, serviceName }).join()).toContain(
