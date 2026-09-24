@@ -409,7 +409,7 @@ Now set `organizationPolicy` in `apps/web/src/server/auth.ts`. Replace the produ
 sign-in copy in `apps/web/src/server/product.ts`; the routes and tests read them from there.
 This module is public data bundled for the browser as well as SSR: never put secrets or service
 imports in it. To offer the theme lab in production, build with
-`VITE_ENABLE_THEME_LAB=true moon run web:build --force`. It is then publicly reachable at `/theme`;
+`VITE_ENABLE_THEME_LAB=true moon run web:build`. It is then publicly reachable at `/theme`;
 add your product's access checks if it should be private. This is a build-time flag, so changing a
 running server's environment does not enable it. `/api/theme` remains available for product theme
 controls and redirects to `/` when no same-origin referer is supplied.

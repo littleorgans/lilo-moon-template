@@ -50,6 +50,8 @@ process.env.GIT_AUTHOR_NAME = "Baseline verification";
 process.env.GIT_AUTHOR_EMAIL = "baseline@example.invalid";
 process.env.GIT_COMMITTER_NAME = process.env.GIT_AUTHOR_NAME;
 process.env.GIT_COMMITTER_EMAIL = process.env.GIT_AUTHOR_EMAIL;
+// Exercise the reference default even when the caller opted their own build into the lab.
+delete process.env.VITE_ENABLE_THEME_LAB;
 const env = projectEnvironment();
 
 function run(cwd, command, args) {
@@ -1018,14 +1020,15 @@ async function checkSnapshot() {
   run(snapshot, "moon", ["run", "web:build"]);
   await refusesBadConfiguration(snapshot);
   await exercise(snapshot);
-  // Prove the public build flag in a real SSR bundle, not only in a mocked route test.
-  const optInEnv = join(snapshot, "apps/web/.env.theme-lab-check");
-  writeFileSync(optInEnv, "VITE_ENABLE_THEME_LAB=true\n");
+  // The flag is a Moon build input: changing it must invalidate the default build above.
+  const previousLabFlag = process.env.VITE_ENABLE_THEME_LAB;
   try {
-    run(snapshot, "moon", ["run", "web:build", "--", "--mode", "theme-lab-check"]);
+    process.env.VITE_ENABLE_THEME_LAB = "true";
+    run(snapshot, "moon", ["run", "web:build"]);
     await exercise(snapshot, true);
   } finally {
-    rmSync(optInEnv);
+    if (previousLabFlag === undefined) delete process.env.VITE_ENABLE_THEME_LAB;
+    else process.env.VITE_ENABLE_THEME_LAB = previousLabFlag;
   }
 
   mkdirSync(tarballs);
