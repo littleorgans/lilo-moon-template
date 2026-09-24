@@ -62,6 +62,10 @@ layer in [`.moon/tasks/node-service.yml`](.moon/tasks/node-service.yml): `dev` r
 source through Node's type stripping, and `start` runs the built `dist`. `api:container` builds a
 Docker image. [Its README](services/api/README.md) covers configuration, errors, logging and tests.
 
+`packages/workos-contract`, also private, tests the auth packages against a WorkOS staging
+environment, and signs in to `apps/web` by email code in a browser. A daily workflow runs it
+([Run the WorkOS contract tests](docs/maintaining.md#run-the-workos-contract-tests)).
+
 ## Start a project
 
 ```sh

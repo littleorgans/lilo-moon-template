@@ -1,0 +1,107 @@
+name: WorkOS contract
+
+# The provider behaviours the auth packages depend on, measured against the WorkOS staging
+# environment, and one browser sign-in by email code through the reference app. The suite is
+# packages/workos-contract; docs/maintaining.md, CI secrets, covers the two secrets it reads.
+#
+# Not part of `moon ci` and not a required check: a provider outage must not block unrelated pull
+# requests, and the release gate stays a function of the commit alone. Drift shows up here instead,
+# daily on the default branch.
+#
+# Pull requests do not trigger it: a branch's code, or a dependency bump a bot opened, would run
+# with the staging key before anyone reviewed it. A maintainer who wants the signal before merging
+# an auth change dispatches it on the branch, which takes write access, the access that already
+# reaches every repository secret.
+
+on:
+  schedule:
+    # Daily, off the hour so it does not queue behind every other scheduled workflow.
+    - cron: "37 5 * * *"
+  workflow_dispatch:
+
+concurrency:
+  # One shared staging environment and one failure issue, across every trigger.
+  group: workos-contract-staging
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  contract:
+    name: WorkOS contract
+    # Not vars.CI_RUNNER: the browser install needs apt, which only the hosted Ubuntu image promises.
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24.19.0"
+          cache: pnpm
+
+      - uses: moonrepo/setup-toolchain@261c62cb5b0f580c7be7c8cd0f023a2e96756095 # v0
+        with:
+          # proto install reads moon from .prototools. A moon-version literal would hide a stale pin.
+          auto-install: true
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # The one browser the suite launches, at the revision the pinned playwright-core expects.
+      - name: Install the browser
+        run: pnpm --filter @littleorgans/workos-contract exec playwright-core install --with-deps --only-shell chromium
+
+      # Build without staging credentials. The final step excludes upstream tasks so it cannot
+      # rebuild dependencies with secrets in its environment.
+      - name: Build
+        run: moon run workos-contract:typecheck
+
+      - name: Run the contract suite against staging
+        run: moon run workos-contract:contract --upstream none
+        env:
+          WORKOS_API_KEY: ${{ secrets.WORKOS_API_KEY }}
+          WORKOS_CLIENT_ID: ${{ secrets.WORKOS_CLIENT_ID }}
+          # Absent credentials fail the run here instead of skipping it green.
+          WORKOS_CONTRACT_REQUIRED: "true"
+
+  # A failed scheduled run is easy to miss, so it opens an issue, or comments on the one already
+  # open, and the next passing run closes it. A branch's run reports only to whoever dispatched it.
+  # GitHub guarantees schedules run on the default branch; this check need not depend on their payload.
+  report:
+    name: Report
+    needs: contract
+    if: >-
+      always() && (github.event_name == 'schedule' ||
+      github.ref == format('refs/heads/{0}', github.event.repository.default_branch))
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Open, update or close the failure issue
+        run: |
+          title="WorkOS contract tests are failing"
+          run_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          open="$(gh issue list --state open --search "\"$title\" in:title" --json number,title \
+            --jq "map(select(.title == \"$title\")) | .[0].number // empty")"
+          if [ "$RESULT" = success ]; then
+            if [ -n "$open" ]; then
+              gh issue close "$open" --comment "Passing again: $run_url"
+            fi
+          elif [ -n "$open" ]; then
+            gh issue comment "$open" --body "Still failing ($RESULT): $run_url"
+          else
+            gh issue create --title "$title" --body "$(printf '%s\n\n%s\n' \
+              "The WorkOS contract run ended with \`$RESULT\`: $run_url" \
+              "Either WorkOS changed a behaviour the auth packages depend on, the staging environment or its secrets changed, or the suite broke. packages/workos-contract names the dependency each test checks; docs/maintaining.md, CI secrets, covers the credentials.")"
+          fi
+        env:
+          RESULT: ${{ needs.contract.result }}
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}

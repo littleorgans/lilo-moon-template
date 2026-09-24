@@ -48,7 +48,8 @@ The baseline makes these choices, recorded in `docs/decisions.md`:
 │   ├── vite-config/        Source-condition and client-boundary settings for Vite, Vitest defaults
 │   ├── tsconfig/           The shared compiler options that tsconfig.options.json extends
 │   ├── oxlint-config/      The shared lint rules that .oxlintrc.json extends, with the layout rule
-│   └── create-app/         pnpm create @littleorgans/app: a new project, generated from the reference
+│   ├── create-app/         pnpm create @littleorgans/app: a new project, generated from the reference
+│   └── workos-contract/    Private. Contract tests against WorkOS staging and a browser sign-in
 ├── db/
 │   ├── schema.sql          Atlas desired state: accounts and profiles
 │   └── drizzle/            @littleorgans/drizzle-schema: the typed schema in _generated/, which the app and service query through
@@ -56,7 +57,7 @@ The baseline makes these choices, recorded in `docs/decisions.md`:
 ├── skills/lilo/build/      The lilo/build skills agents read, synced to the agent-runtimes catalog
 ├── .moon/                  Workspace, toolchains, and inherited task layers
 ├── .changeset/             Pending changesets
-├── .github/workflows/      moon-ci.yml (reusable: moon ci), its caller ci.yml, and release.yml
+├── .github/workflows/      moon-ci.yml (reusable: moon ci), its caller ci.yml, release.yml, workos-contract.yml
 ├── renovate/base.json      Renovate preset projects extend; renovate.json extends it here too
 └── docs/                   Decisions, guides, specifications and this overview
 ```
@@ -519,6 +520,7 @@ TypeScript project references are written by `moon sync` (`typescript.syncProjec
 | Service against Postgres    | Real Postgres 17, real listener   | `services/api/tests/integration/database.test.js`: shipped migrations and grant, tenant isolation                    |
 | Repository scripts          | `node --test`                     | `scripts/tests/**` (Moon task shape, hooks, pins, fixed version group, licenses, skills check and sync)              |
 | Published shape             | Snapshot build, HTTP probes, npm  | `root:published-shape`: gate negative proofs, route status codes, CSS utilities, packed tarballs, generated projects |
+| Provider contract           | Vitest, WorkOS staging, Chromium  | `workos-contract:contract`: provider behaviours the auth packages depend on, one email-code sign-in in a browser     |
 
 Tests reach the security logic through the seams listed above, not through mocks of framework
 internals. `published-shape` also proves that the gates fail. It plants a type error, a failing
@@ -529,9 +531,36 @@ ports that are not the reference's, a web app alone, and a service alone. Each i
 tarballs and must pass its own `moon ci --force` as generated, with `moon sync` changing nothing.
 The first serves its build through the same HTTP probes, moves to `db`'s peer floors, and proves
 that a feature importing a route fails its `root:lint`, whose configuration resolves the packed
-config packages. No test drives a real
-browser or a live WorkOS environment. The `measured against the live API` comments in
-`packages/auth-workos` and `packages/auth-session` record manual observations.
+config packages. Nothing in `moon ci` drives
+a real browser or a live WorkOS environment.
+
+`packages/workos-contract` does both, outside `moon ci`, against the WorkOS staging environment
+([Run the WorkOS contract tests](maintaining.md#run-the-workos-contract-tests)). Each test in
+`contract/provider.contract.test.ts` checks one behaviour a package depends on. The browser test,
+`contract/sign-in.contract.test.ts`, signs in by email code through the built reference app, has
+one code refused, lands on `/app` with a personal organization, and signs out. It types a code
+minted by the API, which supersedes the one the app emailed.
+
+Some provider behaviours the code depends on are not tested:
+
+- **The rotation replay window.** The concurrent-refresh test proves that returned tokens verify
+  and remain usable. The separate replay-window test skips explicitly if refresh does not rotate;
+  otherwise it waits 26 seconds after the first response and reuses the original token. Measured
+  again on 2026-09-24, staging returned the same refresh token, accepted it after 70 seconds, and
+  returned different access tokens on replay. Neither bound of a rotation replay window can be
+  measured in that environment, nor does it establish identical rotated pairs. The packages'
+  rotation assumptions need validation in an environment configured to rotate.
+- **Rate-limit and 5xx translation.** Provoking a 429 or a 5xx on purpose is abuse of a shared
+  environment.
+- **The Google OAuth callback and `state` round trip.** They need a Google account.
+- **MFA, Radar and SSO-required refusals.** They depend on configuration in the environment rather
+  than on the packages.
+- **JWKS key rotation.** WorkOS controls its timing.
+
+`tests/assumptions.test.ts`, which does run in `moon ci`, fails when a package changes a constant
+the contract measures against, such as `REFRESH_MARGIN_SECONDS`. These source-text checks also
+fail on harmless syntax changes; their source files are explicit Moon inputs. Exporting shared
+constants would avoid that coupling but requires a separate published-package API decision.
 
 ## CI and release
 
@@ -548,6 +577,12 @@ release tag ([Use the shared configuration](guides/shared-config.md)). Tasks mar
 `format-check`, `secrets`, `audit`, `skills-check`, `rls-verify` and `drizzle-check`. `published-shape` runs when
 its inputs change: apps, packages, services, scripts, `.moon`, the root manifests, the lockfile or
 `moon.yml`. A documentation-only change skips it.
+
+`.github/workflows/workos-contract.yml` runs the WorkOS contract suite daily on the default
+branch, and on any branch a maintainer dispatches it on; pull requests do not trigger it. Runs are
+serialized against the shared staging environment. It is the only workflow that reads the WorkOS
+secrets ([CI secrets](maintaining.md#ci-secrets)). It is neither a required check nor part of the
+release gate, and a failed run on the default branch opens an issue.
 
 `.github/workflows/release.yml` runs on pushes to `main`. While changesets are pending, Changesets
 opens or updates the Version Packages pull request. On the commit that merges it, and only when

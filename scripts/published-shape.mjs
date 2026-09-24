@@ -1229,6 +1229,8 @@ async function checkSnapshot() {
   for (const entry of readdirSync(join(snapshot, "packages"))) {
     const directory = join(snapshot, "packages", entry);
     const manifest = JSON.parse(readFileSync(join(directory, "package.json"), "utf8"));
+    // Private members, such as workos-contract, are never published, so there is no tarball to check.
+    if (manifest.private === true) continue;
     const artifact = join(tarballs, `${entry}.tgz`);
     run(directory, "pnpm", ["pack", "--out", artifact]);
     artifacts.set(manifest.name, artifact);

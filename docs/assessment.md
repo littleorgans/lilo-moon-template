@@ -200,7 +200,12 @@ being absent, refresh preserving `org_id`, `external_id_already_used` arriving a
 error, and one-time-code error codes. They are recorded as manual "measured" comments. No test runs
 against a WorkOS staging environment, and no browser-level test signs in. A silent SDK or API change
 would surface in production first. The structural `WorkOSClient` catches type-level SDK changes
-only.
+only. Addressed by roadmap item 14: `packages/workos-contract` tests each of these behaviours
+against the staging environment and signs in by email code in a browser. A daily workflow runs it
+and opens an issue when it fails ([Run the WorkOS contract tests](maintaining.md#run-the-workos-contract-tests)).
+It found that the staging environment does not rotate refresh tokens, which the refresh design
+assumes it does. The rotation replay-window test therefore skips explicitly; the
+[system overview](system-overview.md#testing-strategy) lists what the suite cannot establish.
 
 **U7. The template maintainer is a single point of knowledge.** The docs explain decisions through
 incidents the maintainer lived through, so the reasoning lives with one person and a long narrative.
@@ -302,4 +307,6 @@ Sizes: S is up to half a day, M is one to three days, L is a week or more.
   B8, B9 and B10 come from reading the cited files.
 - The CI and release workflow behavior described in the [system overview](system-overview.md). No
   GitHub Actions run was triggered.
-- Real WorkOS sign-in, email delivery and Supabase hosting were not exercised.
+- Real WorkOS sign-in, email delivery and Supabase hosting were not exercised. Since roadmap item
+  14, `workos-contract:contract` exercises WorkOS sign-in by email code against staging. Delivery
+  of the email itself is still not exercised.
